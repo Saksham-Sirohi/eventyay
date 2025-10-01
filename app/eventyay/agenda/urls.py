@@ -23,6 +23,10 @@ def get_schedule_urls(regex_prefix, name_prefix=''):
             ('.xcal', schedule.ExporterView.as_view(), 'export.schedule.xcal'),
             ('.json', schedule.ExporterView.as_view(), 'export.schedule.json'),
             ('.ics', schedule.ExporterView.as_view(), 'export.schedule.ics'),
+            ('/export/google-calendar', schedule.CalendarRedirectView.as_view(), 'export.google-calendar'),
+            ('/export/my-google-calendar', schedule.CalendarRedirectView.as_view(), 'export.my-google-calendar'),
+            ('/export/webcal', schedule.CalendarRedirectView.as_view(), 'export.webcal'),
+            ('/export/my-webcal', schedule.CalendarRedirectView.as_view(), 'export.my-webcal'),
             ('/export/<name>', schedule.ExporterView.as_view(), 'export'),
             ('/widgets/schedule.json', widget.widget_data, 'widget.data'),
             # Legacy widget data URL, but expected in old widget code.
@@ -42,6 +46,11 @@ urlpatterns = [
                     'widgets/schedule.js',
                     widget.widget_script,
                     name='widget.script',
+                ),
+                path(
+                    'export/<str:name>/<str:token>/',
+                    schedule.ExporterView.as_view(),
+                    name='export-tokenized',
                 ),
                 path('static/event.css', widget.event_css, name='event.css'),
                 path(

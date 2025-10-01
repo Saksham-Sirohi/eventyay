@@ -1,9 +1,12 @@
 import json
 import textwrap
 from contextlib import suppress
-from urllib.parse import unquote
+from urllib.parse import unquote, urlencode, urlparse, urlunparse 
+from datetime import timedelta
 
 from django.contrib import messages
+from django.core import signing
+from django.utils import timezone
 from django.http import (
     Http404,
     HttpResponse,
@@ -25,10 +28,11 @@ from eventyay.common.signals import register_my_data_exporters
 from eventyay.common.views.mixins import EventPermissionRequired, PermissionRequired
 from eventyay.schedule.ascii import draw_ascii_schedule
 from eventyay.schedule.exporters import ScheduleData
-from eventyay.base.models.submission import SubmissionFavouriteDeprecated
 
 
 class ScheduleMixin:
+    MY_STARRED_ICS_TOKEN_SESSION_KEY = 'my_starred_ics_token'
+
     @cached_property
     def version(self):
         if version := self.kwargs.get('version'):
@@ -69,19 +73,66 @@ class ScheduleMixin:
             )
         return super().dispatch(request, *args, **kwargs)
 
+    @staticmethod
+    def generate_ics_token(request, user_id):
+        """Generate a signed token with user ID and 15-day expiry, invalidating previous tokens"""
+        # Clear any existing token from the session
+        key = ScheduleMixin.MY_STARRED_ICS_TOKEN_SESSION_KEY
+        if key in request.session:
+            del request.session[key]
+        
+        # Generate new token
+        expiry = timezone.now() + timedelta(days=15)
+        value = {"user_id": user_id, "exp": int(expiry.timestamp())}
+        token = signing.dumps(value, salt="my-starred-ics")
+        
+        # Store new token in session
+        request.session[key] = token
+        return token
+
+    @staticmethod
+    def parse_ics_token(token):
+        """Parse and validate the token, return user_id if valid"""
+        try:
+            value = signing.loads(token, salt="my-starred-ics", max_age=15*24*60*60)
+            return value["user_id"]
+        except (signing.BadSignature, signing.SignatureExpired, KeyError, ValueError):
+            return None
+    
+    @staticmethod
+    def check_token_expiry(token):
+        """Check if a token exists and has more than 4 days until expiry"""
+        try:
+            value = signing.loads(token, salt="my-starred-ics", max_age=15*24*60*60)
+            expiry_date = timezone.datetime.fromtimestamp(value["exp"], tz=timezone.utc)
+            time_until_expiry = expiry_date - timezone.now()
+            return time_until_expiry >= timedelta(days=4)
+        except Exception:
+            return None
+
 
 class ExporterView(EventPermissionRequired, ScheduleMixin, TemplateView):
     permission_required = 'schedule.list_schedule'
 
     def get(self, request, *args, **kwargs):
         url = resolve(self.request.path_info)
-        if url.url_name == 'export':
+        if url.url_name in ["export", "export-tokenized"]:
             name = url.kwargs.get('name') or unquote(self.request.GET.get('exporter'))
         else:
             name = url.url_name
 
         if name.startswith('export.'):
             name = name[len('export.') :]
+
+        # Handle tokenized access for starred sessions
+        token = kwargs.get('token')
+        if token and "-my" in name:
+            user_id = ScheduleMixin.parse_ics_token(token)
+            if not user_id:
+                raise Http404()
+            # Store user_id in request for exporter filtering
+            request.user_id_for_export = user_id
+
         response = get_schedule_exporter_content(request, name, self.schedule)
         if not response:
             raise Http404()
@@ -226,3 +277,69 @@ class ChangelogView(EventPermissionRequired, TemplateView):
     @context
     def schedules(self):
         return self.request.event.schedules.all().filter(version__isnull=False).select_related('event')
+
+
+class CalendarRedirectView(EventPermissionRequired, ScheduleMixin, TemplateView):
+    """Handles redirects for both Google Calendar and other calendar applications"""
+    permission_required = 'schedule.list_schedule'
+
+    def get(self, request, *args, **kwargs):
+        # Get URL name from resolver
+        url_name = request.resolver_match.url_name if request.resolver_match else None
+        # Determine calendar type and starred status from URL pattern
+        is_google = "google" in url_name
+        is_my = "my" in url_name
+        
+        if is_my:
+            # For starred sessions
+            if not request.user.is_authenticated:
+                login_url = f"{self.request.event.urls.login}?{urlencode({'next': request.get_full_path()})}"
+                return HttpResponseRedirect(login_url)
+            
+            # Check for existing valid token
+            existing_token = request.session.get(self.MY_STARRED_ICS_TOKEN_SESSION_KEY)
+            generate_new_token = True
+            if existing_token:
+                token_status = self.check_token_expiry(existing_token)
+                if token_status is True:
+                    token = existing_token
+                    generate_new_token = False
+            if generate_new_token:
+                token = self.generate_ics_token(request, request.user.id)
+            
+            # Build tokenized URL for starred sessions
+            ics_url = request.build_absolute_uri(
+                reverse('agenda:export-tokenized', kwargs={
+                    'event': self.request.event.slug,
+                    'name': 'schedule-my.ics',
+                    'token': token
+                })
+            )
+        else:
+            # Build public calendar URL
+            ics_url = request.build_absolute_uri(
+                reverse('agenda:export', kwargs={
+                    'event': self.request.event.slug,
+                    'name': 'schedule.ics'
+                })
+            )
+
+        # Handle redirect based on calendar type
+        if is_google:
+            google_url = f"https://calendar.google.com/calendar/render?{urlencode({'cid': ics_url})}"
+            response = HttpResponse(
+                f'<html><head><meta http-equiv="refresh" content="0;url={google_url}"></head>'
+                f'<body><p style="text-align: center; padding:2vw; font-family: Roboto,Helvetica Neue,HelveticaNeue,Helvetica,Arial,sans-serif;">Redirecting to Google Calendar: {google_url}</p><script>window.location.href="{google_url}";</script></body></html>',
+                content_type='text/html'
+            )
+            return response
+
+        # Other calendars use webcal protocol
+        parsed = urlparse(ics_url)
+        webcal_url = urlunparse(('webcal',) + parsed[1:])
+        response = HttpResponse(
+            f'<html><head><meta http-equiv="refresh" content="0;url={webcal_url}"></head>'
+            f'<body><p style="text-align: center; padding:2vw; font-family: Roboto,Helvetica Neue,HelveticaNeue,Helvetica,Arial,sans-serif;">Redirecting to: {webcal_url}</p><script>window.location.href="{webcal_url}";</script></body></html>',
+            content_type='text/html'
+            )
+        return response
