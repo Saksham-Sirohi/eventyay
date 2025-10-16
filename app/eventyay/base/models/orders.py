@@ -432,9 +432,9 @@ class Order(LockModel, LoggedModel):
     def full_code(self):
         """
         An order code which is unique among all events of a single organizer,
-        built by concatenating the event slug and the order code.
+        built by concatenating the event name and the order code.
         """
-        return '{event}-{code}'.format(event=self.event.slug.upper(), code=self.code)
+        return '{event}-{code}'.format(event=str(self.event.name), code=self.code)
 
     @property
     def changable(self):
