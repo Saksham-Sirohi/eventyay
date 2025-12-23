@@ -871,10 +871,8 @@ class EventAuth(View):
 @method_decorator(iframe_entry_view_wrapper, 'dispatch')
 class JoinOnlineVideoView(EventViewMixin, View):
     def get(self, request, *args, **kwargs):
-        # First check if video plugin is installed and values is set
         if (
-            'pretix_venueless' not in self.request.event.get_plugins()
-            or not self.request.event.settings.venueless_url
+            not self.request.event.settings.venueless_url
             or not self.request.event.settings.venueless_issuer
             or not self.request.event.settings.venueless_audience
             or not self.request.event.settings.venueless_secret
