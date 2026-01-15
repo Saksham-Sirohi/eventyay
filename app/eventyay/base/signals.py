@@ -44,22 +44,22 @@ def resolve_app_for_module(module_path: str):
 def check_plugin_active(sender, app, is_core_module, excluded_plugins, get_plugin_list_callable):
     """
     Shared helper to determine if a plugin/core module should be active.
-    
+
     This centralizes the enable/disable logic:
-    - If app.name is in sender.available_plugins → it's a plugin, must be enabled
-    - If app.name is NOT in sender.available_plugins → it's a pure core module, always active
-    - All are subject to exclusion list and compatibility checks
-    
-    Args:
-        sender: Event instance or None
-        app: Django AppConfig or None
-        is_core_module: Boolean indicating if this is a core module by path
-        excluded_plugins: List of excluded plugin names
-        get_plugin_list_callable: Callable that accepts sender and returns plugin list
-                                  (e.g., lambda s: s.get_plugins() or lambda s: s.plugin_list)
-    
-    Returns:
-        Boolean indicating if the receiver should be active
+
+    - If ``app.name`` is in ``sender.available_plugins`` it is a plugin and must be enabled.
+    - If ``app.name`` is not in ``sender.available_plugins`` it is a pure core module and is
+      always active.
+    - All are subject to the exclusion list and compatibility checks.
+
+    :param sender: Event instance or ``None``.
+    :param app: Django ``AppConfig`` or ``None``.
+    :param bool is_core_module: Whether this module is core by path.
+    :param excluded_plugins: List of excluded plugin names.
+    :param get_plugin_list_callable: Callable accepting ``sender`` and returning plugin list.
+        For example: ``lambda s: s.get_plugins()`` or ``lambda s: s.plugin_list``.
+    :return: ``True`` if the receiver should be active.
+    :rtype: bool
     """
     # If no sender (no event context) and it's a core module, allow it
     # This handles core modules that work outside of event context

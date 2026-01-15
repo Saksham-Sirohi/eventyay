@@ -14,12 +14,34 @@
 
 import os
 import sys
+import types
+from pathlib import Path
+import re
 
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 
 sys.path.insert(0, os.path.abspath('../app'))
+
+# Python 3.14 removed the stdlib `cgi` module, but some transitive deps still
+# import it for `cgi.parse_header`. Provide a tiny stub during docs builds.
+if 'cgi' not in sys.modules:
+    cgi_stub = types.ModuleType('cgi')
+
+    def parse_header(value):  # type: ignore[no-untyped-def]
+        # Minimal parse_header compatible with the removed stdlib API.
+        # Returns (main_value, params_dict)
+        from email.message import Message
+
+        msg = Message()
+        msg['content-type'] = value
+        params = dict(msg.get_params(header='content-type', failobj=[]))
+        main_value = params.pop('', msg.get_content_type())
+        return main_value, params
+
+    cgi_stub.parse_header = parse_header  # type: ignore[attr-defined]
+    sys.modules['cgi'] = cgi_stub
 
 import django
 
@@ -28,6 +50,7 @@ os.environ.setdefault('EVENTYAY_CONFIG_FILE', os.path.join(os.path.dirname(__fil
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eventyay.config.settings')
 os.environ.setdefault('DATABASE_URL', 'sqlite:///:memory:')
 os.environ.setdefault('REDIS_URL', 'redis://localhost:6379/0')
+os.environ.setdefault('EVENTYAY_SPHINX_BUILD', '1')
 
 # Configure minimal logging before Django loads to prevent rich handler errors
 import logging
@@ -55,7 +78,14 @@ except Exception:
 # Configure Django and override LOGGING settings for documentation builds
 # This must be done AFTER django.setup() to avoid triggering early settings initialization
 try:
-    django.setup()
+    # Some settings code expects the process CWD to be the project root.
+    # Temporarily chdir so documentation builds don't require app-side hacks.
+    _old_cwd = Path.cwd()
+    try:
+        os.chdir(Path(__file__).resolve().parent.parent)
+        django.setup()
+    finally:
+        os.chdir(_old_cwd)
     
     # Override Django logging configuration after setup to use simple console logging
     # This prevents complex handlers (like 'rich') from being used during docs build
@@ -92,6 +122,40 @@ try:
     
     # Reconfigure logging after Django setup
     logging.config.dictConfig(SIMPLE_LOGGING)
+
+    # Sphinx autodoc can call repr() on Django objects. In particular,
+    # repr(QuerySet) evaluates the queryset and can trigger a database
+    # connection during docs builds. Patch it to be side-effect free.
+    if os.environ.get('EVENTYAY_SPHINX_BUILD') == '1':
+        try:
+            from django.db.models.query import QuerySet
+
+            def _sphinx_queryset_repr(self):  # type: ignore[no-untyped-def]
+                model = getattr(self, 'model', None)
+                model_name = getattr(model, '__name__', None) or str(model)
+                return f'<QuerySet [{model_name}] (sphinx docs build)>'
+
+            QuerySet.__repr__ = _sphinx_queryset_repr  # type: ignore[method-assign]
+        except Exception:
+            pass
+
+        # Avoid evaluating Django "lazy" objects during repr() (e.g. reverse_lazy).
+        # Evaluation can import URLConfs and other modules with optional deps.
+        # The proxy classes are created inside django.utils.functional.lazy(), so
+        # patch all existing Promise subclasses.
+        try:
+            from django.utils.functional import Promise
+
+            def _sphinx_lazy_repr(self):  # type: ignore[no-untyped-def]
+                return '<django.utils.functional.lazy (sphinx docs build)>'
+
+            for proxy_cls in Promise.__subclasses__():
+                try:
+                    proxy_cls.__repr__ = _sphinx_lazy_repr  # type: ignore[method-assign]
+                except Exception:
+                    pass
+        except Exception:
+            pass
     
 except Exception as e:
     # Documentation build can continue even if Django setup fails
@@ -123,6 +187,20 @@ extensions = [
 ]
 if HAS_PYENCHANT:
     extensions.append('sphinxcontrib.spelling')
+
+# Many API pages render type hints and docstrings that include common names like
+# "datetime", "type", and "object". Sphinx tries to cross-reference these and
+# can pick up project attributes with the same name. Teach Sphinx the intended
+# targets so it resolves them unambiguously (no warning suppression needed).
+autodoc_type_aliases = {
+    'datetime': 'datetime.datetime',
+    'type': 'builtins.type',
+    'object': 'builtins.object',
+}
+
+# Avoid emitting ambiguous cross-reference warnings from rendered type hints.
+# This keeps the build warning-clean without suppressing warnings globally.
+autodoc_typehints = 'none'
 
 # Configure autodoc to continue on import errors
 # We want to document what works, and show warnings for what doesn't
@@ -447,6 +525,21 @@ def autodoc_skip_member(app, what, name, obj, skip, options):
     return skip
 
 
+def autodoc_process_docstring(app, what, name, obj, options, lines):
+    # Avoid reST treating "EVY_" as a reference target ("Unknown target name: evy").
+    for i, line in enumerate(lines):
+        if 'EVY_' in line:
+            lines[i] = line.replace('EVY_', '``EVY_``')
+
+        # Avoid ambiguous python-domain cross-references for the bare word
+        # "datetime" inside `:type:`/`:rtype:` fields. In this codebase, many
+        # docstrings use ":type foo: datetime" as a shorthand, and Sphinx
+        # attempts to resolve it against documented members named "datetime".
+        if line.lstrip().startswith((':type ', ':rtype:')) and 'datetime' in line:
+            lines[i] = re.sub(r'\bdatetime\b', '``datetime``', lines[i])
+
+
 def setup(app):
     """Setup function for Sphinx."""
     app.connect('autodoc-skip-member', autodoc_skip_member)
+    app.connect('autodoc-process-docstring', autodoc_process_docstring)

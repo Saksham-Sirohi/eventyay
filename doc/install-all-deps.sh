@@ -26,6 +26,7 @@ pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
     "Django>=5.2.5" django-allauth django-appconf django-bootstrap3 \
     django-celery-beat django-compressor django-context-decorator django-cors-headers \
     django-countries django-csp django-filter django-formset-js-improved django-formtools \
+    django-crispy-forms crispy-bootstrap4 \
     django-hierarkey django-hijack django-i18nfield django-jquery-js django-libsass \
     django-localflavor django-markup django-multifactor django-oauth-toolkit django-otp \
     django-pdb django-phonenumber-field django-redis django-scopes django-sso \
@@ -41,13 +42,13 @@ pip install --trusted-host pypi.org --trusted-host files.pythonhosted.org \
     pdf2image pdfrw pep8-naming phonenumberslite pillow pluggy polib potypo \
     prompt-toolkit propcache protobuf "psycopg[binary,pool]" publicsuffixlist \
     pyasn1 pyasn1-modules pycodestyle pycountry pycparser pycryptodome \
-    pydantic pydantic-core pyenchant pyflakes pygments pyjwt \
+    pydantic pydantic-core pydantic-settings pyenchant pyflakes pygments pyjwt \
     pyopenssl pyotp pyparsing pypdf pypng \
     python-bidi python-creole python-crontab python-dateutil python-http-client \
     python-stdnum python-u2flib-server pytz pyuca pyvat pyyaml \
     qrcode rcssmin redis referencing reportlab requests \
     rjsmin rpds-py rules \
-    sepaxml sendgrid sentry-sdk service-identity setuptools six slimit sortedcontainers sqlparse \
+    sepaxml sendgrid sentry-sdk service-identity setuptools six sortedcontainers sqlparse \
     static3 stripe text-unidecode tlds tqdm txaio twisted typing-extensions tzdata \
     u-msgpack-python ua-parser urlman vat-moss-forked vobject wcwidth webauthn webencodings \
     websockets werkzeug xmlschema yarl zipp zope-interface zxcvbn
