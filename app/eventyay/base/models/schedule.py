@@ -549,11 +549,19 @@ class Schedule(PretalxModel):
             notifications = render_notifications(data, event=self.event, speaker=speaker, locale=locale)
             slots = list(data.get('create') or []) + [talk['new_slot'] for talk in (data.get('update') or [])]
             submissions = [slot.submission for slot in slots]
+            # Use the first slot/submission for context (for multi-talk speakers)
+            primary_slot = slots[0] if slots else None
+            primary_submission = submissions[0] if submissions else None
+            context_kwargs = {'user': speaker}
+            if primary_submission:
+                context_kwargs['submission'] = primary_submission
+            if primary_slot:
+                context_kwargs['slot'] = primary_slot
             mails.append(
                 self.event.get_mail_template(MailTemplateRoles.NEW_SCHEDULE).to_mail(
                     user=speaker,
                     event=self.event,
-                    context_kwargs={'user': speaker},
+                    context_kwargs=context_kwargs,
                     context={'notifications': notifications},
                     commit=save,
                     locale=locale,

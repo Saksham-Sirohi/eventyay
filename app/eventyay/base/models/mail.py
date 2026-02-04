@@ -49,7 +49,7 @@ PLACEHOLDER_KWARGS = {
     MailTemplateRoles.NEW_SPEAKER_INVITE: ['submission', 'event', 'user'],
     MailTemplateRoles.EXISTING_SPEAKER_INVITE: ['submission', 'event', 'user'],
     MailTemplateRoles.QUESTION_REMINDER: ['event', 'user'],
-    MailTemplateRoles.NEW_SCHEDULE: ['event', 'user'],
+    MailTemplateRoles.NEW_SCHEDULE: ['event', 'user', 'submission', 'slot'],
 }
 
 
