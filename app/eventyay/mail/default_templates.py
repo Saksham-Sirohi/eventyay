@@ -99,17 +99,17 @@ your {event_name} CfP system.
 """
     )
 )
-UPDATE_SUBJECT = LazyI18nString.from_gettext(
+MODIFIED_SUBMISSION_SUBJECT = LazyI18nString.from_gettext(
     _("[{event_name}] A talk has been modified: {submission_title}")
 )
-UPDATE_TEXT = LazyI18nString.from_gettext(
+MODIFIED_SUBMISSION_TEXT = LazyI18nString.from_gettext(
     _(
         """Hi,
 
 the proposal "{submission_title}" for your event {event_name} has been modified.
 You can see details at
 
-{orga_url}
+{event_url}
 
 All the best,
 your {event_name} CfP system.
