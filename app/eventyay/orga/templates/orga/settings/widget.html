@@ -72,7 +72,7 @@
             {% endblocktranslate %}
         </p>
         <pre id="widget-body">
-&lt;pretalx-schedule event-url="{{ request.event.urls.base.full }}" locale="LOCALE" format="FORMAT" style="--pretalx-clr-primary: {{ request.event.visible_primary_color }}"FILTER_DAYS>&lt;/pretalx-schedule>
+&lt;pretalx-schedule event-url="{{ request.event.urls.base.full }}" locale="LOCALE" style="--pretalx-clr-primary: {{ request.event.visible_primary_color }}"FILTER_DAYS>&lt;/pretalx-schedule>
 &lt;noscript>
    &lt;div class="pretalx-widget">
         &lt;div class="pretalx-widget-info-message">
@@ -90,19 +90,23 @@
                 Please look at <a href="{{ link }}">our documentation</a> for more information.
             {% endblocktranslate %}
         </p>
+        {% if request.event.is_public and request.event|get_feature_flag:"show_schedule" and request.event.current_schedule and not request.event.custom_domain %}
+            <div class="mw-100 orga-widget-preview">
+                <h2>{% translate "Widget preview" %}</h2>
+                <p>
+                    {% blocktranslate trimmed %}
+                        This preview uses the widget language and day filter selected above:
+                    {% endblocktranslate %}
+                </p>
+                <div id="widget-preview-mount"
+                     data-event-url="{{ request.event.urls.base }}"
+                     data-primary-color="{{ request.event.visible_primary_color|default:'#2185d0' }}"></div>
+            </div>
+        {% endif %}
     </div>
 
     {% if request.event.is_public and request.event|get_feature_flag:"show_schedule" and request.event.current_schedule and not request.event.custom_domain %}
-        <div class="mw-100 orga-widget-preview">
-            <h2>{% translate "Widget preview" %}</h2>
-            <p>
-                {% blocktranslate trimmed %}
-                    This is roughly what your widget will look like if you choose the grid format:
-                {% endblocktranslate %}
-            </p>
-            <pretalx-schedule event-url="{{ request.event.urls.base }}" locale="{{ request.event.locale }}" style="--pretalx-clr-primary: {{ request.event.visible_primary_color|default:'#2185d0' }}"></pretalx-schedule>
-      </div>
-   {% vite_app_scripts 'schedule' 'src/main-wc.js' fallback=request.event.urls.schedule_widget_script %}
+        {% vite_app_scripts 'schedule' 'src/main-wc.js' fallback=request.event.urls.schedule_widget_script %}
         <noscript>
            <div class="pretalx-widget">
                 <div class="pretalx-widget-info-message">

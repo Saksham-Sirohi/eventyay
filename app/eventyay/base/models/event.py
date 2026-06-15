@@ -212,7 +212,6 @@ def default_feature_flags():
 
 def default_display_settings():
     return {
-        'schedule': 'grid',
         'imprint_url': None,
         'header_pattern': '',
         'html_export_url': '',

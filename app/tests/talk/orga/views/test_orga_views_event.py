@@ -23,7 +23,6 @@ def get_settings_form_data(event):
         "content_locales": ",".join(event.content_locales),
         "timezone": event.timezone,
         "primary_color": event.primary_color or "",
-        "schedule": event.display_settings["schedule"],
         "show_featured": event.feature_flags["show_featured"],
         "use_feedback": event.feature_flags["use_feedback"],
         "header-links-TOTAL_FORMS": 0,

@@ -302,10 +302,6 @@ class ScheduleView(PermissionRequired, ScheduleMixin, TemplateView):
     def is_sessions_page(self):
         return self.request.path.endswith('/sessions/')
 
-    @context
-    def show_talk_list(self):
-        return self.is_sessions_page() or self.request.event.display_settings['schedule'] == 'list'
-
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         schedule = ctx.get('schedule')

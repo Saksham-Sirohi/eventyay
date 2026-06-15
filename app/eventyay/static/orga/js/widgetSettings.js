@@ -1,27 +1,41 @@
 document
     .querySelector("button#generate-widget")
-    .addEventListener("click", (event) => {
-        document.querySelector("#widget-generation").classList.add("d-none")
-        document.querySelector("#generated-widget").classList.remove("d-none")
+    ?.addEventListener("click", () => {
+        document.querySelector("#widget-generation")?.classList.add("d-none")
+        document.querySelector("#generated-widget")?.classList.remove("d-none")
         const secondPre = document.querySelector("pre#widget-body")
-        secondPre.innerHTML = secondPre.innerHTML.replace(
-            "LOCALE",
-            document.querySelector("#id_locale").value,
-        )
-        secondPre.innerHTML = secondPre.innerHTML.replace(
-            "FORMAT",
-            document.querySelector("#id_schedule_display").value,
-        )
-        const days = Array.from(document.querySelector("#id_days").querySelectorAll("option:checked"),e=>e.value)
+        const localeEl = document.querySelector("#id_locale")
+        const daysEl = document.querySelector("#id_days")
+        if (!secondPre || !localeEl) return
+
+        const locale = localeEl.value
+        secondPre.innerHTML = secondPre.innerHTML.replace("LOCALE", locale)
+
+        const days = daysEl
+            ? Array.from(daysEl.querySelectorAll("option:checked"), (option) => option.value)
+            : []
         if (days.length) {
             secondPre.innerHTML = secondPre.innerHTML.replace(
                 "FILTER_DAYS",
                 ` date-filter="${days.join(",")}"`
             )
         } else {
-            secondPre.innerHTML = secondPre.innerHTML.replace(
-                "FILTER_DAYS",
-                ""
-            )
+            secondPre.innerHTML = secondPre.innerHTML.replace("FILTER_DAYS", "")
         }
+
+        const previewMount = document.querySelector("#widget-preview-mount")
+        if (!previewMount) return
+
+        previewMount.replaceChildren()
+        const schedule = document.createElement("pretalx-schedule")
+        schedule.setAttribute("event-url", previewMount.dataset.eventUrl)
+        schedule.setAttribute("locale", locale)
+        schedule.style.setProperty(
+            "--pretalx-clr-primary",
+            previewMount.dataset.primaryColor || "#2185d0"
+        )
+        if (days.length) {
+            schedule.setAttribute("date-filter", days.join(","))
+        }
+        previewMount.appendChild(schedule)
     })

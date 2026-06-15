@@ -1,5 +1,5 @@
 <template lang="pug">
-.pretalx-schedule(:style="{'--scrollparent-width': scrollParentWidth + 'px', '--schedule-max-width': scheduleMaxWidth + 'px', '--pretalx-sticky-date-offset': '0px'}", :class="isSpeakerView ? ['speaker-view'] : isTalkView ? ['talk-view'] : sessionsMode ? ['sessions-view', 'list-schedule'] : showGrid ? ['grid-schedule'] : ['list-schedule']")
+.pretalx-schedule(:style="{'--scrollparent-width': scrollParentWidth + 'px', '--schedule-max-width': scheduleMaxWidth + 'px', '--pretalx-sticky-date-offset': '0px'}", :class="isSpeakerView ? ['speaker-view'] : isTalkView ? ['talk-view'] : sessionsMode ? ['sessions-view', 'list-schedule'] : ['grid-schedule']")
 	template(v-if="scheduleError")
 		.schedule-error
 			.error-message An error occurred while loading the schedule. Please try again later.
@@ -47,7 +47,7 @@
 			@saveTimezone="saveTimezone",
 			@toggleSessionsMode="sessionsMode = !sessionsMode",
 			@setTimeDensityMinutes="setTimeDensityMinutes($event)")
-		grid-schedule-wrapper(v-if="showGrid && !sessionsMode",
+		grid-schedule-wrapper(v-if="!sessionsMode",
 			:sessions="sessions",
 			:rooms="rooms",
 			:days="days",
@@ -164,10 +164,6 @@ export default {
 	props: {
 		eventUrl: String,
 		locale: String,
-		format: {
-			type: String,
-			default: 'grid'
-		},
 		version: {
 			type: String,
 			default: ''
@@ -319,10 +315,6 @@ export default {
 		},
 		scheduleMaxWidth () {
 			return this.schedule ? Math.min(this.scrollParentWidth, 78 + this.schedule.rooms.length * 365) : this.scrollParentWidth
-		},
-		showGrid () {
-			// Always allow a distinct calendar grid view when not explicitly in list format
-			return this.format !== 'list'
 		},
 		roomsLookup () {
 			if (!this.schedule) return {}

@@ -33,11 +33,6 @@ from eventyay.base.models import ReviewPhase, ReviewScore, ReviewScoreCategory
 
 ENCRYPTED_PASSWORD_PLACEHOLDER = '*' * 24
 
-SCHEDULE_DISPLAY_CHOICES = (
-    ('grid', _('Grid')),
-    ('list', _('List')),
-)
-
 
 class EventForm(ReadOnlyFlag, I18nHelpText, JsonSubfieldMixin, I18nModelForm):
     custom_css_text = forms.CharField(
@@ -57,11 +52,6 @@ class EventForm(ReadOnlyFlag, I18nHelpText, JsonSubfieldMixin, I18nModelForm):
         label=_('Show schedule publicly'),
         help_text=_('Unset to hide your schedule, e.g. if you want to use the HTML export exclusively.'),
         required=False,
-    )
-    schedule = forms.ChoiceField(
-        label=phrases.orga.event_schedule_format_label,
-        choices=SCHEDULE_DISPLAY_CHOICES,
-        required=True,
     )
     show_featured = forms.ChoiceField(
         label=_('Show featured sessions'),
@@ -180,7 +170,6 @@ class EventForm(ReadOnlyFlag, I18nHelpText, JsonSubfieldMixin, I18nModelForm):
         json_fields = {
             'imprint_url': 'display_settings',
             'show_schedule': 'feature_flags',
-            'schedule': 'display_settings',
             'show_featured': 'feature_flags',
             'use_feedback': 'feature_flags',
             'session_popularity_enabled': 'feature_flags',
@@ -413,11 +402,6 @@ class WidgetSettingsForm(JsonSubfieldMixin, forms.Form):
 
 
 class WidgetGenerationForm(forms.ModelForm):
-    schedule_display = forms.ChoiceField(
-        label=phrases.orga.event_schedule_format_label,
-        choices=SCHEDULE_DISPLAY_CHOICES,
-        required=True,
-    )
     days = forms.MultipleChoiceField(
         label=_('Limit days'),
         choices=[],
@@ -432,7 +416,7 @@ class WidgetGenerationForm(forms.ModelForm):
         event = self.instance
         self.fields['days'].choices = [
             (
-                event.date_from + dt.timedelta(days=i),
+                (event.date_from + dt.timedelta(days=i)).isoformat(),
                 event.date_from + dt.timedelta(days=i),
             )
             for i in range(event.duration)

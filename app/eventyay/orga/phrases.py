@@ -10,7 +10,6 @@ class OrgaPhrases(Phrases, app='orga'):
     event_header_pattern_help_text = _(
         'Choose how the frontpage header banner will be styled. Pattern source: <a href="http://www.heropatterns.com/">heropatterns.com</a>, CC BY 4.0.'
     )
-    event_schedule_format_label = _('Schedule display format')
     proposal_id_help_text = _('The unique ID of a proposal is used in the proposal URL and in exports')
     password_reset_success = _('The password was reset and the user was notified.')
     password_reset_fail = (_('The password reset email could not be sent, so the password was not reset.'),)
