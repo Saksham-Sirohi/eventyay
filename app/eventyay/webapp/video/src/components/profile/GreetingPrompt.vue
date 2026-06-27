@@ -1,5 +1,5 @@
 <template lang="pug">
-prompt.c-profile-greeting-prompt(:allowCancel="false")
+prompt.c-profile-greeting-prompt(:allowCancel="false", :scrollable="false")
 	.content
 		connect-gravatar(v-if="showConnectGravatar", @change="setGravatar", @close="showConnectGravatar = false")
 		.step-connect-social(v-else-if="activeStep === 'connectSocial'")
@@ -179,6 +179,8 @@ export default {
 		position: relative
 		padding: 16px
 		min-height: 0
+		max-height: calc(var(--vh100) - 32px)
+		overflow: hidden
 		h1
 			margin: 8px 0
 			text-align: center

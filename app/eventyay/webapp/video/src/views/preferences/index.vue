@@ -25,7 +25,7 @@
 	.ui-form-actions
 		bunt-button#btn-save(:disabled="v$.$invalid && v$.$dirty", :loading="saving", @click="save") {{ $t('preferences/index:btn-save:label') }}
 	transition(name="prompt")
-		prompt.change-avatar-prompt(v-if="showChangeAvatar", @close="showChangeAvatar = false")
+		prompt.change-avatar-prompt(v-if="showChangeAvatar", :scrollable="false", @close="showChangeAvatar = false")
 			.content
 				change-avatar(ref="avatar", v-model="profile.avatar", :profile="profile", @blockSave="blockSave = $event")
 				.actions
@@ -161,6 +161,12 @@ export default {
 			flex-direction: column
 			padding: 48px 32px 32px
 			min-height: 0
+			max-height: calc(var(--vh100) - 32px)
+			overflow: hidden
+		.c-change-avatar
+			flex: 1 1 auto
+			min-height: 0
+			overflow-y: auto
 		.actions
 			margin-top: 32px
 			align-self: stretch

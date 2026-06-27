@@ -9,7 +9,7 @@
 		.file-error(v-if="fileError")
 			.mdi.mdi-alert-octagon
 			.message {{ fileError }}
-		Cropper(v-else-if="avatarImage", ref="cropperRef", class="cropper", :stencilComponent="CircleStencil", :src="avatarImage", :stencilProps="{aspectRatio: '1/1'}", :sizeRestrictionsAlgorithm="pixelsRestrictions")
+		Cropper(v-else-if="avatarImage", ref="cropperRef", class="cropper", :stencilComponent="CircleStencil", :src="avatarImage", :stencilProps="{aspectRatio: '1/1'}", :sizeRestrictionsAlgorithm="pixelsRestrictions", :resizeImage="{adjustStencil: false}", @ready="refreshCropper")
 		identicon(v-else, :user="identiconUser", @click="changeIdenticon")
 </template>
 <script setup>
@@ -101,6 +101,7 @@ function fileSelected(event) {
 				changedImage.value = true
 				nextTick(() => {
 					avatarImage.value = readerEvent.target.result
+					refreshCropper()
 				})
 			}
 		}
@@ -115,6 +116,12 @@ function pixelsRestrictions({ minWidth, minHeight, maxWidth, maxHeight }) {
 		maxWidth,
 		maxHeight,
 	}
+}
+
+function refreshCropper() {
+	nextTick(() => {
+		cropperRef.value?.refresh?.()
+	})
 }
 
 async function update() {
@@ -217,10 +224,6 @@ defineExpose({ update })
 .c-change-avatar
 	display: flex
 	flex-direction: column
-	flex: 1 1 auto
-	min-height: 0
-	overflow-y: auto
-	align-items: center
 	.upload-info
 		font-size: 12px
 		color: rgba(0, 0, 0, 0.6)
@@ -230,6 +233,7 @@ defineExpose({ update })
 		border-left: 3px solid var(--clr-primary, #2185d0)
 		border-radius: 2px
 		line-height: 1.5
+	align-items: center
 	.c-identicon
 		cursor: pointer
 		height: 128px
@@ -246,11 +250,16 @@ defineExpose({ update })
 	.btn-upload .bunt-button
 		themed-button-primary()
 	.image-wrapper
-		flex: 0 0 auto
+		flex: auto
 		display: flex
 		flex-direction: column
 		align-items: center
 		justify-content: center
+		height: calc(80vh - 230px)
+		max-height: 320px
+		min-height: 160px
+		+below('m')
+			height: calc(95vh - 230px)
 	.file-error
 		width: 320px
 		height: 320px
@@ -259,17 +268,10 @@ defineExpose({ update })
 		color: $clr-danger
 		align-items: center
 		justify-content: center
-		+below('m')
-			width: 280px
-			height: 280px
 		.mdi
 			font-size: 64px
 	.cropper
 		width: 320px
 		height: 320px
-		flex-shrink: 0
 		background-color: $clr-grey-900
-		+below('m')
-			width: 280px
-			height: 280px
 </style>
