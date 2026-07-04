@@ -36,6 +36,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import Paragraph
 
+from eventyay.base.admission_validity import format_issued_admission_validity
 from eventyay.base.i18n import language
 from eventyay.base.invoice import ThumbnailingImageReader
 from eventyay.base.models import Order, OrderPosition, Question
@@ -139,6 +140,16 @@ DEFAULT_VARIABLES = OrderedDict(
                 'editor_sample': _('Ticket category'),
                 'evaluate': lambda orderposition, order, event: (
                     str(orderposition.product.category.name) if orderposition.product.category else ''
+                ),
+            },
+        ),
+        (
+            'ticket_validity',
+            {
+                'label': _('Ticket validity'),
+                'editor_sample': _('May 31st, 2025 – June 1st, 2025'),
+                'evaluate': lambda orderposition, order, event: format_issued_admission_validity(
+                    orderposition, event, fallback_to_event=True
                 ),
             },
         ),
@@ -772,6 +783,10 @@ class Renderer:
         pdfmetrics.registerFont(TTFont('Open Sans I', finders.find('fonts/OpenSans-Italic.ttf')))
         pdfmetrics.registerFont(TTFont('Open Sans B', finders.find('fonts/OpenSans-Bold.ttf')))
         pdfmetrics.registerFont(TTFont('Open Sans B I', finders.find('fonts/OpenSans-BoldItalic.ttf')))
+        try:
+            pdfmetrics.registerFont(TTFont('AND', finders.find('fonts/AND-Regular.ttf')))
+        except Exception:
+            pass
 
         try:
             pdfmetrics.registerFont(TTFont('NotoNaskhArabic', finders.find('fonts/NotoNaskhArabic-Regular.ttf')))
@@ -1046,6 +1061,25 @@ class Renderer:
             self._style_cache = {}
 
         text_content = self._get_text_content(op, order, o) or ''
+
+        def font_supports_text(font_name, text):
+            try:
+                font_obj = pdfmetrics.getFont(font_name)
+                if hasattr(font_obj, 'face') and hasattr(font_obj.face, 'charToGlyph'):
+                    return all(ord(char) < 32 or ord(char) in font_obj.face.charToGlyph for char in text)
+            except Exception:
+                pass
+            return False
+
+        if not font_supports_text(font, text_content):
+            if font_supports_text('AND', text_content):
+                font = 'AND'
+            else:
+                import text_unidecode
+                text_content = text_unidecode.unidecode(text_content)
+                if not font_supports_text(font, text_content):
+                    font = 'AND'
+
         fontsize = float(o['fontsize'])
         if o.get('autofit_width'):
             fontsize = self._fit_fontsize_to_width(text_content, font, fontsize, o['width'])

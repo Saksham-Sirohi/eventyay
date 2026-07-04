@@ -3,7 +3,9 @@ from decimal import Decimal
 from urllib.parse import urlencode
 
 from django import forms
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.files.uploadedfile import UploadedFile
 from django.db.models import Max
 from django.forms.formsets import DELETION_FIELD_NAME
 from django.urls import reverse
@@ -21,9 +23,6 @@ from django_scopes.forms import (
     SafeModelMultipleChoiceField,
 )
 from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
-
-from django.conf import settings
-from django.core.files.uploadedfile import UploadedFile
 
 from eventyay.base.channels import get_all_sales_channels
 from eventyay.base.forms import I18nFormSet, I18nModelForm
@@ -706,6 +705,7 @@ class ProductUpdateForm(I18nModelForm):
                     _('Gift card products should not be admission products at the same time.'),
                 )
         clean_free_price_bounds(d, form=self)
+        Product.clean_admission_validity_data(d)
 
         return d
 
@@ -771,6 +771,11 @@ class ProductUpdateForm(I18nModelForm):
             'tax_rule',
             'available_from',
             'available_until',
+            'admission_validity_mode',
+            'admission_valid_from',
+            'admission_valid_until',
+            'admission_valid_from_offset_minutes',
+            'admission_valid_until_offset_minutes',
             'require_voucher',
             'require_approval',
             'hide_without_voucher',
@@ -790,11 +795,15 @@ class ProductUpdateForm(I18nModelForm):
         field_classes = {
             'available_from': SplitDateTimeField,
             'available_until': SplitDateTimeField,
+            'admission_valid_from': SplitDateTimeField,
+            'admission_valid_until': SplitDateTimeField,
             'hidden_if_available': SafeModelChoiceField,
         }
         widgets = {
             'available_from': SplitDateTimePickerWidget(),
             'available_until': SplitDateTimePickerWidget(attrs={'data-date-after': '#id_available_from_0'}),
+            'admission_valid_from': SplitDateTimePickerWidget(),
+            'admission_valid_until': SplitDateTimePickerWidget(attrs={'data-date-after': '#id_admission_valid_from_0'}),
             'generate_tickets': TicketNullBooleanSelect(),
             'show_quota_left': ShowQuotaNullBooleanSelect(),
         }
@@ -853,6 +862,11 @@ class ProductVariationForm(I18nModelForm):
         super().__init__(*args, **kwargs)
         change_decimal_field(self.fields['default_price'], self.event.currency)
 
+    def clean(self):
+        cleaned_data = super().clean()
+        Product.clean_admission_validity_data(cleaned_data)
+        return cleaned_data
+
     class Meta:
         model = ProductVariation
         localized_fields = '__all__'
@@ -862,7 +876,20 @@ class ProductVariationForm(I18nModelForm):
             'default_price',
             'original_price',
             'description',
+            'admission_validity_mode',
+            'admission_valid_from',
+            'admission_valid_until',
+            'admission_valid_from_offset_minutes',
+            'admission_valid_until_offset_minutes',
         ]
+        field_classes = {
+            'admission_valid_from': SplitDateTimeField,
+            'admission_valid_until': SplitDateTimeField,
+        }
+        widgets = {
+            'admission_valid_from': SplitDateTimePickerWidget(),
+            'admission_valid_until': SplitDateTimePickerWidget(),
+        }
 
 
 class ProductAddOnsFormSet(I18nFormSet):

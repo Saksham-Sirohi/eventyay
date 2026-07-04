@@ -39,6 +39,11 @@ class InlineProductVariationSerializer(I18nAwareModelSerializer):
             'default_price',
             'price',
             'original_price',
+            'admission_validity_mode',
+            'admission_valid_from',
+            'admission_valid_until',
+            'admission_valid_from_offset_minutes',
+            'admission_valid_until_offset_minutes',
         )
 
 
@@ -56,7 +61,19 @@ class ProductVariationSerializer(I18nAwareModelSerializer):
             'default_price',
             'price',
             'original_price',
+            'admission_validity_mode',
+            'admission_valid_from',
+            'admission_valid_until',
+            'admission_valid_from_offset_minutes',
+            'admission_valid_until_offset_minutes',
         )
+
+    def validate(self, data):
+        data = super().validate(data)
+        full_data = self.to_internal_value(self.to_representation(self.instance)) if self.instance else {}
+        full_data.update(data)
+        Product.clean_admission_validity_data(full_data)
+        return data
 
 
 class InlineProductBundleSerializer(serializers.ModelSerializer):
@@ -177,6 +194,11 @@ class ProductSerializer(I18nAwareModelSerializer):
             'tax_rate',
             'tax_rule',
             'admission',
+            'admission_validity_mode',
+            'admission_valid_from',
+            'admission_valid_until',
+            'admission_valid_from_offset_minutes',
+            'admission_valid_until_offset_minutes',
             'position',
             'picture',
             'available_from',
@@ -214,18 +236,22 @@ class ProductSerializer(I18nAwareModelSerializer):
                 )
             )
 
-        Product.clean_per_order(data.get('min_per_order'), data.get('max_per_order'))
-        Product.clean_available(data.get('available_from'), data.get('available_until'))
+        full_data = self.to_internal_value(self.to_representation(self.instance)) if self.instance else {}
+        full_data.update(data)
 
-        if data.get('issue_giftcard'):
-            if data.get('tax_rule') and data.get('tax_rule').rate > 0:
+        Product.clean_per_order(full_data.get('min_per_order'), full_data.get('max_per_order'))
+        Product.clean_available(full_data.get('available_from'), full_data.get('available_until'))
+        Product.clean_admission_validity_data(full_data)
+
+        if full_data.get('issue_giftcard'):
+            if full_data.get('tax_rule') and full_data.get('tax_rule').rate > 0:
                 raise ValidationError(
                     _(
                         'Gift card products should not be associated with non-zero tax rates since sales tax will be '
                         'applied when the gift card is redeemed.'
                     )
                 )
-            if data.get('admission'):
+            if full_data.get('admission'):
                 raise ValidationError(_('Gift card products should not be admission products at the same time.'))
 
         return data
