@@ -685,11 +685,10 @@ def variables_from_questions(sender, *args, **kwargs):
             'editor_sample': question_label,
             'evaluate': partial(get_answer, question_id=q.pk),
             'question_label': question_label,
+            'question_identifier': q.identifier,
             'canonical_key': f'question_{q.pk}',
         }
         d[f'question_{q.pk}'] = question_entry
-        if q.identifier:
-            d[f'question_{q.identifier}'] = question_entry.copy()
     return d
 
 
@@ -858,6 +857,12 @@ class Renderer:
             return 'event_name'
         if key.lower().startswith('question:'):
             return self._resolve_question_label_to_variable_key(key.split(':', 1)[1])
+        if key.startswith('question_') and key not in self.variables:
+            suffix = key[len('question_') :]
+            for var_key, var in self.variables.items():
+                identifier = var.get('question_identifier')
+                if identifier and identifier.lower() == suffix.lower():
+                    return var_key
         return key
 
     def _canonical_layout_variable_key(self, key):

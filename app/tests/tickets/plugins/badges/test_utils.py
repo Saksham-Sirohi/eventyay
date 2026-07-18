@@ -4,7 +4,7 @@ import pytest
 from django_scopes import scopes_disabled
 
 from eventyay.base.models import Event, Order, OrderPosition, Organizer, Product, Question, QuestionAnswer, Voucher
-from eventyay.base.pdf import Renderer, extract_layout_text_placeholders
+from eventyay.base.pdf import Renderer, extract_layout_text_placeholders, get_variables
 from eventyay.plugins.badges.exporters import BadgeRenderer
 from eventyay.plugins.badges.models import BadgeProduct, BadgeVoucher
 from eventyay.plugins.badges.utils import (
@@ -226,6 +226,34 @@ def test_renderer_other_text_still_supports_question_id_placeholders(badge_event
         position,
         position.order,
         {'content': 'other', 'text': f'{{question_{q1.pk}}}'},
+    )
+
+    assert result == 'Jane'
+
+
+@pytest.mark.django_db
+def test_get_variables_lists_each_question_once(badge_event):
+    event, position, product, layout = badge_event
+    Question.objects.create(event=event, question='First name', type='S')
+    Question.objects.create(event=event, question='Last name', type='S')
+
+    variables = get_variables(event)
+    question_labels = [var['label'] for key, var in variables.items() if key.startswith('question_')]
+
+    assert len(question_labels) == len(set(question_labels))
+
+
+@pytest.mark.django_db
+def test_renderer_other_text_supports_question_identifier_placeholders(badge_event):
+    event, position, product, layout = badge_event
+    q1 = Question.objects.create(event=event, question='First name', type='S')
+    QuestionAnswer.objects.create(orderposition=position, question=q1, answer='Jane')
+
+    renderer = BadgeRenderer(event, [], None)
+    result = renderer._get_text_content(
+        position,
+        position.order,
+        {'content': 'other', 'text': f'{{question_{q1.identifier}}}'},
     )
 
     assert result == 'Jane'
