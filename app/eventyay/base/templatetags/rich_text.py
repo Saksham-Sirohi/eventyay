@@ -147,6 +147,16 @@ NO_LINKS_CLEANER = bleach.Cleaner(
 
 STRIKETHROUGH_RE = '(~{2})(.+?)(~{2})'
 
+# Email bodies may include trusted placeholder HTML such as QR ``<img>`` tags
+# (data-URI PNGs) and CTA buttons. Keep these allowlists scoped to email
+# compilation so public rich-text rendering stays stricter.
+EMAIL_ALLOWED_TAGS = ALLOWED_TAGS | {'img'}
+EMAIL_ALLOWED_ATTRIBUTES = {
+    **ALLOWED_ATTRIBUTES,
+    'img': ['src', 'alt', 'width', 'height'],
+}
+EMAIL_ALLOWED_PROTOCOLS = ALLOWED_PROTOCOLS | {'data'}
+
 _TIPTAP_BLOCK_START_RE = re.compile(
     r'^\s*<(p|ul|ol|blockquote)(\s|>)',
     re.IGNORECASE | re.DOTALL,
@@ -242,9 +252,9 @@ def markdown_compile_email(source):
                     #  'markdown.extensions.nl2br' # disabled for backwards-compatibility
                 ],
             ),
-            tags=ALLOWED_TAGS,
-            attributes=ALLOWED_ATTRIBUTES,
-            protocols=ALLOWED_PROTOCOLS,
+            tags=EMAIL_ALLOWED_TAGS,
+            attributes=EMAIL_ALLOWED_ATTRIBUTES,
+            protocols=EMAIL_ALLOWED_PROTOCOLS,
         )
     )
 
