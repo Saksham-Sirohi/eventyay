@@ -86,3 +86,34 @@ def test_render_download_tickets_pdf_button(monkeypatch):
     compiled = markdown_compile_email(html)
     assert 'class="button"' in compiled
     assert 'https://shop.example/ABCDE/secret-value/pdf/' in compiled
+
+
+def test_order_only_context_resolves_ticket_and_order_qr():
+    """Buyer/order emails have order but no position; QR placeholders must still expand."""
+    from i18nfield.strings import LazyI18nString
+
+    from eventyay.base.services.mail import TolerantDict, render_mail
+
+    order = SimpleNamespace()
+    qs = MagicMock()
+    ticket_pos = SimpleNamespace(
+        generate_ticket=True,
+        attendee_name='Ada',
+        product=SimpleNamespace(name='General'),
+        ticket_qrcode_content='{"ticket":"one"}',
+        positionid=1,
+    )
+    qs.select_related.return_value.order_by.return_value = [ticket_pos]
+    order.positions = qs
+
+    template = 'Ticket: {ticket_qr}\n\nOrder: {order_qr}'
+    ctx = {
+        'ticket_qr': render_order_qr_html(order),
+        'order_qr': render_order_qr_html(order),
+    }
+    body = render_mail(LazyI18nString(template), ctx)
+    assert '{ticket_qr}' not in body
+    assert '{order_qr}' not in body
+    assert 'data:image/png;base64,' in body
+    assert body == template.format_map(TolerantDict({k: str(v) for k, v in ctx.items()}))
+    assert 'data:image/png;base64,' in markdown_compile_email(body)

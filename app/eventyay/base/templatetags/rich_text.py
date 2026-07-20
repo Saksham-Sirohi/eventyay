@@ -235,6 +235,30 @@ def compile_email_body(source: str) -> str:
     return markdown_compile_email(source)
 
 
+def is_placeholder_html_sample(sample: str) -> bool:
+    """Return True when a placeholder sample is trusted HTML (button, QR image)."""
+    stripped = str(sample).lstrip().lower()
+    return stripped.startswith(('<a ', '<a>', '<img ', '<img>', '<p>', '<p '))
+
+
+def build_email_preview_context(event, base_parameters: list[str]):
+    """Build sendmail preview context, keeping HTML placeholder samples intact."""
+    from django.utils.translation import gettext
+
+    from eventyay.base.email import get_available_placeholders
+    from eventyay.base.services.mail import TolerantDict
+
+    context_dict = TolerantDict()
+    title = html.escape(str(gettext('This value will be replaced based on dynamic parameters.')))
+    for key, placeholder in get_available_placeholders(event, list(base_parameters)).items():
+        sample = str(placeholder.render_sample(event))
+        if is_placeholder_html_sample(sample):
+            context_dict[key] = sample
+        else:
+            context_dict[key] = f'<span class="placeholder" title="{title}">{html.escape(sample)}</span>'
+    return context_dict
+
+
 # TODO: Implement nh3 equivalent
 def markdown_compile_email(source):
     linker = bleach.Linker(
