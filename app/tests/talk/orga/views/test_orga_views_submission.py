@@ -1,4 +1,5 @@
 import datetime as dt
+import json
 
 import pytest
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -8,7 +9,11 @@ from django_scopes import scope
 from eventyay.base.models.log import ActivityLog
 from eventyay.base.models import Submission, SubmissionStates
 from eventyay.base.models.question import TalkQuestionRequired as QuestionRequired, TalkQuestionVariant as QuestionVariant
-
+from eventyay.common.session_video import (
+    SESSION_VIDEO_IMPORT_KEY,
+    get_session_video_question,
+    get_submission_video_url,
+)
 
 @pytest.mark.django_db
 def test_orga_can_see_submissions(orga_client, event, submission):
@@ -682,6 +687,54 @@ def test_orga_can_toggle_submission_featured(orga_client, event, submission):
     with scope(event=event):
         sub = event.submissions.first()
         assert sub.is_featured
+
+
+@pytest.mark.django_db
+def test_orga_can_set_submission_video_from_list(orga_client, event, submission):
+    url = "https://youtu.be/dQw4w9WgXcQ?t=90"
+    list_response = orga_client.get(event.orga_urls.submissions, follow=True)
+    assert list_response.status_code == 200
+    assert "submission-video-btn" in list_response.text
+    assert "submission-video-dialog" in list_response.text
+
+    response = orga_client.post(
+        submission.orga_urls.video_link,
+        data=json.dumps({"url": url}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["has_video"] is True
+    assert payload["url"] == url
+
+    with scope(event=event):
+        assert get_submission_video_url(submission) == url
+        question = get_session_video_question(event, create=False)
+        assert question is not None
+        assert question.import_key == SESSION_VIDEO_IMPORT_KEY
+
+    clear_response = orga_client.post(
+        submission.orga_urls.video_link,
+        data=json.dumps({"url": ""}),
+        content_type="application/json",
+    )
+    assert clear_response.status_code == 200
+    assert clear_response.json()["has_video"] is False
+    with scope(event=event):
+        assert get_submission_video_url(submission) == ""
+
+
+@pytest.mark.django_db
+def test_orga_rejects_invalid_submission_video_url(orga_client, submission):
+    response = orga_client.post(
+        submission.orga_urls.video_link,
+        data=json.dumps({"url": "https://example.com/not-a-video"}),
+        content_type="application/json",
+    )
+    assert response.status_code == 400
+    assert response.json()["ok"] is False
+    assert response.json()["error"]
 
 
 @pytest.mark.parametrize(

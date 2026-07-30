@@ -15,16 +15,6 @@
 				span.info-main {{ sessionTimeLabel }}
 				span.session-language(v-if="!isSchedulePending && sessionLanguageLabel")  · {{ t.session_language }}: {{ sessionLanguageLabel }}
 			.recording-embed(v-if="resolvedTalk.recording_iframe", v-html="resolvedTalk.recording_iframe")
-			.field-section.video-embed-section(v-for="answer in videoAnswers", :key="answer.id || answer.question_id || answer.embed_url")
-				h2.field-heading(v-if="videoAnswerHeading(answer)") {{ videoAnswerHeading(answer) }}
-				.video-embed
-					iframe(
-						:src="videoEmbedSrc(answer)",
-						title="Session video",
-						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
-						allowfullscreen,
-						loading="lazy",
-						referrerpolicy="strict-origin-when-cross-origin")
 			.field-section.abstract-section(v-if="resolvedTalk.abstract")
 				h2.field-heading Abstract
 				.field-content
@@ -33,6 +23,25 @@
 				h2.field-heading Description
 				.field-content
 					markdown-content(:markdown="resolvedTalk.description")
+			.field-section.video-embed-section(v-for="answer in videoAnswers", :key="answer.id || answer.question_id || answer.embed_url")
+				.video-embed
+					iframe(
+						:src="videoEmbedSrc(answer)",
+						title="Session video",
+						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
+						allowfullscreen,
+						loading="lazy",
+						referrerpolicy="strict-origin-when-cross-origin")
+			.field-section.video-embed-section(v-for="answer in publicVideoScheduleAnswers", :key="'sched-video-' + answer.question_id")
+				.video-embed(v-if="videoEmbedSrc(answer)")
+					iframe(
+						:src="videoEmbedSrc(answer)",
+						title="Session video",
+						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
+						allowfullscreen,
+						loading="lazy",
+						referrerpolicy="strict-origin-when-cross-origin")
+				a.answer-link(v-else-if="answer.answer", :href="answer.answer", target="_blank", rel="noopener noreferrer") {{ answer.answer }}
 			.field-section(v-for="answer in longAnswers", :key="answer.id")
 				h2.field-heading {{ getLocalizedString(answer.question.question) || String(answer.question.question) }}
 				.field-content
@@ -44,19 +53,10 @@
 					a.answer-link(v-else-if="(answer.question.variant === 'url' || answer.question.variant === 'file' || answer.question.variant === 'video') && answer.answer", :href="answer.answer", target="_blank", rel="noopener noreferrer") {{ answer.answer }}
 					span(v-else-if="answer.question.variant === 'boolean'") {{ parseBooleanAnswer(answer.answer) ? t.yes : t.no }}
 					span(v-else-if="answer.answer") {{ answer.answer }}
-			.public-answers(v-if="publicScheduleAnswers.length > 0")
-				.field-section(v-for="answer in publicScheduleAnswers", :key="answer.question_id")
+			.public-answers(v-if="publicOtherScheduleAnswers.length > 0")
+				.field-section(v-for="answer in publicOtherScheduleAnswers", :key="answer.question_id")
 					h2.field-heading {{ answer.question }}
-					.field-content(v-if="answer.variant === 'video' && videoEmbedSrc(answer)")
-						.video-embed
-							iframe(
-								:src="videoEmbedSrc(answer)",
-								title="Session video",
-								allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share",
-								allowfullscreen,
-								loading="lazy",
-								referrerpolicy="strict-origin-when-cross-origin")
-					.field-content(v-else-if="answer.variant === 'video' || answer.variant === 'url'")
+					.field-content(v-if="answer.variant === 'url'")
 						a.answer-link(:href="answer.answer", target="_blank", rel="noopener noreferrer") {{ answer.answer }}
 					.field-content(v-else)
 						markdown-content(:markdown="answer.answer")
@@ -357,6 +357,12 @@ export default {
 			const downloadsLabel = (this.t.downloads || '').trim().toLowerCase()
 			return answers.filter((answer) => (answer.question || '').trim().toLowerCase() !== downloadsLabel)
 		},
+		publicVideoScheduleAnswers() {
+			return this.publicScheduleAnswers.filter((answer) => answer.variant === 'video')
+		},
+		publicOtherScheduleAnswers() {
+			return this.publicScheduleAnswers.filter((answer) => answer.variant !== 'video')
+		},
 		displayResources() {
 			const resources = this.effectiveApiContent?.resources ?? this.resolvedTalk?.resources ?? []
 			return resources.map(r => {
@@ -404,11 +410,6 @@ export default {
 			if (!answer) return ''
 			if (answer.embed_url) return answer.embed_url
 			return getVideoEmbedUrl(answer.answer)
-		},
-		videoAnswerHeading(answer) {
-			const question = answer?.question?.question || answer?.question
-			if (!question) return ''
-			return getLocalizedString(question) || String(question)
 		},
 		starrerTitle(user) {
 			if (!user || !user.url) return this.t.anonymous_attendee

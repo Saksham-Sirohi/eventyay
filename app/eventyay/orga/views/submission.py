@@ -47,6 +47,11 @@ from eventyay.base.services.talkimport import import_submissions
 from eventyay.base.views.tasks import AsyncAction
 from eventyay.common.exceptions import SubmissionError
 from eventyay.common.forms.fields import SizeFileInput
+from eventyay.common.session_video import (
+    prefetch_submission_video_urls,
+    set_submission_video_url,
+    video_url_from_prefetched_submission,
+)
 from eventyay.common.text.phrases import phrases
 from eventyay.common.views.generic import CreateOrUpdateView, OrgaCRUDView
 from eventyay.common.views.mixins import (
@@ -629,6 +634,16 @@ class SubmissionList(EventPermissionRequired, BaseSubmissionList):
                 return len(self.limit_tracks) > 1
             return self.request.event.tracks.all().count() > 1
 
+    def get_queryset(self):
+        return prefetch_submission_video_urls(super().get_queryset(), self.request.event)
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        submissions = ctx.get('submissions') or ctx.get('object_list') or []
+        for submission in submissions:
+            submission.session_video_url = video_url_from_prefetched_submission(submission)
+        return ctx
+
 
 class FeedbackList(SubmissionViewMixin, PaginationMixin, ListView):
     template_name = 'orga/submission/feedback_list.html'
@@ -665,6 +680,31 @@ class ToggleFeatured(SubmissionViewMixin, View):
         from eventyay.agenda.views.utils import clear_schedule_caches
         clear_schedule_caches(self.request.event, submission=self.object)
         return HttpResponse()
+
+
+class SubmissionVideoLink(SubmissionViewMixin, View):
+    """Create/update/clear the canonical session video link from the overview table."""
+
+    permission_required = 'base.orga_update_submission'
+
+    def get_permission_object(self):
+        return self.object or self.request.event
+
+    def post(self, request, *args, **kwargs):
+        try:
+            payload = json.loads(request.body.decode() or '{}')
+        except json.JSONDecodeError:
+            payload = request.POST
+        url = payload.get('url', '') if hasattr(payload, 'get') else ''
+        try:
+            stored = set_submission_video_url(self.object, url)
+        except ValueError as exc:
+            return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
+
+        from eventyay.agenda.views.utils import clear_schedule_caches
+
+        clear_schedule_caches(self.request.event, submission=self.object)
+        return JsonResponse({'ok': True, 'url': stored, 'has_video': bool(stored)})
 
 
 class ApplyPending(SubmissionViewMixin, View):

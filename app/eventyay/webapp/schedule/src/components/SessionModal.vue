@@ -17,8 +17,13 @@ dialog.pretalx-modal#session-modal(ref="modal", @click.stop="close()")
 					export-dropdown.session-export-area(v-if="talkExportOptions.length || exportsDisabled", :options="talkExportOptions", :qrcodesUrl="talkQrcodesUrl", :disabled="exportsDisabled")
 				.text-content
 					.recording-embed(v-if="modalContent.contentObject.recording_iframe", v-html="modalContent.contentObject.recording_iframe")
+					.field-section(v-if="modalContent.contentObject.abstract")
+						h4.field-heading Abstract
+						.field-content(v-html="renderRichText(modalContent.contentObject.abstract)")
+					.field-section(v-if="modalContent.contentObject.apiContent?.description?.length > 0 || modalContent.contentObject.description?.length > 0")
+						h4.field-heading Description
+						.field-content(v-html="renderRichText(modalContent.contentObject.apiContent?.description || modalContent.contentObject.description)")
 					.field-section.video-embed-section(v-for="answer in videoAnswers", :key="answer.id || answer.question_id || videoEmbedSrc(answer)")
-						h4.field-heading {{ getLocalizedString(answer.question.question) }}
 						.video-embed
 							iframe(
 								:src="videoEmbedSrc(answer)",
@@ -27,23 +32,12 @@ dialog.pretalx-modal#session-modal(ref="modal", @click.stop="close()")
 								allowfullscreen,
 								loading="lazy",
 								referrerpolicy="strict-origin-when-cross-origin")
-					.field-section(v-if="modalContent.contentObject.abstract")
-						h4.field-heading Abstract
-						.field-content(v-html="renderRichText(modalContent.contentObject.abstract)")
-					.field-section(v-if="modalContent.contentObject.apiContent?.description?.length > 0 || modalContent.contentObject.description?.length > 0")
-						h4.field-heading Description
-						.field-content(v-html="renderRichText(modalContent.contentObject.apiContent?.description || modalContent.contentObject.description)")
 					template(v-if="modalContent.contentObject.isLoading")
 						bunt-progress-circular(size="big", :page="true")
 					template(v-else)
-						template(v-if="textAnswers.length > 0")
-							.field-section(v-for="answer in textAnswers", :key="answer.id || answer.question_id")
-								h4.field-heading {{ getLocalizedString(answer.question.question) }}
-								.field-content(v-html="renderRichText(answer.answer)")
-						template(v-if="publicScheduleAnswers.length > 0")
-							.field-section(v-for="answer in publicScheduleAnswers", :key="answer.question_id")
-								h4.field-heading {{ answer.question }}
-								.video-embed(v-if="answer.variant === 'video' && videoEmbedSrc(answer)")
+						template(v-if="publicVideoScheduleAnswers.length > 0")
+							.field-section.video-embed-section(v-for="answer in publicVideoScheduleAnswers", :key="'video-' + answer.question_id")
+								.video-embed(v-if="videoEmbedSrc(answer)")
 									iframe(
 										:src="videoEmbedSrc(answer)",
 										title="Session video",
@@ -51,7 +45,15 @@ dialog.pretalx-modal#session-modal(ref="modal", @click.stop="close()")
 										allowfullscreen,
 										loading="lazy",
 										referrerpolicy="strict-origin-when-cross-origin")
-								.field-content(v-else-if="answer.variant === 'video' || answer.variant === 'url'")
+								a(v-else-if="answer.answer", :href="answer.answer", target="_blank", rel="noopener noreferrer") {{ answer.answer }}
+						template(v-if="textAnswers.length > 0")
+							.field-section(v-for="answer in textAnswers", :key="answer.id || answer.question_id")
+								h4.field-heading {{ getLocalizedString(answer.question.question) }}
+								.field-content(v-html="renderRichText(answer.answer)")
+						template(v-if="publicOtherScheduleAnswers.length > 0")
+							.field-section(v-for="answer in publicOtherScheduleAnswers", :key="answer.question_id")
+								h4.field-heading {{ answer.question }}
+								.field-content(v-if="answer.variant === 'url'")
 									a(:href="answer.answer", target="_blank", rel="noopener noreferrer") {{ answer.answer }}
 								.field-content(v-else, v-html="renderRichText(answer.answer)")
 						template(v-if="shortAnswers.length > 0 || iconAnswers.length > 0")
@@ -286,6 +288,12 @@ export default {
 
 			const downloadsLabel = (this.t.downloads || '').trim().toLowerCase()
 			return answers.filter((answer) => (answer.question || '').trim().toLowerCase() !== downloadsLabel)
+		},
+		publicVideoScheduleAnswers () {
+			return this.publicScheduleAnswers.filter((answer) => answer.variant === 'video')
+		},
+		publicOtherScheduleAnswers () {
+			return this.publicScheduleAnswers.filter((answer) => answer.variant !== 'video')
 		}
 	},
 	methods: {
