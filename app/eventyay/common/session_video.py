@@ -24,7 +24,8 @@ def get_session_video_question(event, *, create: bool = False):
 
     Prefers the field tagged with ``SESSION_VIDEO_IMPORT_KEY``. Otherwise adopts the
     first existing submission ``video`` question. When ``create`` is True and none
-    exists, creates a public optional Video link field.
+    exists, creates a non-public optional Video link field. Extra submission video
+    fields are deactivated so only one remains active.
     """
     with scope(event=event):
         questions = TalkQuestion.all_objects.filter(
@@ -34,25 +35,21 @@ def get_session_video_question(event, *, create: bool = False):
         ).order_by('position', 'pk')
 
         tagged = questions.filter(import_key=SESSION_VIDEO_IMPORT_KEY).first()
-        if tagged:
-            return tagged
+        question = tagged or questions.first()
 
-        existing = questions.first()
-        if existing:
+        if question:
             update_fields = []
-            if not existing.import_key:
-                existing.import_key = SESSION_VIDEO_IMPORT_KEY
+            if not question.import_key:
+                question.import_key = SESSION_VIDEO_IMPORT_KEY
                 update_fields.append('import_key')
-            if create:
-                if not existing.is_public:
-                    existing.is_public = True
-                    update_fields.append('is_public')
-                if not existing.active:
-                    existing.active = True
-                    update_fields.append('active')
+            if create and not question.active:
+                question.active = True
+                update_fields.append('active')
             if update_fields:
-                existing.save(update_fields=update_fields)
-            return existing
+                question.save(update_fields=update_fields)
+            if create:
+                _deactivate_extra_session_video_fields(questions, question)
+            return question
 
         if not create:
             return None
@@ -64,18 +61,30 @@ def get_session_video_question(event, *, create: bool = False):
             question=LazyI18nString.from_gettext(_('Video')),
             help_text=LazyI18nString.from_gettext(
                 _(
-                    'YouTube or Vimeo URLs (one per line) shown as embeds on the '
-                    'public session page.'
+                    'YouTube or Vimeo URLs (one per line). '
+                    'Publish this field to embed the videos on the public session page.'
                 )
             ),
             question_required=TalkQuestionRequired.OPTIONAL,
-            is_public=True,
+            is_public=False,
             active=True,
             contains_personal_data=False,
             is_visible_to_reviewers=True,
             import_key=SESSION_VIDEO_IMPORT_KEY,
             is_imported=False,
         )
+
+
+def _deactivate_extra_session_video_fields(questions, keep):
+    extras = [q for q in questions if q.pk != keep.pk and q.active]
+    for extra in extras:
+        extra.active = False
+        extra.save(update_fields=['active'])
+
+
+def ensure_session_video_question(event):
+    """Ensure the canonical session video field exists for organiser editing."""
+    return get_session_video_question(event, create=True)
 
 
 def get_submission_video_answer(submission):

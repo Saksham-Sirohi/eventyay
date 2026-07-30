@@ -341,7 +341,7 @@ class QuestionFieldsMixin:
         if question.variant == TalkQuestionVariant.VIDEO:
             video_help = original_help_text or _(
                 'Paste YouTube or Vimeo URLs, one per line. '
-                'When this field is public, the videos are embedded on the session page.'
+                'Publish this field to embed the videos on the public session page.'
             )
 
             def validate_video_urls(value):

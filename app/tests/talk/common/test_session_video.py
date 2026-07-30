@@ -4,6 +4,7 @@ from django_scopes import scope
 from eventyay.base.models import Answer, TalkQuestion, TalkQuestionTarget, TalkQuestionVariant
 from eventyay.common.session_video import (
     SESSION_VIDEO_IMPORT_KEY,
+    ensure_session_video_question,
     get_session_video_question,
     get_submission_video_url,
     get_submission_video_urls,
@@ -11,6 +12,8 @@ from eventyay.common.session_video import (
     set_submission_video_urls,
 )
 from eventyay.common.video_embed import parse_video_urls
+from eventyay.orga.forms.cfp import TalkQuestionForm
+from eventyay.submission.forms import TalkQuestionsForm
 
 
 @pytest.mark.django_db
@@ -22,7 +25,8 @@ def test_get_session_video_question_creates_canonical_field(event):
         assert question.variant == TalkQuestionVariant.VIDEO
         assert question.target == TalkQuestionTarget.SUBMISSION
         assert question.import_key == SESSION_VIDEO_IMPORT_KEY
-        assert question.is_public is True
+        assert question.is_public is False
+        assert question.active is True
         assert get_session_video_question(event, create=True).pk == question.pk
         assert TalkQuestion.all_objects.filter(
             event=event,
@@ -45,7 +49,33 @@ def test_get_session_video_question_adopts_existing_video_field(event):
         assert question.pk == existing.pk
         question.refresh_from_db()
         assert question.import_key == SESSION_VIDEO_IMPORT_KEY
-        assert question.is_public is True
+        assert question.is_public is False
+
+
+@pytest.mark.django_db
+def test_ensure_session_video_question_deactivates_extra_fields(event):
+    with scope(event=event):
+        first = TalkQuestion.objects.create(
+            event=event,
+            question='Video A',
+            variant=TalkQuestionVariant.VIDEO,
+            target=TalkQuestionTarget.SUBMISSION,
+            active=True,
+        )
+        second = TalkQuestion.objects.create(
+            event=event,
+            question='Video B',
+            variant=TalkQuestionVariant.VIDEO,
+            target=TalkQuestionTarget.SUBMISSION,
+            active=True,
+        )
+        question = ensure_session_video_question(event)
+        assert question.pk == first.pk
+        first.refresh_from_db()
+        second.refresh_from_db()
+        assert first.active is True
+        assert first.import_key == SESSION_VIDEO_IMPORT_KEY
+        assert second.active is False
 
 
 @pytest.mark.django_db
@@ -57,6 +87,7 @@ def test_set_submission_video_url_creates_updates_and_clears(event, submission):
         assert stored == url
         question = get_session_video_question(event, create=False)
         assert question is not None
+        assert question.is_public is False
         assert get_submission_video_url(submission) == url
         assert Answer.objects.filter(question=question, submission=submission).count() == 1
 
@@ -106,3 +137,30 @@ def test_parse_video_urls_splits_lines_and_dedupes():
     assert parse_video_urls('https://youtu.be/aaa\n\nhttps://youtu.be/aaa') == [
         'https://youtu.be/aaa',
     ]
+
+
+@pytest.mark.django_db
+def test_talk_question_form_hides_video_variant_on_create(event):
+    with scope(event=event):
+        form = TalkQuestionForm(event=event, initial={'target': TalkQuestionTarget.SUBMISSION})
+        assert TalkQuestionVariant.VIDEO not in dict(form.fields['variant'].choices)
+
+
+@pytest.mark.django_db
+def test_session_video_hidden_from_speaker_questions_form(event, submission):
+    with scope(event=event):
+        question = ensure_session_video_question(event)
+        speaker_form = TalkQuestionsForm(
+            event=event,
+            submission=submission,
+            target=TalkQuestionTarget.SUBMISSION,
+            include_session_video=False,
+        )
+        orga_form = TalkQuestionsForm(
+            event=event,
+            submission=submission,
+            target=TalkQuestionTarget.SUBMISSION,
+            include_session_video=True,
+        )
+        assert f'question_{question.pk}' not in speaker_form.fields
+        assert f'question_{question.pk}' in orga_form.fields

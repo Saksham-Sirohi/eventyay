@@ -15,6 +15,7 @@ from eventyay.base.models import (
     SubmissionType,
     SubmitterAccessCode,
     TalkQuestion,
+    TalkQuestionTarget,
     TalkQuestionVariant,
     Track,
 )
@@ -376,6 +377,7 @@ class TalkQuestionForm(ReadOnlyFlag, I18nHelpText, I18nModelForm):
     def __init__(self, *args, event=None, **kwargs):
         instance = kwargs.get('instance')
         super().__init__(*args, **kwargs)
+        self.event = event
         self.fields['question'].required = True
         self.fields['question'].label = _('Custom question')
         if not (instance and instance.pk):
@@ -393,6 +395,24 @@ class TalkQuestionForm(ReadOnlyFlag, I18nHelpText, I18nModelForm):
             self.fields['submission_types'].queryset = event.submission_types.all()
         if instance and instance.pk and instance.answers.count() and not instance.is_public:
             self.fields['is_public'].disabled = True
+
+        # Session video is a single auto-managed field; organisers cannot create more.
+        is_existing_session_video = bool(
+            instance
+            and instance.pk
+            and instance.variant == TalkQuestionVariant.VIDEO
+            and instance.target == TalkQuestionTarget.SUBMISSION
+        )
+        if is_existing_session_video:
+            self.fields['variant'].disabled = True
+            if 'target' in self.fields:
+                self.fields['target'].disabled = True
+        else:
+            self.fields['variant'].choices = [
+                choice
+                for choice in self.fields['variant'].choices
+                if choice[0] != TalkQuestionVariant.VIDEO
+            ]
         
         self.fields['dependency_question'].queryset = TalkQuestion.all_objects.filter(
             event=event,
@@ -417,6 +437,16 @@ class TalkQuestionForm(ReadOnlyFlag, I18nHelpText, I18nModelForm):
             )
         
         self.fields['dependency_values'].required = False
+
+    def clean_variant(self):
+        variant = self.cleaned_data.get('variant')
+        if variant != TalkQuestionVariant.VIDEO:
+            return variant
+        if self.instance and self.instance.pk and self.instance.variant == TalkQuestionVariant.VIDEO:
+            return variant
+        raise forms.ValidationError(
+            _('The session video field is created automatically. Only one video link field is allowed.')
+        )
 
     def clean_options(self):
         # read uploaded file, return list of strings or list of i18n strings

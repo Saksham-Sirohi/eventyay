@@ -48,6 +48,7 @@ from eventyay.base.views.tasks import AsyncAction
 from eventyay.common.exceptions import SubmissionError
 from eventyay.common.forms.fields import SizeFileInput
 from eventyay.common.session_video import (
+    ensure_session_video_question,
     prefetch_submission_video_urls,
     set_submission_video_urls,
     video_urls_from_prefetched_submission,
@@ -421,6 +422,7 @@ class SubmissionContent(ActionFromUrl, ReviewerSubmissionFilter, SubmissionViewM
     @cached_property
     def _questions_form(self):
         submission = self.get_object()
+        ensure_session_video_question(self.request.event)
         form_kwargs = self.get_form_kwargs()
         kwargs = {
             'data': self.request.POST if self.request.method == 'POST' else None,
@@ -428,6 +430,7 @@ class SubmissionContent(ActionFromUrl, ReviewerSubmissionFilter, SubmissionViewM
             'target': 'submission',
             'submission': submission,
             'event': self.request.event,
+            'include_session_video': True,
             'for_reviewers': (
                 not self.request.user.has_perm('base.orga_update_submission', self.request.event)
                 and self.request.user.has_perm('base.list_review', self.request.event)
@@ -636,6 +639,7 @@ class SubmissionList(EventPermissionRequired, BaseSubmissionList):
             return self.request.event.tracks.all().count() > 1
 
     def get_queryset(self):
+        ensure_session_video_question(self.request.event)
         return prefetch_submission_video_urls(super().get_queryset(), self.request.event)
 
     def get_context_data(self, **kwargs):
