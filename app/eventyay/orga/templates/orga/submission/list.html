@@ -209,25 +209,27 @@
     </div>
 
     {% if can_change_submission %}
-        <dialog id="submission-video-dialog" class="submission-video-dialog">
-            <form method="dialog" id="submission-video-form" class="p-3">
-                <h3 class="h5 mb-2">{% translate "Session video" %}</h3>
-                <p class="text-muted small mb-2" id="submission-video-session-title"></p>
-                <label class="form-label" for="submission-video-url-input">{% translate "YouTube or Vimeo URL" %}</label>
-                <input
-                    type="url"
-                    class="form-control mb-2"
-                    id="submission-video-url-input"
-                    name="url"
-                    placeholder="https://www.youtube.com/watch?v=…"
-                    autocomplete="off"
-                >
-                <p class="text-danger small d-none mb-2" id="submission-video-error" role="alert"></p>
-                <div class="d-flex gap-2 justify-content-end">
-                    <button type="button" class="btn btn-outline-danger me-auto" id="submission-video-clear" value="clear">
+        <dialog id="submission-video-dialog" class="submission-video-dialog" aria-labelledby="submission-video-dialog-title">
+            <form method="dialog" id="submission-video-form" class="submission-video-dialog__body">
+                <h3 class="submission-video-dialog__title" id="submission-video-dialog-title">{% translate "Session video" %}</h3>
+                <p class="submission-video-dialog__session" id="submission-video-session-title"></p>
+                <div class="form-group">
+                    <label for="submission-video-url-input">{% translate "YouTube or Vimeo URL" %}</label>
+                    <input
+                        type="url"
+                        class="form-control"
+                        id="submission-video-url-input"
+                        name="url"
+                        placeholder="https://www.youtube.com/watch?v=…"
+                        autocomplete="off"
+                    >
+                </div>
+                <p class="text-danger small submission-video-dialog__error d-none" id="submission-video-error" role="alert"></p>
+                <div class="submission-video-dialog__actions">
+                    <button type="button" class="btn btn-outline-danger" id="submission-video-clear" value="clear">
                         {% translate "Remove" %}
                     </button>
-                    <button type="submit" class="btn btn-outline-secondary" value="cancel" formmethod="dialog">
+                    <button type="submit" class="btn btn-default" value="cancel" formmethod="dialog">
                         {% translate "Cancel" %}
                     </button>
                     <button type="submit" class="btn btn-success" id="submission-video-save" value="save">
