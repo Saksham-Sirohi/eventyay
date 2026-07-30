@@ -178,14 +178,14 @@
                             <td class="submission-video text-center">
                                 <button
                                     type="button"
-                                    class="btn btn-sm {% if submission.session_video_url %}btn-success{% else %}btn-outline-secondary{% endif %} submission-video-btn"
+                                    class="btn btn-sm {% if submission.session_video_urls %}btn-success{% else %}btn-outline-secondary{% endif %} submission-video-btn"
                                     data-url="{{ submission.orga_urls.video_link }}"
-                                    data-video-url="{{ submission.session_video_url|default:'' }}"
+                                    data-video-urls="{{ submission.session_video_urls_json }}"
                                     data-title="{{ submission.title }}"
-                                    data-add-label="{% translate "Add video link" %}"
-                                    data-edit-label="{% translate "Edit video link" %}"
-                                    title="{% if submission.session_video_url %}{% translate "Edit video link" %}{% else %}{% translate "Add video link" %}{% endif %}"
-                                    aria-label="{% if submission.session_video_url %}{% translate "Edit video link" %}{% else %}{% translate "Add video link" %}{% endif %}"
+                                    data-add-label="{% translate "Add video links" %}"
+                                    data-edit-label="{% translate "Edit video links" %}"
+                                    title="{% if submission.session_video_urls %}{% translate "Edit video links" %}{% else %}{% translate "Add video links" %}{% endif %}"
+                                    aria-label="{% if submission.session_video_urls %}{% translate "Edit video links" %}{% else %}{% translate "Add video links" %}{% endif %}"
                                 >
                                     <i class="fa fa-youtube-play" aria-hidden="true"></i>
                                 </button>
@@ -209,25 +209,24 @@
     </div>
 
     {% if can_change_submission %}
-        <dialog id="submission-video-dialog" class="submission-video-dialog" aria-labelledby="submission-video-dialog-title">
+        <dialog
+            id="submission-video-dialog"
+            class="submission-video-dialog"
+            aria-labelledby="submission-video-dialog-title"
+            data-url-label="{% translate "YouTube or Vimeo URL" %}"
+            data-remove-label="{% translate "Remove" %}"
+        >
             <form method="dialog" id="submission-video-form">
-                <h3 id="submission-video-dialog-title">{% translate "Session video" %}</h3>
+                <h3 id="submission-video-dialog-title">{% translate "Session videos" %}</h3>
                 <p class="text-muted" id="submission-video-session-title"></p>
-                <div class="form-group form-group-inline">
-                    <label for="submission-video-url-input">{% translate "YouTube or Vimeo URL" %}</label>
-                    <input
-                        type="url"
-                        class="form-control"
-                        id="submission-video-url-input"
-                        name="url"
-                        placeholder="https://www.youtube.com/watch?v=…"
-                        autocomplete="off"
-                    >
-                </div>
+                <div id="submission-video-url-list" class="submission-video-url-list"></div>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="submission-video-add">
+                    {% translate "Add another video" %}
+                </button>
                 <p class="text-danger small d-none" id="submission-video-error" role="alert"></p>
                 <div class="submission-video-dialog-actions">
                     <button type="button" class="btn btn-outline-danger" id="submission-video-clear">
-                        {% translate "Remove" %}
+                        {% translate "Remove all" %}
                     </button>
                     <button type="submit" class="btn btn-default" value="cancel" formmethod="dialog">
                         {% translate "Cancel" %}

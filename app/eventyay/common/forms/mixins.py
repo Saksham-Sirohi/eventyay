@@ -5,6 +5,7 @@ from functools import partial
 
 import dateutil.parser
 from django import forms
+from django.core.exceptions import ValidationError
 from django.utils import timezone
 
 from django.core.files import File
@@ -27,6 +28,7 @@ from eventyay.common.forms.validators import (
 from eventyay.common.forms.widgets import HtmlDateInput, HtmlDateTimeInput
 from eventyay.common.text.phrases import phrases
 from eventyay.common.utils.language import localize_event_text
+from eventyay.common.video_embed import get_video_embed_info, parse_video_urls
 from eventyay.helpers.countries import CachedCountries
 from eventyay.helpers.escapejson import escapejson_attr
 from eventyay.base.models import TalkQuestion, TalkQuestionTarget, TalkQuestionVariant
@@ -338,18 +340,35 @@ class QuestionFieldsMixin:
             return field
         if question.variant == TalkQuestionVariant.VIDEO:
             video_help = original_help_text or _(
-                'Paste a YouTube or Vimeo URL. '
-                'When this field is public, the video is embedded on the session page.'
+                'Paste YouTube or Vimeo URLs, one per line. '
+                'When this field is public, the videos are embedded on the session page.'
             )
-            field = forms.URLField(
+
+            def validate_video_urls(value):
+                urls = parse_video_urls(value)
+                if value and str(value).strip() and not urls:
+                    raise ValidationError(
+                        _('Please enter valid YouTube or Vimeo URLs, one per line.')
+                    )
+                for url in urls:
+                    if get_video_embed_info(url) is None:
+                        raise ValidationError(
+                            _('Please enter valid YouTube or Vimeo URLs, one per line.')
+                        )
+
+            field = forms.CharField(
                 label=label_text,
                 required=question.required,
                 disabled=read_only,
                 help_text=video_help,
                 initial=initial,
+                widget=forms.Textarea(attrs={'rows': 3}),
+                validators=[validate_video_urls],
             )
             field.original_help_text = original_help_text
-            field.widget.attrs['placeholder'] = 'https://www.youtube.com/watch?v=…'
+            field.widget.attrs['placeholder'] = (
+                'https://www.youtube.com/watch?v=…\nhttps://vimeo.com/…'
+            )
             return field
         if question.variant == TalkQuestionVariant.TEXT:
             field = forms.CharField(

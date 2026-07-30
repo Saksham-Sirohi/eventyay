@@ -6,8 +6,11 @@ from eventyay.common.session_video import (
     SESSION_VIDEO_IMPORT_KEY,
     get_session_video_question,
     get_submission_video_url,
+    get_submission_video_urls,
     set_submission_video_url,
+    set_submission_video_urls,
 )
+from eventyay.common.video_embed import parse_video_urls
 
 
 @pytest.mark.django_db
@@ -68,9 +71,38 @@ def test_set_submission_video_url_creates_updates_and_clears(event, submission):
 
 
 @pytest.mark.django_db
+def test_set_submission_video_urls_stores_multiple(event, submission):
+    urls = [
+        'https://youtu.be/dQw4w9WgXcQ?t=90',
+        'https://vimeo.com/123456789#t=1m30s',
+    ]
+    with scope(event=event):
+        stored = set_submission_video_urls(submission, urls)
+        assert stored == urls
+        assert get_submission_video_urls(submission) == urls
+        assert get_submission_video_url(submission) == '\n'.join(urls)
+        question = get_session_video_question(event, create=False)
+        assert Answer.objects.filter(question=question, submission=submission).count() == 1
+
+        assert set_submission_video_urls(submission, []) == []
+        assert get_submission_video_urls(submission) == []
+
+
+@pytest.mark.django_db
 def test_set_submission_video_url_rejects_invalid(event, submission):
     with scope(event=event):
         with pytest.raises(ValueError):
             set_submission_video_url(submission, 'https://example.com/watch')
         assert get_session_video_question(event, create=False) is None
         assert get_submission_video_url(submission) == ''
+
+
+def test_parse_video_urls_splits_lines_and_dedupes():
+    assert parse_video_urls('') == []
+    assert parse_video_urls('https://youtu.be/aaa\nhttps://vimeo.com/1') == [
+        'https://youtu.be/aaa',
+        'https://vimeo.com/1',
+    ]
+    assert parse_video_urls('https://youtu.be/aaa\n\nhttps://youtu.be/aaa') == [
+        'https://youtu.be/aaa',
+    ]

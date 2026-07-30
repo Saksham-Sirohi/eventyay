@@ -128,6 +128,25 @@ def _vimeo_embed_url(video_id: str, parsed) -> str:
     return embed_url
 
 
+def parse_video_urls(text: str | None) -> list[str]:
+    """Split a video-link answer into individual URLs (one per non-empty line).
+
+    Duplicate URLs are removed while preserving order. Commas are not treated as
+    separators so query strings stay intact.
+    """
+    if not text or not isinstance(text, str):
+        return []
+    urls: list[str] = []
+    seen: set[str] = set()
+    for line in text.replace('\r\n', '\n').split('\n'):
+        raw = line.strip()
+        if not raw or raw in seen:
+            continue
+        seen.add(raw)
+        urls.append(raw)
+    return urls
+
+
 def get_video_embed_info(url: str | None) -> dict[str, object] | None:
     """Return embed URL and CSP frame-src origins for a video-link field answer.
 
@@ -138,7 +157,7 @@ def get_video_embed_info(url: str | None) -> dict[str, object] | None:
     if not url or not isinstance(url, str):
         return None
     raw = url.strip()
-    if not raw:
+    if not raw or '\n' in raw:
         return None
 
     parsed = urlparse(raw)

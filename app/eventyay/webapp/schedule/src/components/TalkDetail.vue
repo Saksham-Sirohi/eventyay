@@ -23,7 +23,7 @@
 				h2.field-heading Description
 				.field-content
 					markdown-content(:markdown="resolvedTalk.description")
-			.field-section.video-embed-section(v-for="answer in videoAnswers", :key="answer.id || answer.question_id || answer.embed_url")
+			.field-section.video-embed-section(v-for="(answer, index) in videoAnswers", :key="'api-video-' + index + '-' + (answer.embed_url || answer.answer)")
 				.video-embed
 					iframe(
 						:src="videoEmbedSrc(answer)",
@@ -32,7 +32,7 @@
 						allowfullscreen,
 						loading="lazy",
 						referrerpolicy="strict-origin-when-cross-origin")
-			.field-section.video-embed-section(v-for="answer in publicVideoScheduleAnswers", :key="'sched-video-' + answer.question_id")
+			.field-section.video-embed-section(v-for="(answer, index) in publicVideoScheduleAnswers", :key="'sched-video-' + answer.question_id + '-' + index + '-' + (answer.embed_url || answer.answer)")
 				.video-embed(v-if="videoEmbedSrc(answer)")
 					iframe(
 						:src="videoEmbedSrc(answer)",
@@ -335,8 +335,10 @@ export default {
 		videoAnswers() {
 			const answers = this.effectiveApiContent?.answers
 			if (!Array.isArray(answers)) return []
-			return answers.filter(a => a.question && a.question.is_public !== false &&
-				a.question.variant === 'video' && this.videoEmbedSrc(a))
+			return this.expandVideoAnswers(
+				answers.filter(a => a.question && a.question.is_public !== false &&
+					a.question.variant === 'video')
+			)
 		},
 		inlineAnswers() {
 			const answers = this.effectiveApiContent?.answers
@@ -345,7 +347,7 @@ export default {
 				if (!a.question || a.question.is_public === false) return false
 				if (a.question.variant === 'text' || a.question.variant === 'string') return false
 				// Embeddable video-link answers are shown as players above
-				if (a.question.variant === 'video' && this.videoEmbedSrc(a)) return false
+				if (a.question.variant === 'video' && this.expandVideoAnswers([a]).length) return false
 				return true
 			})
 		},
@@ -406,6 +408,24 @@ export default {
 		}
 	},
 	methods: {
+		expandVideoAnswers(answers) {
+			const result = []
+			for (const answer of answers || []) {
+				const raw = answer?.answer || ''
+				const lines = String(raw).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+				if (lines.length <= 1) {
+					if (this.videoEmbedSrc(answer)) result.push(answer)
+					continue
+				}
+				for (const line of lines) {
+					const embedUrl = getVideoEmbedUrl(line)
+					if (embedUrl) {
+						result.push({ ...answer, answer: line, embed_url: embedUrl })
+					}
+				}
+			}
+			return result
+		},
 		videoEmbedSrc(answer) {
 			if (!answer) return ''
 			if (answer.embed_url) return answer.embed_url

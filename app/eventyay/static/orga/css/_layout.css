@@ -1896,6 +1896,30 @@ h2 .user-name-display img {
   width: 100%;
 }
 
+.submission-video-url-list {
+  margin-bottom: 8px;
+}
+
+.submission-video-url-controls {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.submission-video-url-controls .form-control {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.submission-video-url-controls .submission-video-remove {
+  flex: 0 0 auto;
+  margin-left: 8px;
+}
+
+.submission-video-dialog #submission-video-add {
+  margin-bottom: 12px;
+}
+
 .submission-video-dialog #submission-video-error {
   margin: 0 0 12px;
 }

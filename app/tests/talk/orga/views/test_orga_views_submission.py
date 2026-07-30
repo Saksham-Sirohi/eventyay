@@ -699,13 +699,14 @@ def test_orga_can_set_submission_video_from_list(orga_client, event, submission)
 
     response = orga_client.post(
         submission.orga_urls.video_link,
-        data=json.dumps({"url": url}),
+        data=json.dumps({"urls": [url]}),
         content_type="application/json",
     )
     assert response.status_code == 200
     payload = response.json()
     assert payload["ok"] is True
     assert payload["has_video"] is True
+    assert payload["urls"] == [url]
     assert payload["url"] == url
 
     with scope(event=event):
@@ -716,7 +717,7 @@ def test_orga_can_set_submission_video_from_list(orga_client, event, submission)
 
     clear_response = orga_client.post(
         submission.orga_urls.video_link,
-        data=json.dumps({"url": ""}),
+        data=json.dumps({"urls": []}),
         content_type="application/json",
     )
     assert clear_response.status_code == 200
@@ -726,16 +727,34 @@ def test_orga_can_set_submission_video_from_list(orga_client, event, submission)
 
 
 @pytest.mark.django_db
+def test_orga_can_set_multiple_submission_videos_from_list(orga_client, event, submission):
+    urls = [
+        "https://youtu.be/dQw4w9WgXcQ?t=90",
+        "https://vimeo.com/123456789#t=1m30s",
+    ]
+    response = orga_client.post(
+        submission.orga_urls.video_link,
+        data=json.dumps({"urls": urls}),
+        content_type="application/json",
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    assert payload["urls"] == urls
+    with scope(event=event):
+        assert get_submission_video_url(submission) == "\n".join(urls)
+
+
+@pytest.mark.django_db
 def test_orga_rejects_invalid_submission_video_url(orga_client, submission):
     response = orga_client.post(
         submission.orga_urls.video_link,
-        data=json.dumps({"url": "https://example.com/not-a-video"}),
+        data=json.dumps({"urls": ["https://example.com/not-a-video"]}),
         content_type="application/json",
     )
     assert response.status_code == 400
     assert response.json()["ok"] is False
     assert response.json()["error"]
-
 
 @pytest.mark.parametrize(
     "question_type", (QuestionVariant.DATE, QuestionVariant.DATETIME)

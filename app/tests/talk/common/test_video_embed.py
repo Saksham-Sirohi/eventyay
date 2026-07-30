@@ -125,7 +125,10 @@ def test_schedule_public_video_answer_includes_timestamped_embed_url(event, slot
         Answer.objects.create(
             question=question,
             submission=slot.submission,
-            answer='https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s',
+            answer=(
+                'https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1m30s\n'
+                'https://vimeo.com/123456789#t=1m30s'
+            ),
         )
         # Regular URL fields must never produce embed_url, even for YouTube links
         url_question = TalkQuestion.objects.create(
@@ -146,8 +149,9 @@ def test_schedule_public_video_answer_includes_timestamped_embed_url(event, slot
         video_answers = [a for a in talk['answers'] if a.get('variant') == 'video']
         url_answers = [a for a in talk['answers'] if a.get('variant') == 'url']
 
-        assert len(video_answers) == 1
+        assert len(video_answers) == 2
         _assert_youtube_embed(video_answers[0]['embed_url'], 'dQw4w9WgXcQ', start=90)
+        _assert_vimeo_embed(video_answers[1]['embed_url'], '123456789', time_hash='t=1m30s')
         assert len(url_answers) == 1
         assert 'embed_url' not in url_answers[0]
 

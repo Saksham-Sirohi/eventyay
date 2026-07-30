@@ -46,7 +46,7 @@ from eventyay.cfp.views.event import EventPageMixin
 from eventyay.common.text.phrases import phrases
 from eventyay.common.urls import get_base_url
 from eventyay.common.utils.language import localize_event_text
-from eventyay.common.video_embed import get_video_embed_info
+from eventyay.common.video_embed import get_video_embed_info, parse_video_urls
 from eventyay.common.views.helpers import login_redirect_with_next, redirect_or_json_redirect
 from eventyay.common.views.mixins import (
     EventPermissionRequired,
@@ -230,9 +230,10 @@ class TalkView(TalkMixin, TemplateView):
         for answer in self.answers:
             if answer.question.variant != TalkQuestionVariant.VIDEO:
                 continue
-            embed = get_video_embed_info(answer.answer)
-            if embed:
-                frame_src.extend(embed['csp_origins'])
+            for url in parse_video_urls(answer.answer):
+                embed = get_video_embed_info(url)
+                if embed:
+                    frame_src.extend(embed['csp_origins'])
         # Deduplicate while preserving order
         seen = set()
         unique_frame_src = []

@@ -14,7 +14,7 @@ from eventyay.base.models import (
     TalkQuestionTarget,
     TalkQuestionVariant,
 )
-from eventyay.common.video_embed import get_video_embed_info
+from eventyay.common.video_embed import get_video_embed_info, parse_video_urls
 
 SESSION_VIDEO_IMPORT_KEY = 'session_video'
 
@@ -63,7 +63,10 @@ def get_session_video_question(event, *, create: bool = False):
             target=TalkQuestionTarget.SUBMISSION,
             question=LazyI18nString.from_gettext(_('Video')),
             help_text=LazyI18nString.from_gettext(
-                _('YouTube or Vimeo URL shown as an embed on the public session page.')
+                _(
+                    'YouTube or Vimeo URLs (one per line) shown as embeds on the '
+                    'public session page.'
+                )
             ),
             question_required=TalkQuestionRequired.OPTIONAL,
             is_public=True,
@@ -87,38 +90,63 @@ def get_submission_video_answer(submission):
         )
 
 
-def get_submission_video_url(submission) -> str:
+def get_submission_video_urls(submission) -> list[str]:
     answer = get_submission_video_answer(submission)
-    return (answer.answer or '').strip() if answer else ''
+    return parse_video_urls(answer.answer if answer else '')
 
 
-def set_submission_video_url(submission, url: str | None) -> str:
-    """Create/update/clear the session video answer.
+def get_submission_video_url(submission) -> str:
+    """Return stored video URLs as a newline-joined string (empty when none)."""
+    return '\n'.join(get_submission_video_urls(submission))
 
-    Empty ``url`` clears the answer. Non-empty values must be embeddable YouTube/Vimeo URLs.
-    Returns the stored URL (empty string when cleared).
+
+def set_submission_video_urls(submission, urls: list[str] | None) -> list[str]:
+    """Create/update/clear session video answers.
+
+    Empty ``urls`` clears the answer. Each non-empty value must be an embeddable
+    YouTube/Vimeo URL. Returns the stored URL list (empty when cleared).
     """
-    raw = (url or '').strip()
-    if raw and get_video_embed_info(raw) is None:
-        raise ValueError(gettext('Please enter a valid YouTube or Vimeo URL.'))
+    cleaned: list[str] = []
+    seen: set[str] = set()
+    for url in urls or []:
+        raw = (url or '').strip()
+        if not raw or raw in seen:
+            continue
+        if get_video_embed_info(raw) is None:
+            raise ValueError(gettext('Please enter a valid YouTube or Vimeo URL.'))
+        seen.add(raw)
+        cleaned.append(raw)
 
-    question = get_session_video_question(submission.event, create=bool(raw))
+    stored = '\n'.join(cleaned)
+    question = get_session_video_question(submission.event, create=bool(cleaned))
     if not question:
-        return ''
+        return []
 
     with scope(event=submission.event):
         answer = Answer.objects.filter(question=question, submission=submission).first()
-        if not raw:
+        if not cleaned:
             if answer:
                 answer.delete()
-            return ''
+            return []
 
         if answer:
-            answer.answer = raw
+            answer.answer = stored
             answer.save(update_fields=['answer'])
         else:
-            Answer.objects.create(question=question, submission=submission, answer=raw)
-        return raw
+            Answer.objects.create(question=question, submission=submission, answer=stored)
+        return cleaned
+
+
+def set_submission_video_url(submission, url: str | None) -> str:
+    """Create/update/clear the session video answer from a single string.
+
+    Multiple URLs may be separated by newlines. Empty ``url`` clears the answer.
+    Returns the stored value as a newline-joined string (empty when cleared).
+    """
+    raw = (url or '').strip()
+    if not raw:
+        return '\n'.join(set_submission_video_urls(submission, []))
+    return '\n'.join(set_submission_video_urls(submission, parse_video_urls(raw)))
 
 
 def prefetch_submission_video_urls(queryset, event):
@@ -136,10 +164,14 @@ def prefetch_submission_video_urls(queryset, event):
         )
 
 
-def video_url_from_prefetched_submission(submission) -> str:
+def video_urls_from_prefetched_submission(submission) -> list[str]:
     answers = getattr(submission, '_session_video_answers', None)
     if answers is None:
-        return get_submission_video_url(submission)
+        return get_submission_video_urls(submission)
     if not answers:
-        return ''
-    return (answers[0].answer or '').strip()
+        return []
+    return parse_video_urls(answers[0].answer or '')
+
+
+def video_url_from_prefetched_submission(submission) -> str:
+    return '\n'.join(video_urls_from_prefetched_submission(submission))

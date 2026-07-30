@@ -6,14 +6,16 @@ const submissionVideoDialog = (() => {
 
         const dialog = document.getElementById('submission-video-dialog')
         const form = document.getElementById('submission-video-form')
-        const input = document.getElementById('submission-video-url-input')
+        const listEl = document.getElementById('submission-video-url-list')
         const errorEl = document.getElementById('submission-video-error')
         const titleEl = document.getElementById('submission-video-session-title')
         const clearBtn = document.getElementById('submission-video-clear')
-        if (!dialog || !form || !input) return null
+        const addBtn = document.getElementById('submission-video-add')
+        if (!dialog || !form || !listEl) return null
 
         let activeButton = null
         let saveUrl = ''
+        let rowIndex = 0
 
         const showError = (message) => {
             if (!errorEl) return
@@ -21,16 +23,84 @@ const submissionVideoDialog = (() => {
             errorEl.classList.toggle('d-none', !message)
         }
 
-        const setButtonState = (button, hasVideo, videoUrl) => {
+        const parseUrlsFromButton = (button) => {
+            const raw = button?.dataset?.videoUrls
+            if (!raw) return []
+            try {
+                const parsed = JSON.parse(raw)
+                if (!Array.isArray(parsed)) return []
+                return parsed.map((item) => String(item).trim()).filter(Boolean)
+            } catch (parseError) {
+                console.error('Failed to parse session video URLs', parseError)
+                return []
+            }
+        }
+
+        const collectUrls = () => {
+            return Array.from(listEl.querySelectorAll('input[type="url"]'))
+                .map((input) => input.value.trim())
+                .filter(Boolean)
+        }
+
+        const setButtonState = (button, urls) => {
             if (!button) return
-            button.dataset.videoUrl = videoUrl || ''
-            button.classList.toggle('btn-success', !!hasVideo)
-            button.classList.toggle('btn-outline-secondary', !hasVideo)
-            const label = hasVideo
-                ? (button.dataset.editLabel || 'Edit video link')
-                : (button.dataset.addLabel || 'Add video link')
+            const list = Array.isArray(urls) ? urls.filter(Boolean) : []
+            button.dataset.videoUrls = JSON.stringify(list)
+            button.classList.toggle('btn-success', list.length > 0)
+            button.classList.toggle('btn-outline-secondary', list.length === 0)
+            const label = list.length > 0
+                ? (button.dataset.editLabel || 'Edit video links')
+                : (button.dataset.addLabel || 'Add video links')
             button.title = label
             button.setAttribute('aria-label', label)
+        }
+
+        const addRow = (value = '') => {
+            rowIndex += 1
+            const row = document.createElement('div')
+            row.className = 'submission-video-url-row'
+            const inputId = `submission-video-url-input-${rowIndex}`
+            const urlLabel = dialog.dataset.urlLabel || 'YouTube or Vimeo URL'
+            const removeLabel = dialog.dataset.removeLabel || 'Remove'
+            row.innerHTML = `
+                <div class="form-group form-group-inline">
+                    <label for="${inputId}"></label>
+                    <div class="submission-video-url-controls">
+                        <input
+                            type="url"
+                            class="form-control"
+                            id="${inputId}"
+                            name="urls"
+                            placeholder="https://www.youtube.com/watch?v=…"
+                            autocomplete="off"
+                        >
+                        <button type="button" class="btn btn-sm btn-outline-danger submission-video-remove">
+                            <i class="fa fa-trash" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                </div>
+            `
+            const label = row.querySelector('label')
+            label.textContent = urlLabel
+            const removeBtn = row.querySelector('.submission-video-remove')
+            removeBtn.title = removeLabel
+            removeBtn.setAttribute('aria-label', removeLabel)
+            const input = row.querySelector('input')
+            input.value = value
+            removeBtn.addEventListener('click', () => {
+                row.remove()
+                if (!listEl.querySelector('.submission-video-url-row')) {
+                    addRow('')
+                }
+            })
+            listEl.appendChild(row)
+            return input
+        }
+
+        const renderRows = (urls) => {
+            listEl.innerHTML = ''
+            const values = urls.length ? urls : ['']
+            values.forEach((url) => addRow(url))
         }
 
         const openForButton = (button) => {
@@ -39,16 +109,19 @@ const submissionVideoDialog = (() => {
             if (titleEl) {
                 titleEl.textContent = button.dataset.title || ''
             }
-            input.value = button.dataset.videoUrl || ''
+            renderRows(parseUrlsFromButton(button))
             showError('')
             if (typeof dialog.showModal === 'function' && !dialog.open) {
                 dialog.showModal()
-                input.focus()
-                input.select()
+                const firstInput = listEl.querySelector('input[type="url"]')
+                if (firstInput) {
+                    firstInput.focus()
+                    firstInput.select()
+                }
             }
         }
 
-        const save = async (urlValue) => {
+        const save = async (urls) => {
             if (!saveUrl) return
             showError('')
             try {
@@ -59,7 +132,7 @@ const submissionVideoDialog = (() => {
                         'X-CSRFToken': getCookie('eventyay_csrftoken'),
                     },
                     credentials: 'include',
-                    body: JSON.stringify({ url: urlValue }),
+                    body: JSON.stringify({ urls }),
                 })
                 let data = {}
                 try {
@@ -68,17 +141,17 @@ const submissionVideoDialog = (() => {
                     console.error('Failed to parse video link response', parseError)
                 }
                 if (!response.ok || !data.ok) {
-                    showError(data.error || 'Could not save video link.')
+                    showError(data.error || 'Could not save video links.')
                     return false
                 }
-                setButtonState(activeButton, data.has_video, data.url || '')
+                setButtonState(activeButton, data.urls || [])
                 if (typeof dialog.close === 'function') {
                     dialog.close()
                 }
                 return true
             } catch (error) {
-                console.error('Failed to save session video link', error)
-                showError('Could not save video link.')
+                console.error('Failed to save session video links', error)
+                showError('Could not save video links.')
                 return false
             }
         }
@@ -89,14 +162,21 @@ const submissionVideoDialog = (() => {
                 return
             }
             event.preventDefault()
-            save(input.value.trim())
+            save(collectUrls())
         })
+
+        if (addBtn) {
+            addBtn.addEventListener('click', (event) => {
+                event.preventDefault()
+                const input = addRow('')
+                input.focus()
+            })
+        }
 
         if (clearBtn) {
             clearBtn.addEventListener('click', (event) => {
                 event.preventDefault()
-                input.value = ''
-                save('')
+                save([])
             })
         }
 
