@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('base', '0047_team_can_manage_social_media'),
+        ('base', '0048_speakersociallink'),
     ]
 
     operations = [
