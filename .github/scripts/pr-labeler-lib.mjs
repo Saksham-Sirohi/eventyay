@@ -141,13 +141,35 @@ function pick({ areas, layers, meta }, intent) {
   return out;
 }
 
+async function listLabelNames(github, owner, repo) {
+  const names = new Set();
+  for (let page = 1; ; page += 1) {
+    const { data } = await github.rest.issues.listLabelsForRepo({ owner, repo, per_page: 100, page });
+    for (const label of data) names.add(label.name.toLowerCase());
+    if (data.length < 100) break;
+  }
+  return names;
+}
+
+function isAlreadyExistsError(error) {
+  if (error.status !== 422) return false;
+  const errors = error.response?.data?.errors;
+  return Array.isArray(errors) && errors.some((e) => e.code === 'already_exists');
+}
+
 async function ensureLabels(github, owner, repo) {
+  // List once and compare case-insensitively: getLabel is case-sensitive, but
+  // createLabel rejects duplicate names regardless of case. Concurrent labeler
+  // runs can also race between get/create, so treat already_exists as success.
+  const existing = await listLabelNames(github, owner, repo);
   for (const [name, color, description] of LABELS) {
+    if (existing.has(name.toLowerCase())) continue;
     try {
-      await github.rest.issues.getLabel({ owner, repo, name });
-    } catch (e) {
-      if (e.status !== 404) throw e;
       await github.rest.issues.createLabel({ owner, repo, name, color, description });
+      existing.add(name.toLowerCase());
+    } catch (error) {
+      if (!isAlreadyExistsError(error)) throw error;
+      existing.add(name.toLowerCase());
     }
   }
 }

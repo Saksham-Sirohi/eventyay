@@ -3,7 +3,9 @@ name: Pull Request Labeler
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, edited]
-    branches: [dev, main]
+    # labeler-test-base: fork-only branch for exercising this workflow without
+    # opening a PR against upstream dev/main.
+    branches: [dev, main, labeler-test-base]
   workflow_dispatch:
     inputs:
       pr-number:
