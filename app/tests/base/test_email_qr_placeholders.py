@@ -1,15 +1,21 @@
 """Tests for order QR and PDF download email placeholders."""
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from eventyay.base.email import (
+    SimpleFunctionalMailTextPlaceholder,
+    get_combined_ticket_output_identifier,
     render_download_tickets_pdf_button,
     render_order_qr_html,
     render_qr_code_img,
     render_ticket_qr_html,
 )
-from eventyay.base.templatetags.rich_text import markdown_compile_email
+from eventyay.base.templatetags.rich_text import (
+    build_email_preview_context,
+    is_placeholder_html_sample,
+    markdown_compile_email,
+)
 
 
 def test_render_qr_code_img_uses_data_uri():
@@ -117,3 +123,79 @@ def test_order_only_context_resolves_ticket_and_order_qr():
     assert 'data:image/png;base64,' in body
     assert body == template.format_map(TolerantDict({k: str(v) for k, v in ctx.items()}))
     assert 'data:image/png;base64,' in markdown_compile_email(body)
+
+
+def test_is_placeholder_html_sample_detects_qr_and_button():
+    assert is_placeholder_html_sample('<img src="data:image/png;base64,abc" alt="QR">')
+    assert is_placeholder_html_sample('<a href="https://example.com" class="button">Download</a>')
+    assert is_placeholder_html_sample('<p><strong>Ada</strong></p><img src="data:image/png;base64,abc">')
+    assert not is_placeholder_html_sample('F8VVL')
+    assert not is_placeholder_html_sample('https://example.com/order')
+
+
+def test_get_combined_ticket_output_identifier_prefers_pdf():
+    event = MagicMock()
+
+    class PdfProvider:
+        identifier = 'pdf'
+        is_enabled = True
+
+    class OtherProvider:
+        identifier = 'applepass'
+        is_enabled = True
+
+    with patch('eventyay.base.signals.register_ticket_outputs.send') as send:
+        send.return_value = [
+            (None, lambda e: OtherProvider()),
+            (None, lambda e: PdfProvider()),
+        ]
+        assert get_combined_ticket_output_identifier(event) == 'pdf'
+
+
+def test_get_combined_ticket_output_identifier_falls_back_to_first_enabled():
+    event = MagicMock()
+
+    class OtherProvider:
+        identifier = 'applepass'
+        is_enabled = True
+
+    class DisabledPdf:
+        identifier = 'pdf'
+        is_enabled = False
+
+    with patch('eventyay.base.signals.register_ticket_outputs.send') as send:
+        send.return_value = [
+            (None, lambda e: DisabledPdf()),
+            (None, lambda e: OtherProvider()),
+        ]
+        assert get_combined_ticket_output_identifier(event) == 'applepass'
+
+
+def test_build_email_preview_context_keeps_html_samples():
+    event = MagicMock()
+    qr_sample = render_qr_code_img('secret', alt='Ticket QR code')
+    button_sample = '<a href="https://example.com" class="button">Download tickets (PDF)</a>'
+    placeholders = {
+        'code': SimpleFunctionalMailTextPlaceholder('code', ['order'], lambda order: order.code, 'F8VVL'),
+        'ticket_qr': SimpleFunctionalMailTextPlaceholder(
+            'ticket_qr', ['order'], lambda order: qr_sample, qr_sample
+        ),
+        'download_tickets_pdf': SimpleFunctionalMailTextPlaceholder(
+            'download_tickets_pdf',
+            ['order', 'event'],
+            lambda order, event: button_sample,
+            button_sample,
+        ),
+    }
+
+    with patch(
+        'eventyay.base.email.get_available_placeholders',
+        return_value=placeholders,
+    ):
+        ctx = build_email_preview_context(event, ['event', 'order'])
+
+    assert ctx['ticket_qr'] == qr_sample
+    assert ctx['download_tickets_pdf'] == button_sample
+    assert 'placeholder' in ctx['code']
+    assert 'F8VVL' in ctx['code']
+    assert '<span' in ctx['code']

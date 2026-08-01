@@ -150,10 +150,11 @@ class EmailQueue(models.Model):
             # Only pass keys that are present. ``position=None`` still counts as
             # provided to get_email_context and would break position placeholders.
             if order is not None and position is None:
-                position = (
-                    order.positions.select_related('product', 'order__event')
-                    .order_by('positionid')
-                    .first()
+                positions = list(
+                    order.positions.select_related('product', 'order__event').order_by('positionid')
+                )
+                position = next((pos for pos in positions if pos.generate_ticket), None) or (
+                    positions[0] if positions else None
                 )
                 position_or_address = position_or_address or position
 

@@ -19,7 +19,10 @@ from eventyay.base.i18n import language
 from eventyay.base.models.base import CachedFile
 from eventyay.base.models.event import Event
 from eventyay.base.models.orders import Order, OrderPosition
-from eventyay.base.templatetags.rich_text import compile_email_body
+from eventyay.base.templatetags.rich_text import (
+    build_email_preview_context,
+    compile_email_body,
+)
 from eventyay.common.mail import get_reply_to_address
 from eventyay.control.permissions import EventPermissionRequiredMixin
 from eventyay.control.views.event import EventSettingsFormView, EventSettingsViewMixin
@@ -127,8 +130,6 @@ class SenderView(EventPermissionRequiredMixin, CopyDraftMixin, BulkReplyToMixin,
             self.output = {}
             for l in self.request.event.settings.locales:
                 with language(l, self.request.event.settings.region):
-                    from eventyay.base.templatetags.rich_text import build_email_preview_context
-
                     context_dict = build_email_preview_context(
                         self.request.event, ['event', 'order', 'position_or_address']
                     )
@@ -368,8 +369,6 @@ class EditEmailQueueView(EventPermissionRequiredMixin, UpdateView):
             subject = form.cleaned_data['subject']
             message = form.cleaned_data['message']
 
-            from eventyay.base.templatetags.rich_text import build_email_preview_context
-
             if form.instance.composing_for == ComposingFor.TEAMS:
                 base_placeholders = ['event', 'team']
             else:
@@ -560,8 +559,6 @@ class ComposeTeamsMail(EventPermissionRequiredMixin, CopyDraftMixin, BulkReplyTo
         self.output = {}
         for l in event.settings.locales:
             with language(l, event.settings.region):
-                from eventyay.base.templatetags.rich_text import build_email_preview_context
-
                 context_dict = build_email_preview_context(event, ['event', 'team'])
 
                 try:
