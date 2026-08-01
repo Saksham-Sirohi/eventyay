@@ -465,7 +465,8 @@ def get_email_context(**kwargs):
                     ctx[v.identifier] = v.render(kwargs)
             except (KeyError, AttributeError, TypeError, ValueError) as e:
                 logger.warning("Skipping placeholder %s due to error: %s", v.identifier, e)
-    logger.info('Email context: %s', ctx)
+    # Log keys only: QR placeholders embed ticket secrets as data-URI images.
+    logger.info('Email context keys: %s', sorted(ctx.keys()))
     return ctx
 
 
@@ -561,6 +562,12 @@ def get_combined_ticket_output_identifier(event: Event) -> str:
     return enabled_ids[0] if enabled_ids else 'pdf'
 
 
+def download_tickets_button_label(output: str) -> str:
+    if output == 'pdf':
+        return str(_('Download tickets (PDF)'))
+    return str(_('Download tickets'))
+
+
 def render_download_tickets_pdf_button(event: Event, order) -> str:
     from eventyay.multidomain.urlreverse import build_absolute_uri
 
@@ -574,8 +581,8 @@ def render_download_tickets_pdf_button(event: Event, order) -> str:
             'output': output,
         },
     )
-    label = escape(str(_('Download tickets (PDF)')))
-    return f'<a href="{url}" class="button">{label}</a>'
+    label = escape(download_tickets_button_label(output))
+    return f'<a href="{escape(url)}" class="button">{label}</a>'
 
 
 @receiver(register_mail_placeholders, dispatch_uid='pretixbase_register_mail_placeholders')
@@ -589,14 +596,17 @@ def base_placeholders(sender: Event, **kwargs):
         # TODO: Make the label translatable.
         return f'<a href="{url}" class="button">Join online event</a>'
 
-    sample_ticket_qr = render_qr_code_img(
-        '{"event":"DEMO","ticket":"sample-secret","lead":"ABCDEF"}',
-        alt=str(_('Ticket QR code')),
-    )
-    sample_download_pdf = (
-        f'<a href="{build_absolute_uri(sender, "presale:event.index")}" class="button">'
-        f'{escape(str(_("Download tickets (PDF)")))}</a>'
-    )
+    def sample_ticket_qr(event=None):
+        return render_qr_code_img(
+            '{"event":"DEMO","ticket":"sample-secret","lead":"ABCDEF"}',
+            alt=str(_('Ticket QR code')),
+        )
+
+    def sample_download_pdf(event):
+        return (
+            f'<a href="{escape(build_absolute_uri(event, "presale:event.index"))}" class="button">'
+            f'{escape(download_tickets_button_label("pdf"))}</a>'
+        )
 
     ph = [
         # `{event}` is the historical tickets placeholder; `{event_name}` is the

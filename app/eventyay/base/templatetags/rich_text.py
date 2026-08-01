@@ -155,6 +155,8 @@ EMAIL_ALLOWED_ATTRIBUTES = {
     **ALLOWED_ATTRIBUTES,
     'img': ['src', 'alt', 'width', 'height'],
 }
+# ``data`` is allowed only so QR ``<img src="data:image/...">`` survives. Anchor
+# ``href`` values that use ``data:`` are rejected in ``email_allowed_attributes``.
 EMAIL_ALLOWED_PROTOCOLS = ALLOWED_PROTOCOLS | {'data'}
 
 _TIPTAP_BLOCK_START_RE = re.compile(
@@ -235,6 +237,19 @@ def compile_email_body(source: str) -> str:
     return markdown_compile_email(source)
 
 
+def email_allowed_attributes(tag: str, name: str, value: str) -> bool:
+    """Allowlist email HTML attributes; forbid ``data:`` links on anchors."""
+    allowed_for_tag = EMAIL_ALLOWED_ATTRIBUTES.get(tag)
+    if not allowed_for_tag or name not in allowed_for_tag:
+        return False
+    if tag == 'a' and name == 'href' and value.lstrip().lower().startswith('data:'):
+        return False
+    if tag == 'img' and name == 'src':
+        normalized = value.lstrip().lower()
+        return normalized.startswith(('data:image/', 'http://', 'https://', '/'))
+    return True
+
+
 def is_placeholder_html_sample(sample: str) -> bool:
     """Return True when a placeholder sample is trusted HTML (button, QR image)."""
     stripped = str(sample).lstrip().lower()
@@ -277,7 +292,7 @@ def markdown_compile_email(source):
                 ],
             ),
             tags=EMAIL_ALLOWED_TAGS,
-            attributes=EMAIL_ALLOWED_ATTRIBUTES,
+            attributes=email_allowed_attributes,
             protocols=EMAIL_ALLOWED_PROTOCOLS,
         )
     )

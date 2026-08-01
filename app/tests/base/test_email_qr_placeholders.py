@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 from eventyay.base.email import (
     SimpleFunctionalMailTextPlaceholder,
+    download_tickets_button_label,
     get_combined_ticket_output_identifier,
     render_download_tickets_pdf_button,
     render_order_qr_html,
@@ -37,6 +38,14 @@ def test_markdown_compile_email_preserves_qr_img():
     compiled = markdown_compile_email(f'Scan this:\n\n{html}')
     assert 'data:image/png;base64,' in compiled
     assert '<img ' in compiled
+
+
+def test_markdown_compile_email_strips_data_href_on_anchors():
+    compiled = markdown_compile_email(
+        '<a href="data:text/html,<script>alert(1)</script>" class="button">Click</a>'
+    )
+    assert 'data:text/html' not in compiled
+    assert 'href=' not in compiled or 'href="data:' not in compiled
 
 
 def test_render_ticket_qr_html(monkeypatch):
@@ -81,17 +90,38 @@ def test_render_download_tickets_pdf_button(monkeypatch):
     monkeypatch.setattr(
         'eventyay.multidomain.urlreverse.build_absolute_uri',
         lambda event, viewname, kwargs=None: (
-            f'https://shop.example/{kwargs["order"]}/{kwargs["secret"]}/{kwargs["output"]}/'
+            f'https://shop.example/{kwargs["order"]}/{kwargs["secret"]}/{kwargs["output"]}/?x=1&y=2'
         ),
     )
 
     html = render_download_tickets_pdf_button(event, order)
     assert 'class="button"' in html
-    assert 'https://shop.example/ABCDE/secret-value/pdf/' in html
+    assert 'href="https://shop.example/ABCDE/secret-value/pdf/?x=1&amp;y=2"' in html
     assert 'Download tickets (PDF)' in html
     compiled = markdown_compile_email(html)
     assert 'class="button"' in compiled
     assert 'https://shop.example/ABCDE/secret-value/pdf/' in compiled
+
+
+def test_render_download_tickets_button_non_pdf_label(monkeypatch):
+    event = MagicMock()
+    order = SimpleNamespace(code='ABCDE', secret='secret-value')
+
+    monkeypatch.setattr(
+        'eventyay.base.email.get_combined_ticket_output_identifier',
+        lambda event: 'applepass',
+    )
+    monkeypatch.setattr(
+        'eventyay.multidomain.urlreverse.build_absolute_uri',
+        lambda event, viewname, kwargs=None: (
+            f'https://shop.example/{kwargs["order"]}/{kwargs["secret"]}/{kwargs["output"]}/'
+        ),
+    )
+
+    html = render_download_tickets_pdf_button(event, order)
+    assert 'Download tickets (PDF)' not in html
+    assert download_tickets_button_label('applepass') in html
+    assert 'applepass' in html
 
 
 def test_order_only_context_resolves_ticket_and_order_qr():
