@@ -3,8 +3,9 @@
 	h2 Sidebar addons
 	bunt-switch(name="enable-chat", v-model="hasChat", label="Enable Chat")
 	template(v-if="hasChat")
-		.webhook-config
-			h4 Chat Webhook (optional)
+		bunt-switch(name="configure-webhook", v-model="configureWebhook", label="Configure Webhook")
+		.webhook-config(v-if="configureWebhook")
+			h4 Chat Webhook
 			p.hint Send chat messages to an external endpoint in real-time
 			bunt-input-outline-container(label="Webhook URL")
 				template(#default="{focus, blur}")
@@ -50,6 +51,13 @@ export default {
 	mixins: [mixin],
 	data() {
 		return {
+			showWebhookConfig: false
+		}
+	},
+	created() {
+		const chatConfig = this.modules['chat.native']?.config
+		if (chatConfig?.webhook_url || chatConfig?.webhook_hmac_secret) {
+			this.showWebhookConfig = true
 		}
 	},
 	computed: {
@@ -62,6 +70,19 @@ export default {
 					this.addModule('chat.native', {volatile: true})
 				} else {
 					this.removeModule('chat.native')
+					this.showWebhookConfig = false
+				}
+			}
+		},
+		configureWebhook: {
+			get() {
+				return this.showWebhookConfig
+			},
+			set(value) {
+				this.showWebhookConfig = value
+				if (!value && this.modules['chat.native']) {
+					this.modules['chat.native'].config.webhook_url = ''
+					this.modules['chat.native'].config.webhook_hmac_secret = ''
 				}
 			}
 		},
