@@ -54,7 +54,7 @@ def test_render_ticket_qr_html(monkeypatch):
     assert 'data:image/png;base64,' in html
 
 
-def test_render_order_qr_html_skips_non_ticket_positions():
+def test_render_order_qr_html_skips_non_ticket_positions(monkeypatch):
     ticket_pos = SimpleNamespace(
         generate_ticket=True,
         attendee_name='Ada Lovelace',
@@ -70,8 +70,18 @@ def test_render_order_qr_html_skips_non_ticket_positions():
         positionid=2,
     )
     qs = MagicMock()
-    qs.select_related.return_value.order_by.return_value = [ticket_pos, addon_pos]
-    order = SimpleNamespace(positions=qs)
+    qs.select_related.return_value.filter.return_value.order_by.return_value = [ticket_pos, addon_pos]
+    order = SimpleNamespace(all_positions=qs)
+
+    # Avoid depending on django_scopes in this unit test.
+    class _NullCtx:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr('django_scopes.scopes_disabled', lambda: _NullCtx())
 
     html = render_order_qr_html(order)
     assert 'Ada Lovelace' in html
@@ -124,7 +134,7 @@ def test_render_download_tickets_button_non_pdf_label(monkeypatch):
     assert 'applepass' in html
 
 
-def test_order_only_context_resolves_ticket_and_order_qr():
+def test_order_only_context_resolves_ticket_and_order_qr(monkeypatch):
     """Buyer/order emails have order but no position; QR placeholders must still expand."""
     from i18nfield.strings import LazyI18nString
 
@@ -139,8 +149,17 @@ def test_order_only_context_resolves_ticket_and_order_qr():
         ticket_qrcode_content='{"ticket":"one"}',
         positionid=1,
     )
-    qs.select_related.return_value.order_by.return_value = [ticket_pos]
-    order.positions = qs
+    qs.select_related.return_value.filter.return_value.order_by.return_value = [ticket_pos]
+    order.all_positions = qs
+
+    class _NullCtx:
+        def __enter__(self):
+            return None
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr('django_scopes.scopes_disabled', lambda: _NullCtx())
 
     template = 'Ticket: {ticket_qr}\n\nOrder: {order_qr}'
     ctx = {
@@ -153,6 +172,58 @@ def test_order_only_context_resolves_ticket_and_order_qr():
     assert 'data:image/png;base64,' in body
     assert body == template.format_map(TolerantDict({k: str(v) for k, v in ctx.items()}))
     assert 'data:image/png;base64,' in markdown_compile_email(body)
+
+
+def test_tolerant_dict_keeps_braces_for_missing_placeholders():
+    from eventyay.base.services.mail import TolerantDict
+
+    assert 'Order QR: {order_qr}'.format_map(TolerantDict({'event': 'Demo'})) == 'Order QR: {order_qr}'
+
+
+def test_get_email_context_resolves_qr_when_earlier_placeholder_hits_scope_error(monkeypatch):
+    """A ScopeError from an earlier placeholder must not drop QR placeholders."""
+    from django_scopes.exceptions import ScopeError
+
+    from eventyay.base.email import (
+        SimpleFunctionalMailTextPlaceholder,
+        get_email_context,
+        render_qr_code_img,
+    )
+
+    event = MagicMock()
+    order = SimpleNamespace(code='ABCDE', secret='secret')
+    qr_html = render_qr_code_img('{"ticket":"one"}', alt='Ticket QR code')
+    button_html = '<a href="https://example.com" class="button">Download tickets (PDF)</a>'
+
+    placeholders = [
+        SimpleFunctionalMailTextPlaceholder(
+            'name',
+            ['position_or_address'],
+            lambda position_or_address: (_ for _ in ()).throw(ScopeError('organizer')),
+            'John',
+        ),
+        SimpleFunctionalMailTextPlaceholder('order_qr', ['order'], lambda order: qr_html, qr_html),
+        SimpleFunctionalMailTextPlaceholder('ticket_qr', ['order'], lambda order: qr_html, qr_html),
+        SimpleFunctionalMailTextPlaceholder(
+            'download_tickets_pdf',
+            ['order', 'event'],
+            lambda order, event: button_html,
+            button_html,
+        ),
+    ]
+
+    monkeypatch.setattr(
+        'eventyay.base.email.register_mail_placeholders.send',
+        lambda sender: [(None, placeholders)],
+    )
+    order.invoice_address = MagicMock()
+
+    ctx = get_email_context(event=event, order=order)
+    assert 'order_qr' in ctx
+    assert 'ticket_qr' in ctx
+    assert 'download_tickets_pdf' in ctx
+    assert 'name' not in ctx
+    assert 'data:image/png;base64,' in ctx['order_qr']
 
 
 def test_is_placeholder_html_sample_detects_qr_and_button():

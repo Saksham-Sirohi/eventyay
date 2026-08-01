@@ -443,6 +443,8 @@ def get_available_placeholders(event: Event, base_parameters: Iterable[str]) -> 
 
 
 def get_email_context(**kwargs):
+    from django_scopes.exceptions import ScopeError
+
     from eventyay.base.models import InvoiceAddress
 
     event = kwargs['event']
@@ -463,8 +465,10 @@ def get_email_context(**kwargs):
             try:
                 if all(rp in kwargs for rp in v.required_context):
                     ctx[v.identifier] = v.render(kwargs)
-            except (KeyError, AttributeError, TypeError, ValueError) as e:
-                logger.warning("Skipping placeholder %s due to error: %s", v.identifier, e)
+            except (KeyError, AttributeError, TypeError, ValueError, ScopeError) as e:
+                # ScopeError must not abort the whole context: later placeholders
+                # (e.g. order_qr / ticket_qr) would otherwise never resolve.
+                logger.warning('Skipping placeholder %s due to error: %s', v.identifier, e)
     # Log keys only: QR placeholders embed ticket secrets as data-URI images.
     logger.info('Email context keys: %s', sorted(ctx.keys()))
     return ctx
@@ -538,8 +542,18 @@ def render_order_qr_html(order) -> str:
 
     Used in order-scoped emails where there is no single position context.
     """
+    from django_scopes import scopes_disabled
+
     parts = []
-    for position in order.positions.select_related('product', 'variation').order_by('positionid'):
+    # Email rendering may run outside an active organizer scope (or after another
+    # placeholder already tripped ScopeError). Never depend on request scope here.
+    with scopes_disabled():
+        positions = list(
+            order.all_positions.select_related('product', 'variation')
+            .filter(canceled=False)
+            .order_by('positionid')
+        )
+    for position in positions:
         if not position.generate_ticket:
             continue
         label = position.attendee_name or str(position.product.name)

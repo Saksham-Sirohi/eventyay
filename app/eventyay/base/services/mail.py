@@ -66,6 +66,10 @@ class TolerantDict(dict):
             clean_key = key.replace('\\_', '_')
             if clean_key in self:
                 return super().__getitem__(clean_key)
+        # Keep brace syntax so unresolved placeholders stay recognizable in
+        # sent mail (e.g. "{order_qr}" instead of the bare name "order_qr").
+        if isinstance(key, str):
+            return f'{{{key}}}'
         return key
 
 
