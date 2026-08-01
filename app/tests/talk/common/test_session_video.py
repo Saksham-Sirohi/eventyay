@@ -1,4 +1,5 @@
 import pytest
+from django import forms
 from django_scopes import scope
 
 from eventyay.base.models import Answer, TalkQuestion, TalkQuestionTarget, TalkQuestionVariant
@@ -12,8 +13,21 @@ from eventyay.common.session_video import (
     set_submission_video_urls,
 )
 from eventyay.common.video_embed import parse_video_urls
-from eventyay.orga.forms.cfp import TalkQuestionForm
+from eventyay.orga.forms.cfp import CfPSettingsForm, TalkQuestionForm
 from eventyay.submission.forms import TalkQuestionsForm
+
+
+def cfp_settings_form_data(event, **overrides):
+    form = CfPSettingsForm(obj=event, read_only=False)
+    data = {}
+    for name, field in form.fields.items():
+        initial = form.initial.get(name, field.initial)
+        if isinstance(field, forms.BooleanField):
+            data[name] = bool(initial)
+        else:
+            data[name] = initial if initial is not None else ''
+    data.update(overrides)
+    return data
 
 
 @pytest.mark.django_db
@@ -147,7 +161,15 @@ def test_talk_question_form_hides_video_variant_on_create(event):
 
 
 @pytest.mark.django_db
-def test_session_video_hidden_from_speaker_questions_form(event, submission):
+def test_session_video_hidden_from_cfp_questions_form(event):
+    with scope(event=event):
+        question = ensure_session_video_question(event)
+        form = CfPSettingsForm(obj=event, read_only=False)
+        assert f'question_{question.pk}' not in form.fields
+
+
+@pytest.mark.django_db
+def test_session_video_hidden_from_questions_forms(event, submission):
     with scope(event=event):
         question = ensure_session_video_question(event)
         speaker_form = TalkQuestionsForm(
@@ -160,7 +182,74 @@ def test_session_video_hidden_from_speaker_questions_form(event, submission):
             event=event,
             submission=submission,
             target=TalkQuestionTarget.SUBMISSION,
-            include_session_video=True,
+            include_session_video=False,
         )
         assert f'question_{question.pk}' not in speaker_form.fields
-        assert f'question_{question.pk}' in orga_form.fields
+        assert f'question_{question.pk}' not in orga_form.fields
+
+
+@pytest.mark.django_db
+def test_session_video_builtin_on_cfp_settings_form(event):
+    with scope(event=event):
+        question = ensure_session_video_question(event)
+        form = CfPSettingsForm(obj=event, read_only=False)
+        assert 'cfp_ask_session_videos' in form.fields
+        assert 'cfp_public_session_videos' not in form.fields
+        assert f'question_{question.pk}' not in form.fields
+
+
+@pytest.mark.django_db
+def test_session_video_hidden_from_cfp_info_form(event, submission):
+    with scope(event=event):
+        question = ensure_session_video_question(event)
+        from eventyay.submission.forms import InfoForm
+
+        form = InfoForm(event=event, instance=submission)
+        assert f'question_{question.pk}' not in form.fields
+
+
+@pytest.mark.django_db
+def test_cfp_settings_form_syncs_session_videos_question(event):
+    with scope(event=event):
+        form_data = cfp_settings_form_data(
+            event,
+            cfp_ask_session_videos='optional',
+        )
+        form = CfPSettingsForm(obj=event, read_only=False, data=form_data)
+        assert form.is_valid(), form.errors
+        form.save()
+        question = get_session_video_question(event, create=False)
+        assert question is not None
+        assert question.active is True
+        assert question.is_public is True
+
+        form_data = cfp_settings_form_data(
+            event,
+            cfp_ask_session_videos='do_not_ask',
+        )
+        form = CfPSettingsForm(obj=event, read_only=False, data=form_data)
+        assert form.is_valid(), form.errors
+        form.save()
+        question.refresh_from_db()
+        assert question.active is False
+        assert question.is_public is False
+
+
+@pytest.mark.django_db
+def test_session_videos_disabled_hides_urls_but_preserves_data(event, submission):
+    with scope(event=event):
+        question = ensure_session_video_question(event)
+        url = 'https://youtu.be/dQw4w9WgXcQ?t=90'
+        set_submission_video_urls(submission, [url])
+        question.active = False
+        question.is_public = False
+        question.save(update_fields=['active', 'is_public'])
+        assert get_submission_video_urls(submission) == []
+        assert get_submission_video_url(submission) == ''
+        answer = Answer.objects.get(question=question, submission=submission)
+        assert answer.answer == url
+        assert set_submission_video_urls(submission, []) == [url]
+        question.active = True
+        question.is_public = True
+        question.save(update_fields=['active', 'is_public'])
+        assert get_submission_video_urls(submission) == [url]

@@ -19,6 +19,30 @@ from eventyay.common.video_embed import get_video_embed_info, parse_video_urls
 SESSION_VIDEO_IMPORT_KEY = 'session_video'
 
 
+def session_videos_enabled(event) -> bool:
+    """Return whether session video links are enabled for this event."""
+    question = get_session_video_question(event, create=False)
+    if question is not None:
+        return question.active
+    from eventyay.base.models.cfp import default_fields
+
+    visibility = event.cfp.fields.get('session_videos', default_fields()['session_videos']).get(
+        'visibility',
+        'do_not_ask',
+    )
+    return visibility != 'do_not_ask'
+
+
+def exclude_session_video_from_cfp_questions(queryset):
+    """Hide organiser-managed session video fields from CfP custom-field UIs."""
+    return queryset.exclude(
+        import_key=SESSION_VIDEO_IMPORT_KEY,
+    ).exclude(
+        variant=TalkQuestionVariant.VIDEO,
+        target=TalkQuestionTarget.SUBMISSION,
+    )
+
+
 def get_session_video_question(event, *, create: bool = False):
     """Return the event's single submission Video link field, optionally creating it.
 
@@ -42,9 +66,6 @@ def get_session_video_question(event, *, create: bool = False):
             if not question.import_key:
                 question.import_key = SESSION_VIDEO_IMPORT_KEY
                 update_fields.append('import_key')
-            if create and not question.active:
-                question.active = True
-                update_fields.append('active')
             if update_fields:
                 question.save(update_fields=update_fields)
             if create:
@@ -100,6 +121,8 @@ def get_submission_video_answer(submission):
 
 
 def get_submission_video_urls(submission) -> list[str]:
+    if not session_videos_enabled(submission.event):
+        return []
     answer = get_submission_video_answer(submission)
     return parse_video_urls(answer.answer if answer else '')
 
@@ -127,6 +150,10 @@ def set_submission_video_urls(submission, urls: list[str] | None) -> list[str]:
         cleaned.append(raw)
 
     stored = '\n'.join(cleaned)
+    if not session_videos_enabled(submission.event):
+        answer = get_submission_video_answer(submission)
+        return parse_video_urls(answer.answer if answer else '')
+
     question = get_session_video_question(submission.event, create=bool(cleaned))
     if not question:
         return []
@@ -143,6 +170,9 @@ def set_submission_video_urls(submission, urls: list[str] | None) -> list[str]:
             answer.save(update_fields=['answer'])
         else:
             Answer.objects.create(question=question, submission=submission, answer=stored)
+        if not question.is_public:
+            question.is_public = True
+            question.save(update_fields=['is_public'])
         return cleaned
 
 
@@ -160,6 +190,8 @@ def set_submission_video_url(submission, url: str | None) -> str:
 
 def prefetch_submission_video_urls(queryset, event):
     """Prefetch canonical video answers onto a submission queryset for list views."""
+    if not session_videos_enabled(event):
+        return queryset
     question = get_session_video_question(event, create=False)
     if not question:
         return queryset
@@ -174,6 +206,8 @@ def prefetch_submission_video_urls(queryset, event):
 
 
 def video_urls_from_prefetched_submission(submission) -> list[str]:
+    if not session_videos_enabled(submission.event):
+        return []
     answers = getattr(submission, '_session_video_answers', None)
     if answers is None:
         return get_submission_video_urls(submission)

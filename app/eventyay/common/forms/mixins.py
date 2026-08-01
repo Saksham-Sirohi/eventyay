@@ -28,6 +28,7 @@ from eventyay.common.forms.validators import (
 from eventyay.common.forms.widgets import HtmlDateInput, HtmlDateTimeInput
 from eventyay.common.text.phrases import phrases
 from eventyay.common.utils.language import localize_event_text
+from eventyay.common.session_video import exclude_session_video_from_cfp_questions
 from eventyay.common.video_embed import get_video_embed_info, parse_video_urls
 from eventyay.helpers.countries import CachedCountries
 from eventyay.helpers.escapejson import escapejson_attr
@@ -181,7 +182,7 @@ class QuestionFieldsMixin:
             is_imported=False,
             target=target,
         )
-        return qs.order_by('position')
+        return exclude_session_video_from_cfp_questions(qs).order_by('position')
 
     def inject_questions_into_fields(
         self,

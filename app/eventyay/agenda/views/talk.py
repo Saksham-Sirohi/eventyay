@@ -226,7 +226,8 @@ class TalkView(TalkMixin, TemplateView):
         frame_src = []
         recording_csp = self.recording.get('csp_header')
         if recording_csp:
-            frame_src.append(recording_csp)
+            # Providers may return whitespace-separated CSP sources.
+            frame_src.extend(part for part in str(recording_csp).split() if part)
         for answer in self.answers:
             if answer.question.variant != TalkQuestionVariant.VIDEO:
                 continue

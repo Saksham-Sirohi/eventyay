@@ -11,6 +11,7 @@ from eventyay.base.models import Submission, SubmissionStates
 from eventyay.base.models.question import TalkQuestionRequired as QuestionRequired, TalkQuestionVariant as QuestionVariant
 from eventyay.common.session_video import (
     SESSION_VIDEO_IMPORT_KEY,
+    ensure_session_video_question,
     get_session_video_question,
     get_submission_video_url,
 )
@@ -690,7 +691,32 @@ def test_orga_can_toggle_submission_featured(orga_client, event, submission):
 
 
 @pytest.mark.django_db
+def test_orga_can_save_session_videos_from_submission_edit(orga_client, event, submission):
+    with scope(event=event):
+        ensure_session_video_question(event)
+    url = 'https://youtu.be/dQw4w9WgXcQ?t=90'
+    response = orga_client.post(
+        submission.orga_urls.edit,
+        data={
+            'abstract': submission.abstract,
+            'content_locale': submission.content_locale,
+            'title': submission.title,
+            'submission_type': submission.submission_type.pk,
+            'session_video_urls': url,
+            'resource-TOTAL_FORMS': 0,
+            'resource-INITIAL_FORMS': 0,
+        },
+        follow=True,
+    )
+    assert response.status_code == 200
+    with scope(event=event):
+        assert get_submission_video_url(submission) == url
+
+
+@pytest.mark.django_db
 def test_orga_can_set_submission_video_from_list(orga_client, event, submission):
+    with scope(event=event):
+        ensure_session_video_question(event)
     url = "https://youtu.be/dQw4w9WgXcQ?t=90"
     list_response = orga_client.get(event.orga_urls.submissions, follow=True)
     assert list_response.status_code == 200
@@ -728,6 +754,8 @@ def test_orga_can_set_submission_video_from_list(orga_client, event, submission)
 
 @pytest.mark.django_db
 def test_orga_can_set_multiple_submission_videos_from_list(orga_client, event, submission):
+    with scope(event=event):
+        ensure_session_video_question(event)
     urls = [
         "https://youtu.be/dQw4w9WgXcQ?t=90",
         "https://vimeo.com/123456789#t=1m30s",
@@ -746,7 +774,9 @@ def test_orga_can_set_multiple_submission_videos_from_list(orga_client, event, s
 
 
 @pytest.mark.django_db
-def test_orga_rejects_invalid_submission_video_url(orga_client, submission):
+def test_orga_rejects_invalid_submission_video_url(orga_client, event, submission):
+    with scope(event=event):
+        ensure_session_video_question(event)
     response = orga_client.post(
         submission.orga_urls.video_link,
         data=json.dumps({"urls": ["https://example.com/not-a-video"]}),
