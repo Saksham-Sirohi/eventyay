@@ -47,11 +47,6 @@
 <script>
 import mixin from './mixin'
 
-function hasWebhookConfigKeys(config) {
-	return Object.prototype.hasOwnProperty.call(config, 'webhook_url')
-		|| Object.prototype.hasOwnProperty.call(config, 'webhook_hmac_secret')
-}
-
 export default {
 	mixins: [mixin],
 	computed: {
@@ -71,18 +66,18 @@ export default {
 		configureWebhook: {
 			get() {
 				const config = this.modules['chat.native']?.config
-				return !!config && hasWebhookConfigKeys(config)
+				if (!config) return false
+				// Read reactive properties so Vue tracks changes correctly.
+				if (config.webhook_enabled !== undefined) {
+					return !!config.webhook_enabled
+				}
+				return !!(config.webhook_url || config.webhook_hmac_secret)
 			},
 			set(value) {
 				const config = this.modules['chat.native']?.config
 				if (!config) return
 				if (value) {
-					if (!Object.prototype.hasOwnProperty.call(config, 'webhook_url')) {
-						config.webhook_url = ''
-					}
-					if (!Object.prototype.hasOwnProperty.call(config, 'webhook_hmac_secret')) {
-						config.webhook_hmac_secret = ''
-					}
+					config.webhook_enabled = true
 				} else {
 					this.clearChatWebhookConfig()
 				}
@@ -122,8 +117,9 @@ export default {
 		clearChatWebhookConfig() {
 			const config = this.modules['chat.native']?.config
 			if (!config) return
-			delete config.webhook_url
-			delete config.webhook_hmac_secret
+			config.webhook_enabled = false
+			config.webhook_url = ''
+			config.webhook_hmac_secret = ''
 		}
 	}
 }
