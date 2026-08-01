@@ -47,19 +47,13 @@
 <script>
 import mixin from './mixin'
 
+function hasWebhookConfigKeys(config) {
+	return Object.prototype.hasOwnProperty.call(config, 'webhook_url')
+		|| Object.prototype.hasOwnProperty.call(config, 'webhook_hmac_secret')
+}
+
 export default {
 	mixins: [mixin],
-	data() {
-		return {
-			showWebhookConfig: false
-		}
-	},
-	created() {
-		const chatConfig = this.modules['chat.native']?.config
-		if (chatConfig?.webhook_url || chatConfig?.webhook_hmac_secret) {
-			this.showWebhookConfig = true
-		}
-	},
 	computed: {
 		hasChat: {
 			get() {
@@ -69,20 +63,28 @@ export default {
 				if (value) {
 					this.addModule('chat.native', {volatile: true})
 				} else {
+					this.clearChatWebhookConfig()
 					this.removeModule('chat.native')
-					this.showWebhookConfig = false
 				}
 			}
 		},
 		configureWebhook: {
 			get() {
-				return this.showWebhookConfig
+				const config = this.modules['chat.native']?.config
+				return !!config && hasWebhookConfigKeys(config)
 			},
 			set(value) {
-				this.showWebhookConfig = value
-				if (!value && this.modules['chat.native']) {
-					this.modules['chat.native'].config.webhook_url = ''
-					this.modules['chat.native'].config.webhook_hmac_secret = ''
+				const config = this.modules['chat.native']?.config
+				if (!config) return
+				if (value) {
+					if (!Object.prototype.hasOwnProperty.call(config, 'webhook_url')) {
+						config.webhook_url = ''
+					}
+					if (!Object.prototype.hasOwnProperty.call(config, 'webhook_hmac_secret')) {
+						config.webhook_hmac_secret = ''
+					}
+				} else {
+					this.clearChatWebhookConfig()
 				}
 			}
 		},
@@ -114,6 +116,14 @@ export default {
 					this.removeModule('poll')
 				}
 			}
+		}
+	},
+	methods: {
+		clearChatWebhookConfig() {
+			const config = this.modules['chat.native']?.config
+			if (!config) return
+			delete config.webhook_url
+			delete config.webhook_hmac_secret
 		}
 	}
 }
