@@ -3,8 +3,14 @@
 	h2 Sidebar addons
 	bunt-switch(name="enable-chat", v-model="hasChat", label="Enable Chat")
 	template(v-if="hasChat")
-		bunt-switch(name="configure-webhook", v-model="configureWebhook", label="Configure Webhook")
-		.webhook-config(v-if="configureWebhook")
+		button.webhook-toggle(
+			type="button"
+			:aria-expanded="String(showWebhookConfig)"
+			@click="showWebhookConfig = !showWebhookConfig"
+		)
+			span.webhook-toggle-icon {{ showWebhookConfig ? '▼' : '►' }}
+			span Webhook
+		.webhook-config(v-if="showWebhookConfig")
 			h4 Chat Webhook
 			p.hint Send chat messages to an external endpoint in real-time
 			bunt-input-outline-container(label="Webhook URL")
@@ -49,6 +55,17 @@ import mixin from './mixin'
 
 export default {
 	mixins: [mixin],
+	data() {
+		return {
+			showWebhookConfig: false
+		}
+	},
+	created() {
+		const config = this.modules['chat.native']?.config
+		if (config?.webhook_url || config?.webhook_hmac_secret) {
+			this.showWebhookConfig = true
+		}
+	},
 	computed: {
 		hasChat: {
 			get() {
@@ -60,26 +77,7 @@ export default {
 				} else {
 					this.clearChatWebhookConfig()
 					this.removeModule('chat.native')
-				}
-			}
-		},
-		configureWebhook: {
-			get() {
-				const config = this.modules['chat.native']?.config
-				if (!config) return false
-				// Read reactive properties so Vue tracks changes correctly.
-				if (config.webhook_enabled !== undefined) {
-					return !!config.webhook_enabled
-				}
-				return !!(config.webhook_url || config.webhook_hmac_secret)
-			},
-			set(value) {
-				const config = this.modules['chat.native']?.config
-				if (!config) return
-				if (value) {
-					config.webhook_enabled = true
-				} else {
-					this.clearChatWebhookConfig()
+					this.showWebhookConfig = false
 				}
 			}
 		},
@@ -117,7 +115,6 @@ export default {
 		clearChatWebhookConfig() {
 			const config = this.modules['chat.native']?.config
 			if (!config) return
-			config.webhook_enabled = false
 			config.webhook_url = ''
 			config.webhook_hmac_secret = ''
 		}
@@ -128,8 +125,25 @@ export default {
 .c-sidebar-addons
 	.bunt-checkbox
 		margin-bottom: 8px
+	.webhook-toggle
+		display: flex
+		align-items: center
+		gap: 6px
+		margin: 4px 0 8px 0
+		padding: 0
+		border: 0
+		background: transparent
+		color: #333
+		font: inherit
+		font-size: 14px
+		cursor: pointer
+		.webhook-toggle-icon
+			display: inline-block
+			width: 1em
+			font-size: 12px
+			line-height: 1
 	.webhook-config
-		margin: 8px 0 16px 0
+		margin: 0 0 16px 0
 		padding: 12px 16px
 		background: rgba(0, 0, 0, 0.03)
 		border-radius: 6px
