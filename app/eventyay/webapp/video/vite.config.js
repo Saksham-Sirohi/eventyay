@@ -105,12 +105,12 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024
         }
       }),
-      // Added ESLint plugin to support lintOnSave functionality
-      eslint({
+      // Lint-on-save for local serve only; ESLint 10 scope managers are not
+      // compatible with vite-plugin-eslint during production builds.
+      mode !== 'production' && eslint({
         include: ['src/**/*.js', 'src/**/*.vue'],
         cache: false
       }),
-  // Modernizr removed; using native feature checks in preloader instead
       mode === 'production' && process.env.ANALYZE && visualizer({
         open: true,
         filename: 'dist/bundle-report.html'
