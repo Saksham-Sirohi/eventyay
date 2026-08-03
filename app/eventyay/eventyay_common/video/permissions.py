@@ -42,15 +42,22 @@ def resolve_attendee_trait_grant(event: Event, attendee_grant):
 
 
 VIDEO_PERMISSION_DEFINITIONS: dict[str, VideoPermissionDefinition] = {
-    'can_video_create_stages': VideoPermissionDefinition('can_video_create_stages', 'video_stage_manager'),
-    'can_video_create_channels': VideoPermissionDefinition('can_video_create_channels', 'video_channel_manager'),
-    'can_video_manage_announcements': VideoPermissionDefinition('can_video_manage_announcements', 'video_announcement_manager'),
-    'can_video_view_users': VideoPermissionDefinition('can_video_view_users', 'video_user_viewer'),
-    'can_video_manage_users': VideoPermissionDefinition('can_video_manage_users', 'video_user_moderator'),
-    'can_video_manage_rooms': VideoPermissionDefinition('can_video_manage_rooms', 'video_room_manager'),
-    'can_video_manage_polls_questions': VideoPermissionDefinition('can_video_manage_polls_questions', 'video_poll_question_manager'),
-    'can_video_manage_kiosks': VideoPermissionDefinition('can_video_manage_kiosks', 'video_kiosk_manager'),
-    'can_video_manage_configuration': VideoPermissionDefinition('can_video_manage_configuration', 'video_config_manager'),
+    'can_video_manage_content': VideoPermissionDefinition(
+        'can_video_manage_content', 'video_content_manager'
+    ),
+    'can_video_moderate': VideoPermissionDefinition(
+        'can_video_moderate', 'video_moderator'
+    ),
+    'can_video_manage_kiosks': VideoPermissionDefinition(
+        'can_video_manage_kiosks', 'video_kiosk_manager'
+    ),
+    'can_video_view_analytics': VideoPermissionDefinition(
+        'can_video_view_analytics', 'video_analyst'
+    ),
+    # In-video Event Config (theme, connection limits, BBB defaults).
+    'can_change_config': VideoPermissionDefinition(
+        'can_change_config', 'video_config_manager'
+    ),
 }
 
 VIDEO_PERMISSION_BY_FIELD: dict[str, VideoPermissionDefinition] = VIDEO_PERMISSION_DEFINITIONS

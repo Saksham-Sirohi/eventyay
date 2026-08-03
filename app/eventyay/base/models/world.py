@@ -15,6 +15,11 @@ from eventyay.base.models.cache import VersionedModel
 from eventyay.core.permissions import (
     MAX_PERMISSIONS_IF_SILENCED,
     SYSTEM_ROLES,
+    VIDEO_ANALYST_PERMISSIONS,
+    VIDEO_CONFIG_MANAGER_PERMISSIONS,
+    VIDEO_CONTENT_MANAGER_PERMISSIONS,
+    VIDEO_KIOSK_MANAGER_PERMISSIONS,
+    VIDEO_MODERATOR_PERMISSIONS,
     Permission,
     normalize_permission_value,
     traits_match_required,
@@ -89,17 +94,6 @@ def default_roles():
     )
     apiuser = admin + [Permission.EVENT_API, Permission.EVENT_SECRETS]
     scheduleuser = [Permission.EVENT_API]
-    video_stage_manager = [Permission.EVENT_ROOMS_CREATE_STAGE]
-    video_channel_manager = [Permission.EVENT_ROOMS_CREATE_CHAT, Permission.EVENT_ROOMS_CREATE_BBB]
-    video_announcement_manager = [Permission.EVENT_ANNOUNCE]
-    video_user_viewer = [Permission.EVENT_USERS_LIST]
-    video_user_moderator = [
-        Permission.EVENT_USERS_MANAGE,
-        Permission.ROOM_CHAT_MODERATE,
-    ]
-    video_room_manager = [Permission.ROOM_UPDATE, Permission.ROOM_DELETE]
-    video_kiosk_manager = [Permission.EVENT_KIOSKS_MANAGE]
-    video_config_manager = [Permission.EVENT_UPDATE, Permission.EVENT_GRAPHS]
     return {
         "attendee": attendee,
         "viewer": viewer,
@@ -111,14 +105,11 @@ def default_roles():
         "admin": admin,
         "apiuser": apiuser,
         "scheduleuser": scheduleuser,
-        "video_stage_manager": video_stage_manager,
-        "video_channel_manager": video_channel_manager,
-        "video_announcement_manager": video_announcement_manager,
-        "video_user_viewer": video_user_viewer,
-        "video_user_moderator": video_user_moderator,
-        "video_room_manager": video_room_manager,
-        "video_kiosk_manager": video_kiosk_manager,
-        "video_config_manager": video_config_manager,
+        "video_content_manager": list(VIDEO_CONTENT_MANAGER_PERMISSIONS),
+        "video_moderator": list(VIDEO_MODERATOR_PERMISSIONS),
+        "video_kiosk_manager": list(VIDEO_KIOSK_MANAGER_PERMISSIONS),
+        "video_analyst": list(VIDEO_ANALYST_PERMISSIONS),
+        "video_config_manager": list(VIDEO_CONFIG_MANAGER_PERMISSIONS),
     }
 
 

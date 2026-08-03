@@ -55,6 +55,45 @@ MAX_PERMISSIONS_IF_SILENCED = {
 }
 
 
+# Consolidated organizer roles (mapped from team dashboard toggles).
+VIDEO_CONTENT_MANAGER_PERMISSIONS = [
+    Permission.EVENT_ROOMS_CREATE_STAGE.value,
+    Permission.EVENT_ROOMS_CREATE_CHAT.value,
+    Permission.EVENT_ROOMS_CREATE_BBB.value,
+    Permission.EVENT_ROOMS_CREATE_EXHIBITION.value,
+    Permission.EVENT_ROOMS_CREATE_POSTER.value,
+    Permission.ROOM_UPDATE.value,
+    Permission.ROOM_DELETE.value,
+]
+
+VIDEO_MODERATOR_PERMISSIONS = [
+    Permission.EVENT_ANNOUNCE.value,
+    Permission.ROOM_ANNOUNCE.value,
+    Permission.EVENT_USERS_LIST.value,
+    Permission.EVENT_USERS_MANAGE.value,
+    Permission.ROOM_CHAT_MODERATE.value,
+    Permission.ROOM_VIEWERS.value,
+    Permission.ROOM_BBB_RECORDINGS.value,
+    Permission.ROOM_QUESTION_READ.value,
+    Permission.ROOM_QUESTION_MODERATE.value,
+    Permission.ROOM_POLL_READ.value,
+    Permission.ROOM_POLL_MANAGE.value,
+    Permission.ROOM_POLL_EARLY_RESULTS.value,
+]
+
+VIDEO_KIOSK_MANAGER_PERMISSIONS = [
+    Permission.EVENT_KIOSKS_MANAGE.value,
+]
+
+VIDEO_ANALYST_PERMISSIONS = [
+    Permission.EVENT_GRAPHS.value,
+]
+
+VIDEO_CONFIG_MANAGER_PERMISSIONS = [
+    Permission.EVENT_UPDATE.value,
+]
+
+
 SYSTEM_ROLES = {
     "__kiosk": [
         Permission.EVENT_VIEW.value,
@@ -77,6 +116,12 @@ SYSTEM_ROLES = {
         Permission.ROOM_POLL_VOTE.value,
         Permission.ROOM_VIEW.value,
     ],
+    "video_content_manager": VIDEO_CONTENT_MANAGER_PERMISSIONS,
+    "video_moderator": VIDEO_MODERATOR_PERMISSIONS,
+    "video_kiosk_manager": VIDEO_KIOSK_MANAGER_PERMISSIONS,
+    "video_analyst": VIDEO_ANALYST_PERMISSIONS,
+    "video_config_manager": VIDEO_CONFIG_MANAGER_PERMISSIONS,
+    # Legacy role names kept so in-flight JWTs minted before consolidation still work.
     "video_stage_manager": [
         Permission.EVENT_ROOMS_CREATE_STAGE.value,
     ],
@@ -105,13 +150,6 @@ SYSTEM_ROLES = {
         Permission.ROOM_POLL_MANAGE.value,
         Permission.ROOM_POLL_EARLY_RESULTS.value,
     ],
-    "video_kiosk_manager": [
-        Permission.EVENT_KIOSKS_MANAGE.value,
-    ],
-    "video_config_manager": [
-        Permission.EVENT_UPDATE.value,
-        Permission.EVENT_GRAPHS.value,
-    ],
 }
 
 # Roles that are considered organizer/admin roles for permission management
@@ -119,6 +157,12 @@ ORGANIZER_ROLES = frozenset({
     'admin',
     'apiuser',
     'scheduleuser',
+    'video_content_manager',
+    'video_moderator',
+    'video_kiosk_manager',
+    'video_analyst',
+    'video_config_manager',
+    # Legacy aliases
     'video_stage_manager',
     'video_channel_manager',
     'video_announcement_manager',
@@ -126,8 +170,6 @@ ORGANIZER_ROLES = frozenset({
     'video_user_moderator',
     'video_room_manager',
     'video_poll_question_manager',
-    'video_kiosk_manager',
-    'video_config_manager',
 })
 
 
