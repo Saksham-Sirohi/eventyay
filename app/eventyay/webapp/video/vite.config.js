@@ -105,9 +105,8 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024
         }
       }),
-      // Lint-on-save for local serve only; ESLint 10 scope managers are not
-      // compatible with vite-plugin-eslint during production builds.
-      mode !== 'production' && eslint({
+      // Lint-on-save during Vite transforms
+      eslint({
         include: ['src/**/*.js', 'src/**/*.vue'],
         cache: false
       }),
