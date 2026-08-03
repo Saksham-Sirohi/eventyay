@@ -94,6 +94,11 @@ def migrate_video_permissions_forward(apps, schema_editor):
         team.save(update_fields=update_fields)
 
     Event = apps.get_model('base', 'Event')
+    # Keep stored admin roles complete for staff/admin trait users.
+    ADMIN_EXTRA_PERMISSIONS = (
+        'event:kiosks.manage',
+        'room:invite',
+    )
     for event in Event.objects.exclude(roles=None).iterator():
         roles = dict(event.roles or {})
         changed = False
@@ -105,6 +110,13 @@ def migrate_video_permissions_forward(apps, schema_editor):
             if legacy_role in roles:
                 del roles[legacy_role]
                 changed = True
+        admin_perms = list(roles.get('admin') or [])
+        if admin_perms:
+            for perm in ADMIN_EXTRA_PERMISSIONS:
+                if perm not in admin_perms:
+                    admin_perms.append(perm)
+                    changed = True
+            roles['admin'] = admin_perms
         if changed:
             event.roles = roles
             event.save(update_fields=['roles'])

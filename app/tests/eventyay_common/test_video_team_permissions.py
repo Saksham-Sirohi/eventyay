@@ -216,3 +216,38 @@ def test_sync_strips_revoked_traits_from_existing_video_user(event, organizer, u
     video_user.refresh_from_db()
     assert content not in (video_user.traits or [])
     assert 'attendee' in (video_user.traits or [])
+
+
+@pytest.mark.django_db
+def test_admin_trait_falls_back_when_roles_json_omits_admin(event):
+    """Staff admin trait must not lose core perms if stored roles lack ``admin``."""
+    # Partial roles JSON: video roles only (no admin key). SYSTEM_ROLES also has no admin.
+    event.roles = {
+        'video_content_manager': [
+            Permission.EVENT_ROOMS_CREATE_STAGE.value,
+            Permission.ROOM_UPDATE.value,
+        ],
+        'video_kiosk_manager': [Permission.EVENT_KIOSKS_MANAGE.value],
+    }
+    event.save(update_fields=['roles'])
+
+    assert event.has_permission_implicit(
+        traits=['admin'],
+        permissions=[
+            Permission.EVENT_UPDATE,
+            Permission.EVENT_USERS_MANAGE,
+            Permission.EVENT_ROOMS_CREATE_STAGE,
+            Permission.EVENT_KIOSKS_MANAGE,
+            Permission.EVENT_CONNECTIONS_UNLIMITED,
+            Permission.ROOM_BBB_MODERATE,
+            Permission.ROOM_INVITE,
+        ],
+    )
+
+
+@pytest.mark.django_db
+def test_admin_role_includes_kiosks_and_invite(event):
+    assert event.has_permission_implicit(
+        traits=['admin'],
+        permissions=[Permission.EVENT_KIOSKS_MANAGE, Permission.ROOM_INVITE],
+    )

@@ -57,6 +57,11 @@ from eventyay.core.permissions import (
     MAX_PERMISSIONS_IF_SILENCED,
     ORGANIZER_ROLES,
     SYSTEM_ROLES,
+    VIDEO_ANALYST_PERMISSIONS,
+    VIDEO_CONFIG_MANAGER_PERMISSIONS,
+    VIDEO_CONTENT_MANAGER_PERMISSIONS,
+    VIDEO_KIOSK_MANAGER_PERMISSIONS,
+    VIDEO_MODERATOR_PERMISSIONS,
     Permission,
     normalize_permission_value,
     traits_match_required,
@@ -145,12 +150,14 @@ def default_roles():
             Permission.EVENT_UPDATE,
             Permission.ROOM_DELETE,
             Permission.ROOM_UPDATE,
+            Permission.ROOM_INVITE,
             Permission.EVENT_ROOMS_CREATE_BBB,
             Permission.EVENT_ROOMS_CREATE_STAGE,
             Permission.EVENT_ROOMS_CREATE_EXHIBITION,
             Permission.EVENT_ROOMS_CREATE_POSTER,
             Permission.EVENT_USERS_LIST,
             Permission.EVENT_USERS_MANAGE,
+            Permission.EVENT_KIOSKS_MANAGE,
             Permission.EVENT_GRAPHS,
             Permission.EVENT_CONNECTIONS_UNLIMITED,
         ]
@@ -168,6 +175,11 @@ def default_roles():
         'admin': admin,
         'apiuser': apiuser,
         'scheduleuser': scheduleuser,
+        'video_content_manager': list(VIDEO_CONTENT_MANAGER_PERMISSIONS),
+        'video_moderator': list(VIDEO_MODERATOR_PERMISSIONS),
+        'video_kiosk_manager': list(VIDEO_KIOSK_MANAGER_PERMISSIONS),
+        'video_analyst': list(VIDEO_ANALYST_PERMISSIONS),
+        'video_config_manager': list(VIDEO_CONFIG_MANAGER_PERMISSIONS),
     }
 
 
@@ -1462,6 +1474,24 @@ class Event(
             augmented.setdefault(role, [f'eventyay-video-event-{slug}-{trait_name.replace("_", "-")}'])
         return augmented
 
+    def _permissions_for_role(self, role_name, event_roles=None):
+        """
+        Resolve a role's permission list.
+
+        Prefer the event's stored ``roles`` JSON, then ``default_roles()`` (includes
+        ``admin`` / attendee stacks), then ``SYSTEM_ROLES`` for built-in video roles.
+        Using only ``SYSTEM_ROLES`` as fallback wrongly drops ``admin`` because that
+        role is not defined there.
+        """
+        if event_roles is None:
+            event_roles = self.roles if self.roles is not None else {}
+        if role_name in event_roles and event_roles[role_name] is not None:
+            return event_roles[role_name]
+        defaults = default_roles()
+        if role_name in defaults:
+            return defaults[role_name]
+        return SYSTEM_ROLES.get(role_name, [])
+
     def has_permission_implicit(
         self,
         *,
@@ -1479,14 +1509,14 @@ class Event(
         admin_mode_active = 'admin' in traits
         if admin_mode_active:
             for role_name in ORGANIZER_ROLES:
-                role_permissions = event_roles.get(role_name, SYSTEM_ROLES.get(role_name, []))
+                role_permissions = self._permissions_for_role(role_name, event_roles)
                 role_permissions_str = [normalize_permission_value(rp) for rp in role_permissions]
                 if any(normalize_permission_value(p) in role_permissions_str for p in permissions):
                     return True
 
         attendee_traits = event_trait_grants.get('attendee', ['attendee'])
         if traits_match_required(traits, attendee_traits) and (attendee_traits or allow_empty_traits):
-            role_permissions = event_roles.get('attendee', SYSTEM_ROLES.get('attendee', []))
+            role_permissions = self._permissions_for_role('attendee', event_roles)
             role_permissions_str = [normalize_permission_value(rp) for rp in role_permissions]
             role_permissions_str.append(normalize_permission_value(Permission.EVENT_CHAT_DIRECT))
             if any(normalize_permission_value(p) in role_permissions_str for p in permissions):
@@ -1496,7 +1526,7 @@ class Event(
             if role == 'attendee':
                 continue
             if traits_match_required(traits, required_traits) and (required_traits or allow_empty_traits):
-                role_permissions = event_roles.get(role, SYSTEM_ROLES.get(role, []))
+                role_permissions = self._permissions_for_role(role, event_roles)
                 role_permissions_str = [normalize_permission_value(rp) for rp in role_permissions]
                 if any(normalize_permission_value(p) in role_permissions_str for p in permissions):
                     return True
@@ -1505,7 +1535,7 @@ class Event(
             room_trait_grants = room.trait_grants if room.trait_grants is not None else {}
             for role, required_traits in room_trait_grants.items():
                 if traits_match_required(traits, required_traits) and (required_traits or allow_empty_traits):
-                    role_permissions = event_roles.get(role, SYSTEM_ROLES.get(role, []))
+                    role_permissions = self._permissions_for_role(role, event_roles)
                     role_permissions_str = [normalize_permission_value(rp) for rp in role_permissions]
                     if any(normalize_permission_value(p) in role_permissions_str for p in permissions):
                         return True
@@ -1539,10 +1569,11 @@ class Event(
         roles = user.get_role_grants(room)
         event_roles = self.roles if self.roles is not None else default_roles()
         for r in roles:
-            role_perms = event_roles.get(r, SYSTEM_ROLES.get(r, []))
+            role_perms = self._permissions_for_role(r, event_roles)
             role_perms_str = [normalize_permission_value(rp) for rp in role_perms]
             if any(normalize_permission_value(p) in role_perms_str for p in permission):
                 return True
+        return False
 
     async def has_permission_async(self, *, user, permission: Permission, room=None):
         """
@@ -1570,10 +1601,11 @@ class Event(
         roles = await user.get_role_grants_async(room)
         event_roles = self.roles if self.roles is not None else default_roles()
         for r in roles:
-            role_perms = event_roles.get(r, SYSTEM_ROLES.get(r, []))
+            role_perms = self._permissions_for_role(r, event_roles)
             role_perms_str = [normalize_permission_value(rp) for rp in role_perms]
             if any(normalize_permission_value(p) in role_perms_str for p in permission):
                 return True
+        return False
 
     def get_all_permissions(self, user):
         result = defaultdict(set)
@@ -1590,8 +1622,7 @@ class Event(
 
         for role, required_traits in event_trait_grants.items():
             if traits_match_required(user_traits, required_traits) and (required_traits or allow_empty_traits):
-                role_perms = event_roles.get(role, SYSTEM_ROLES.get(role, []))
-                result[self].update(role_perms)
+                result[self].update(self._permissions_for_role(role, event_roles))
 
         # Admin mode in the ticket/talk system is represented by the ``admin`` trait on the video side.
         # When admin mode is ON, the user has the ``admin`` trait and should retain full access.
@@ -1600,8 +1631,7 @@ class Event(
         if admin_mode_active:
             # Grant all video manager permissions when admin mode is active
             for role_name in ORGANIZER_ROLES:
-                role_perms = event_roles.get(role_name, SYSTEM_ROLES.get(role_name, []))
-                result[self].update(role_perms)
+                result[self].update(self._permissions_for_role(role_name, event_roles))
 
         attendee_traits = event_trait_grants.get('attendee', ['attendee'])
         if traits_match_required(user_traits, attendee_traits) and (attendee_traits or allow_empty_traits):
@@ -1611,10 +1641,10 @@ class Event(
             room_trait_grants = room.trait_grants if room.trait_grants is not None else {}
             for role, required_traits in room_trait_grants.items():
                 if traits_match_required(user_traits, required_traits) and (required_traits or allow_empty_traits):
-                    result[room].update(event_roles.get(role, SYSTEM_ROLES.get(role, [])))
+                    result[room].update(self._permissions_for_role(role, event_roles))
 
         for grant in user.room_grants.select_related('room'):
-            result[grant.room].update(event_roles.get(grant.role, SYSTEM_ROLES.get(grant.role, [])))
+            result[grant.room].update(self._permissions_for_role(grant.role, event_roles))
         if user.is_silenced:
             for key in result.keys():
                 result[key] &= MAX_PERMISSIONS_IF_SILENCED
