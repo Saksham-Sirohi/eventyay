@@ -72,6 +72,17 @@ VIDEO_TRAIT_ROLE_MAP: dict[str, str] = {
     for definition in VIDEO_PERMISSION_DEFINITIONS.values()
 }
 
+# Pre-consolidation trait names that may still appear in cached JWTs / user rows.
+LEGACY_VIDEO_TRAIT_NAMES: tuple[str, ...] = (
+    'video_stage_manager',
+    'video_channel_manager',
+    'video_announcement_manager',
+    'video_user_viewer',
+    'video_user_moderator',
+    'video_room_manager',
+    'video_poll_question_manager',
+)
+
 
 def iter_video_permission_definitions() -> Iterable[VideoPermissionDefinition]:
     return VIDEO_PERMISSION_DEFINITIONS.values()
@@ -85,6 +96,40 @@ def build_video_traits_for_event(event_slug: str) -> dict[str, str]:
         definition.trait_name: definition.trait_value(event_slug)
         for definition in VIDEO_PERMISSION_DEFINITIONS.values()
     }
+
+
+def managed_video_trait_values(event_slug: str) -> set[str]:
+    """All team-managed Video trait values for an event (current + legacy)."""
+    values = set(build_video_traits_for_event(event_slug).values())
+    for trait_name in LEGACY_VIDEO_TRAIT_NAMES:
+        values.add(f'eventyay-video-event-{event_slug}-{trait_name.replace("_", "-")}')
+    return values
+
+
+def replace_managed_video_traits(
+    event_slug: str,
+    traits: Iterable[str] | None,
+    team_traits: Iterable[str] | None,
+) -> list[str]:
+    """
+    Drop team-managed Video traits from ``traits`` and append ``team_traits``.
+
+    Non-managed traits (attendee, ticket, admin/organizer) are preserved.
+    """
+    managed = managed_video_trait_values(event_slug)
+    kept: list[str] = []
+    seen: set[str] = set()
+    for trait in traits or []:
+        if not trait or trait in managed or trait in seen:
+            continue
+        seen.add(trait)
+        kept.append(trait)
+    for trait in team_traits or []:
+        if not trait or trait in seen:
+            continue
+        seen.add(trait)
+        kept.append(trait)
+    return kept
 
 
 def collect_user_video_traits(event_slug: str, team_permission_set: Iterable[str]) -> list[str]:

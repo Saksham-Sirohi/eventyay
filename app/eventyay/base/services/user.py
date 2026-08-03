@@ -624,8 +624,15 @@ def get_user(
 
     token_id = None
     anonymous_invite = None
+    token_traits = None
     if with_token:
+        from eventyay.eventyay_common.video.traits_sync import apply_live_team_video_traits
+
         token_id = with_token["uid"]
+        # Team Video traits must follow live Organizer → Teams grants, not a cached JWT.
+        token_traits = apply_live_team_video_traits(
+            event, token_id, with_token.get("traits")
+        )
         user = get_user_by_token_id(event.id, token_id)
     elif with_client_id:
         user = get_user_by_client_id(event.id, with_client_id)
@@ -645,15 +652,14 @@ def get_user(
 
     if user:
         if with_token:
-            if user.traits != with_token.get("traits"):
-                traits = with_token["traits"]
-                update_user(event.id, id=user.id, traits=traits)
+            if list(user.traits or []) != list(token_traits or []):
+                update_user(event.id, id=user.id, traits=token_traits, serialize=False)
                 user = get_user_by_id(event.id, user.id)
             if token_id:
                 apply_video_jwt_contact_to_profile(user, event.id, token_id)
         return user
 
-    traits = with_token.get("traits") if with_token else None
+    traits = token_traits if with_token else None
     if not anonymous_invite and not event.has_permission_implicit(
         traits=traits or [],
         permissions=[Permission.EVENT_VIEW],

@@ -28,6 +28,7 @@ from eventyay.control.views.organizer import InviteForm, TokenForm
 from eventyay.helpers.urls import build_absolute_uri as build_global_uri
 
 from ...control.forms.organizer_forms import OrganizerForm, OrganizerUpdateForm, TeamForm
+from ..video.traits_sync import sync_video_traits_for_team
 
 logger = logging.getLogger(__name__)
 
@@ -400,6 +401,7 @@ class OrganizerTeamsView(UpdateView, OrganizerPermissionRequiredMixin):
                 self.request,
                 _("Changes to the team '%(team_name)s' have been saved.") % {'team_name': team_name},
             )
+            sync_video_traits_for_team(team)
             return_next = self._validated_teams_return_next(self.request.POST.get('next'))
             if return_next:
                 return redirect(return_next)
@@ -466,6 +468,7 @@ class OrganizerTeamsView(UpdateView, OrganizerPermissionRequiredMixin):
             user=self.request.user,
             data={'email': user.email, 'user': user.pk},
         )
+        sync_video_traits_for_team(team, members=[user])
         messages.success(self.request, _('The member has been removed from the team.'))
         return self._redirect_to_team_permissions(team.pk)
 
@@ -524,6 +527,7 @@ class OrganizerTeamsView(UpdateView, OrganizerPermissionRequiredMixin):
             user=self.request.user,
             data={'email': user.email, 'user': user.pk},
         )
+        sync_video_traits_for_team(team, members=[user])
 
         send_team_invitation_email(
             user=user,
