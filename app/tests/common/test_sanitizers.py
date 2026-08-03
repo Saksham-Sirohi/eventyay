@@ -144,9 +144,21 @@ class TestSanitizeEmailHtml:
         result = sanitize_email_html('<a href="https://x.com" onclick="evil()">link</a>')
         assert 'onclick' not in result
 
-    def test_img_stripped(self):
-        result = sanitize_email_html('<img src="x" onerror="alert(1)">')
-        assert '<img' not in result
+    def test_unsafe_img_src_stripped(self):
+        result = sanitize_email_html('<img src="javascript:alert(1)" onerror="alert(1)">')
+        assert 'javascript:' not in result
+        assert 'onerror' not in result
+        assert 'src=' not in result
+
+    def test_qr_data_uri_img_preserved(self):
+        html = '<img src="data:image/png;base64,abc" alt="Ticket QR code" width="160" height="160">'
+        result = sanitize_email_html(f'<p>{html}</p>')
+        assert 'src="data:image/png;base64,abc"' in result
+        assert 'alt="Ticket QR code"' in result
+
+    def test_data_href_on_anchors_stripped(self):
+        result = sanitize_email_html('<a href="data:text/html,<script>alert(1)</script>">x</a>')
+        assert 'data:' not in result
 
     def test_disallowed_div_stripped(self):
         result = sanitize_email_html('<div><p>text</p></div>')
