@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Iterable
 
+from eventyay.core.permissions import LEGACY_VIDEO_ROLE_NAMES
+
 if TYPE_CHECKING:
     from eventyay.base.models import Event
 
@@ -73,15 +75,7 @@ VIDEO_TRAIT_ROLE_MAP: dict[str, str] = {
 }
 
 # Pre-consolidation trait names that may still appear in cached JWTs / user rows.
-LEGACY_VIDEO_TRAIT_NAMES: tuple[str, ...] = (
-    'video_stage_manager',
-    'video_channel_manager',
-    'video_announcement_manager',
-    'video_user_viewer',
-    'video_user_moderator',
-    'video_room_manager',
-    'video_poll_question_manager',
-)
+LEGACY_VIDEO_TRAIT_NAMES: tuple[str, ...] = LEGACY_VIDEO_ROLE_NAMES
 
 
 def iter_video_permission_definitions() -> Iterable[VideoPermissionDefinition]:

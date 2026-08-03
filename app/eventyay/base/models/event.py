@@ -57,12 +57,9 @@ from eventyay.core.permissions import (
     MAX_PERMISSIONS_IF_SILENCED,
     ORGANIZER_ROLES,
     SYSTEM_ROLES,
-    VIDEO_ANALYST_PERMISSIONS,
-    VIDEO_CONFIG_MANAGER_PERMISSIONS,
-    VIDEO_CONTENT_MANAGER_PERMISSIONS,
-    VIDEO_KIOSK_MANAGER_PERMISSIONS,
-    VIDEO_MODERATOR_PERMISSIONS,
     Permission,
+    default_grants,
+    default_roles,
     normalize_permission_value,
     traits_match_required,
 )
@@ -101,94 +98,6 @@ def event_css_path(instance, filename):
 
 def event_logo_path(instance, filename):
     return path_with_hash(filename, base_path=f'{instance.slug}/img/')
-
-
-def default_roles():
-    attendee = [
-        Permission.EVENT_VIEW,
-        Permission.EVENT_EXHIBITION_CONTACT,
-        Permission.EVENT_CHAT_DIRECT,
-    ]
-    viewer = attendee + [Permission.ROOM_VIEW, Permission.ROOM_CHAT_READ]
-    participant = viewer + [
-        Permission.ROOM_CHAT_JOIN,
-        Permission.ROOM_CHAT_SEND,
-        Permission.ROOM_QUESTION_READ,
-        Permission.ROOM_QUESTION_ASK,
-        Permission.ROOM_QUESTION_VOTE,
-        Permission.ROOM_POLL_READ,
-        Permission.ROOM_POLL_VOTE,
-        Permission.ROOM_ROULETTE_JOIN,
-        Permission.ROOM_BBB_JOIN,
-        Permission.ROOM_JANUSCALL_JOIN,
-        Permission.ROOM_ZOOM_JOIN,
-    ]
-    room_creator = [Permission.EVENT_ROOMS_CREATE_CHAT]
-    room_owner = participant + [
-        Permission.ROOM_INVITE,
-        Permission.ROOM_DELETE,
-    ]
-    speaker = participant + [
-        Permission.ROOM_BBB_MODERATE,
-        Permission.ROOM_JANUSCALL_MODERATE,
-        Permission.ROOM_POLL_EARLY_RESULTS,
-    ]
-    moderator = speaker + [
-        Permission.ROOM_VIEWERS,
-        Permission.ROOM_CHAT_MODERATE,
-        Permission.ROOM_ANNOUNCE,
-        Permission.ROOM_BBB_RECORDINGS,
-        Permission.ROOM_QUESTION_MODERATE,
-        Permission.ROOM_POLL_EARLY_RESULTS,
-        Permission.ROOM_POLL_MANAGE,
-        Permission.EVENT_ANNOUNCE,
-    ]
-    admin = (
-        moderator
-        + room_creator
-        + [
-            Permission.EVENT_UPDATE,
-            Permission.ROOM_DELETE,
-            Permission.ROOM_UPDATE,
-            Permission.ROOM_INVITE,
-            Permission.EVENT_ROOMS_CREATE_BBB,
-            Permission.EVENT_ROOMS_CREATE_STAGE,
-            Permission.EVENT_ROOMS_CREATE_EXHIBITION,
-            Permission.EVENT_ROOMS_CREATE_POSTER,
-            Permission.EVENT_USERS_LIST,
-            Permission.EVENT_USERS_MANAGE,
-            Permission.EVENT_KIOSKS_MANAGE,
-            Permission.EVENT_GRAPHS,
-            Permission.EVENT_CONNECTIONS_UNLIMITED,
-        ]
-    )
-    apiuser = admin + [Permission.EVENT_API, Permission.EVENT_SECRETS]
-    scheduleuser = [Permission.EVENT_API]
-    return {
-        'attendee': attendee,
-        'viewer': viewer,
-        'participant': participant,
-        'room_creator': room_creator,
-        'room_owner': room_owner,
-        'speaker': speaker,
-        'moderator': moderator,
-        'admin': admin,
-        'apiuser': apiuser,
-        'scheduleuser': scheduleuser,
-        'video_content_manager': list(VIDEO_CONTENT_MANAGER_PERMISSIONS),
-        'video_moderator': list(VIDEO_MODERATOR_PERMISSIONS),
-        'video_kiosk_manager': list(VIDEO_KIOSK_MANAGER_PERMISSIONS),
-        'video_analyst': list(VIDEO_ANALYST_PERMISSIONS),
-        'video_config_manager': list(VIDEO_CONFIG_MANAGER_PERMISSIONS),
-    }
-
-
-def default_grants():
-    return {
-        'attendee': ['attendee'],
-        'admin': ['admin'],
-        'scheduleuser': [],
-    }
 
 
 FEATURE_FLAGS = [

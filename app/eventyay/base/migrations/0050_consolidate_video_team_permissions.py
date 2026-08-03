@@ -1,5 +1,10 @@
 from django.db import migrations, models
 
+from eventyay.core.permissions import (
+    LEGACY_VIDEO_ROLE_NAMES,
+    VIDEO_ROLE_PERMISSIONS,
+)
+
 
 LEGACY_CONTENT_FIELDS = (
     'can_video_create_stages',
@@ -25,49 +30,16 @@ REMOVED_FIELDS = (
     'can_video_manage_polls_questions',
 )
 
+# Snapshot of consolidated role bundles from eventyay.core.permissions.
 CONSOLIDATED_VIDEO_ROLES = {
-    'video_content_manager': [
-        'event:rooms.create.stage',
-        'event:rooms.create.chat',
-        'event:rooms.create.bbb',
-        'event:rooms.create.exhibition',
-        'event:rooms.create.poster',
-        'room:update',
-        'room:delete',
-    ],
-    'video_moderator': [
-        'event:announce',
-        'room:announce',
-        'event:users.list',
-        'event:users.manage',
-        'room:chat.moderate',
-        'room:viewers',
-        'room:bbb.recordings',
-        'room:question.read',
-        'room:question.moderate',
-        'room:poll.read',
-        'room:poll.manage',
-        'room:poll.early_results',
-    ],
-    'video_kiosk_manager': [
-        'event:kiosks.manage',
-    ],
-    'video_analyst': [
-        'event:graphs',
-    ],
-    'video_config_manager': [
-        'event.update',
-    ],
+    name: list(perms) for name, perms in VIDEO_ROLE_PERMISSIONS.items()
 }
 
-LEGACY_VIDEO_ROLES = (
-    'video_stage_manager',
-    'video_channel_manager',
-    'video_announcement_manager',
-    'video_user_viewer',
-    'video_user_moderator',
-    'video_room_manager',
-    'video_poll_question_manager',
+LEGACY_VIDEO_ROLES = LEGACY_VIDEO_ROLE_NAMES
+
+ADMIN_EXTRA_PERMISSIONS = (
+    'event:kiosks.manage',
+    'room:invite',
 )
 
 
@@ -94,11 +66,6 @@ def migrate_video_permissions_forward(apps, schema_editor):
         team.save(update_fields=update_fields)
 
     Event = apps.get_model('base', 'Event')
-    # Keep stored admin roles complete for staff/admin trait users.
-    ADMIN_EXTRA_PERMISSIONS = (
-        'event:kiosks.manage',
-        'room:invite',
-    )
     for event in Event.objects.exclude(roles=None).iterator():
         roles = dict(event.roles or {})
         changed = False

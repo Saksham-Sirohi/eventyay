@@ -1,11 +1,22 @@
 import pytest
 
 from eventyay.base.models import Team
+from eventyay.base.models import event as event_models
+from eventyay.base.models import world as world_models
 from eventyay.base.models.auth import User
 from eventyay.base.services.user import get_user
-from eventyay.core.permissions import Permission
+from eventyay.core.permissions import (
+    LEGACY_VIDEO_ROLE_NAMES,
+    LEGACY_VIDEO_ROLE_PERMISSIONS,
+    ORGANIZER_ROLES,
+    SYSTEM_ROLES,
+    VIDEO_ROLE_PERMISSIONS,
+    Permission,
+    default_roles,
+)
 from eventyay.eventyay_common.utils import encode_email
 from eventyay.eventyay_common.video.permissions import (
+    LEGACY_VIDEO_TRAIT_NAMES,
     VIDEO_PERMISSION_DEFINITIONS,
     collect_user_video_traits,
     managed_video_trait_values,
@@ -251,3 +262,25 @@ def test_admin_role_includes_kiosks_and_invite(event):
         traits=['admin'],
         permissions=[Permission.EVENT_KIOSKS_MANAGE, Permission.ROOM_INVITE],
     )
+
+
+def test_default_roles_are_shared_between_event_and_world():
+    assert event_models.default_roles is default_roles
+    assert world_models.default_roles is default_roles
+    assert event_models.default_grants is world_models.default_grants
+    roles = default_roles()
+    assert set(VIDEO_ROLE_PERMISSIONS).issubset(roles)
+    assert roles['video_content_manager'] == list(
+        VIDEO_ROLE_PERMISSIONS['video_content_manager']
+    )
+
+
+def test_system_and_organizer_roles_derive_from_video_maps():
+    for name, perms in VIDEO_ROLE_PERMISSIONS.items():
+        assert SYSTEM_ROLES[name] == list(perms)
+        assert name in ORGANIZER_ROLES
+    for name, perms in LEGACY_VIDEO_ROLE_PERMISSIONS.items():
+        assert SYSTEM_ROLES[name] == list(perms)
+        assert name in ORGANIZER_ROLES
+    assert LEGACY_VIDEO_TRAIT_NAMES == LEGACY_VIDEO_ROLE_NAMES
+    assert set(LEGACY_VIDEO_ROLE_NAMES) == set(LEGACY_VIDEO_ROLE_PERMISSIONS)
