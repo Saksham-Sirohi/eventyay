@@ -3,7 +3,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('base', '0041_make_event_email_optional'),
+        ('base', '0049_alter_talkquestion_variant_add_video'),
     ]
 
     operations = [
