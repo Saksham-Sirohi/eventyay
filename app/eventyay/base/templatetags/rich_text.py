@@ -196,29 +196,19 @@ def expand_email_preview_placeholders(html_body: str, event, *, locale: str | No
 
     Uses the same sample rendering as the Message center's full-form preview so
     the toolbar preview matches what users see after clicking "Preview email".
+    Trusted HTML samples (QR images, CTA buttons) are kept intact; plain samples
+    are wrapped in a highlighted placeholder span.
     """
-    from django.utils.translation import gettext
-
-    from eventyay.base.email import get_available_placeholders
     from eventyay.base.i18n import language
-    from eventyay.base.services.mail import TolerantDict
 
     resolved_locale = locale or event.settings.locale
     if resolved_locale not in event.settings.locales:
         resolved_locale = event.settings.locale
 
     with language(resolved_locale, event.settings.region):
-        context_dict = TolerantDict()
-        for key, placeholder in get_available_placeholders(
-            event, list(_PREVIEW_PLACEHOLDER_CONTEXT)
-        ).items():
-            context_dict[key] = (
-                '<span class="placeholder" title="{}">{}</span>'.format(
-                    html.escape(str(gettext('This value will be replaced based on dynamic parameters.'))),
-                    html.escape(str(placeholder.render_sample(event))),
-                )
-            )
-        return html_body.format_map(context_dict)
+        return html_body.format_map(
+            build_email_preview_context(event, list(_PREVIEW_PLACEHOLDER_CONTEXT))
+        )
 
 
 def compile_email_body(source: str) -> str:
@@ -253,7 +243,21 @@ def email_allowed_attributes(tag: str, name: str, value: str) -> bool:
 def is_placeholder_html_sample(sample: str) -> bool:
     """Return True when a placeholder sample is trusted HTML (button, QR image)."""
     stripped = str(sample).lstrip().lower()
-    return stripped.startswith(('<a ', '<a>', '<img ', '<img>', '<p>', '<p '))
+    return stripped.startswith(
+        (
+            '<a ',
+            '<a>',
+            '<img ',
+            '<img>',
+            '<p>',
+            '<p ',
+            '<strong>',
+            '<strong ',
+            '<br>',
+            '<br ',
+            '<br/>',
+        )
+    )
 
 
 def build_email_preview_context(event, base_parameters: list[str]):

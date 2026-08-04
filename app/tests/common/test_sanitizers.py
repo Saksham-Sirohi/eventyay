@@ -156,6 +156,27 @@ class TestSanitizeEmailHtml:
         assert 'src="data:image/png;base64,abc"' in result
         assert 'alt="Ticket QR code"' in result
 
+    def test_button_class_on_anchors_preserved(self):
+        result = sanitize_email_html(
+            '<a href="https://example.com/download/pdf" class="button">Download tickets (PDF)</a>'
+        )
+        assert 'class="button"' in result
+        assert 'href="https://example.com/download/pdf"' in result
+
+    def test_inline_qr_inside_placeholder_chip_preserved(self):
+        html = (
+            '<p>QR <span class="tiptap-placeholder-chip" data-variable="order_qr">'
+            '<strong>Ada</strong><br>'
+            '<img src="data:image/png;base64,abc" alt="Ticket QR code" width="160" height="160">'
+            '</span></p>'
+        )
+        result = sanitize_email_html(html)
+        assert 'data-variable="order_qr"' in result
+        assert 'src="data:image/png;base64,abc"' in result
+        assert '<strong>Ada</strong>' in result
+        # Must not hoist content out leaving an empty chip.
+        assert 'data-variable="order_qr"></span>' not in result.replace(' ', '')
+
     def test_data_href_on_anchors_stripped(self):
         result = sanitize_email_html('<a href="data:text/html,<script>alert(1)</script>">x</a>')
         assert 'data:' not in result

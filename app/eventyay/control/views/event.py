@@ -1,3 +1,4 @@
+import html
 import io
 import json
 import logging
@@ -820,6 +821,8 @@ class MailSettingsPreview(EventPermissionRequiredMixin, View):
 
     # get all supported placeholders with dummy values
     def placeholders(self, product):
+        from eventyay.base.templatetags.rich_text import is_placeholder_html_sample
+
         ctx = {}
         url_pattern = re.compile(r'^(https?://|www\.)[^\s]+$')
 
@@ -828,11 +831,15 @@ class MailSettingsPreview(EventPermissionRequiredMixin, View):
 
             if s.startswith('*'):
                 ctx[p.identifier] = s
+            elif is_placeholder_html_sample(s):
+                # Keep QR images and CTA button HTML intact for preview.
+                ctx[p.identifier] = s
             elif url_pattern.match(s):
                 ctx[p.identifier] = f'<a href="{s}" target="_blank" rel="noopener noreferrer">{s}</a>'
             else:
                 ctx[p.identifier] = '<span class="placeholder" title="{}">{}</span>'.format(
-                    _('This value will be replaced based on dynamic parameters.'), s
+                    _('This value will be replaced based on dynamic parameters.'),
+                    html.escape(s),
                 )
         return self.SafeDict(ctx)
 

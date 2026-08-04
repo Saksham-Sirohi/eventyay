@@ -541,6 +541,10 @@ def render_order_qr_html(order) -> str:
     Render check-in QR codes for all printable tickets on an order.
 
     Used in order-scoped emails where there is no single position context.
+
+    Markup is inline-friendly (``<strong>``, ``<br>``, ``<img>``) so it survives
+    substitution into Tiptap placeholder chips (``<span data-variable>``). Block
+    tags like ``<p>`` would be hoisted out of those spans by HTML sanitizers.
     """
     from django_scopes import scopes_disabled
 
@@ -553,12 +557,12 @@ def render_order_qr_html(order) -> str:
             .filter(canceled=False)
             .order_by('positionid')
         )
-    for position in positions:
-        if not position.generate_ticket:
-            continue
-        label = position.attendee_name or str(position.product.name)
-        parts.append(f'<p><strong>{escape(label)}</strong></p>{render_ticket_qr_html(position)}')
-    return ''.join(parts)
+        for position in positions:
+            if not position.generate_ticket:
+                continue
+            label = position.attendee_name or str(position.product.name)
+            parts.append(f'<strong>{escape(label)}</strong><br>{render_ticket_qr_html(position)}')
+    return '<br>'.join(parts)
 
 
 def get_combined_ticket_output_identifier(event: Event) -> str:

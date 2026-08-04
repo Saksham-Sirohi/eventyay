@@ -87,6 +87,7 @@ def test_render_order_qr_html_skips_non_ticket_positions(monkeypatch):
     assert 'Ada Lovelace' in html
     assert 'T-Shirt' not in html
     assert html.count('<img ') == 1
+    assert '<p>' not in html  # must stay inline-friendly for Tiptap chips
 
 
 def test_render_download_tickets_pdf_button(monkeypatch):
@@ -230,8 +231,72 @@ def test_is_placeholder_html_sample_detects_qr_and_button():
     assert is_placeholder_html_sample('<img src="data:image/png;base64,abc" alt="QR">')
     assert is_placeholder_html_sample('<a href="https://example.com" class="button">Download</a>')
     assert is_placeholder_html_sample('<p><strong>Ada</strong></p><img src="data:image/png;base64,abc">')
+    assert is_placeholder_html_sample('<strong>Ada</strong><br><img src="data:image/png;base64,abc">')
     assert not is_placeholder_html_sample('F8VVL')
     assert not is_placeholder_html_sample('https://example.com/order')
+
+
+def test_expand_email_preview_placeholders_keeps_qr_and_button_html():
+    from unittest.mock import MagicMock, patch
+
+    from eventyay.base.templatetags.rich_text import expand_email_preview_placeholders
+
+    qr_sample = render_qr_code_img('secret', alt='Ticket QR code')
+    button_sample = '<a href="https://example.com" class="button">Download tickets (PDF)</a>'
+    placeholders = {
+        'code': SimpleFunctionalMailTextPlaceholder('code', ['order'], lambda order: order.code, 'F8VVL'),
+        'order_qr': SimpleFunctionalMailTextPlaceholder(
+            'order_qr', ['order'], lambda order: qr_sample, qr_sample
+        ),
+        'download_tickets_pdf': SimpleFunctionalMailTextPlaceholder(
+            'download_tickets_pdf',
+            ['order', 'event'],
+            lambda order, event: button_sample,
+            button_sample,
+        ),
+    }
+    event = MagicMock()
+    event.settings.locale = 'en'
+    event.settings.locales = ['en']
+    event.settings.region = None
+    body = (
+        '<p>Code {code}</p>'
+        '<p><span data-variable="order_qr">{order_qr}</span></p>'
+        '<p>{download_tickets_pdf}</p>'
+    )
+
+    with patch('eventyay.base.email.get_available_placeholders', return_value=placeholders):
+        preview = expand_email_preview_placeholders(body, event, locale='en')
+
+    assert '{order_qr}' not in preview
+    assert '&lt;img' not in preview
+    assert '<img' in preview
+    assert 'data:image/png;base64,' in preview
+    assert 'class="button"' in preview
+    assert 'placeholder' in preview  # plain samples still wrapped
+    assert 'F8VVL' in preview
+
+
+def test_tiptap_compile_keeps_inline_order_qr_inside_chip():
+    from eventyay.base.templatetags.rich_text import compile_email_body
+
+    qr = (
+        '<strong>Ada</strong><br>'
+        + render_qr_code_img('{"ticket":"one"}', alt='Ticket QR code')
+    )
+    button = '<a href="https://shop.example/pdf/" class="button">Download tickets (PDF)</a>'
+    body = (
+        f'<p>QR <span class="tiptap-placeholder-chip" data-variable="order_qr">{qr}</span></p>'
+        f'<p>PDF <span data-variable="download_tickets_pdf">{button}</span></p>'
+    )
+    compiled = compile_email_body(body)
+    assert '{order_qr}' not in compiled
+    assert 'data:image/png;base64,' in compiled
+    assert '<img' in compiled
+    # Chip should still wrap the inline QR (not hoisted out as an empty span).
+    assert 'data-variable="order_qr"' in compiled
+    assert 'class="button"' in compiled
+    assert 'Download tickets (PDF)' in compiled
 
 
 def test_get_combined_ticket_output_identifier_prefers_pdf():
