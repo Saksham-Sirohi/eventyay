@@ -160,9 +160,11 @@ class CheckInListShow(EventPermissionRequiredMixin, PaginationMixin, ListView):
             self.list.touch()
             messages.success(request, _('The selected check-ins have been reverted.'))
         else:
-            checkin_type = Checkin.TYPE_EXIT if request.POST.get('checkout') == 'true' else Checkin.TYPE_ENTRY
+            checkout = request.POST.get('checkout') == 'true'
+            checkin_type = Checkin.TYPE_EXIT if checkout else Checkin.TYPE_ENTRY
             succeeded = 0
             failed = 0
+            skipped = 0
             for op in positions:
                 if op.order.status == Order.STATUS_PAID or (
                     self.list.include_pending and op.order.status == Order.STATUS_PENDING
@@ -180,14 +182,27 @@ class CheckInListShow(EventPermissionRequiredMixin, PaginationMixin, ListView):
                         succeeded += 1
                     except CheckInError:
                         failed += 1
+                else:
+                    skipped += 1
 
             if succeeded:
-                messages.success(request, _('The selected tickets have been marked as checked in.'))
+                if checkout:
+                    messages.success(request, _('The selected tickets have been marked as checked out.'))
+                else:
+                    messages.success(request, _('The selected tickets have been marked as checked in.'))
             if failed:
                 messages.warning(
                     request,
                     _('%(count)s ticket(s) could not be updated due to check-in rules.') % {'count': failed},
                 )
+            if not succeeded and not failed:
+                if skipped:
+                    messages.warning(
+                        request,
+                        _('None of the selected tickets could be updated because they are not eligible for check-in.'),
+                    )
+                else:
+                    messages.warning(request, _('No tickets were selected.'))
 
         return redirect(
             reverse(

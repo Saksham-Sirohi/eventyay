@@ -45,13 +45,19 @@ class CheckinList(LoggedModel):
     )
     limit_one_checkin_per_day = models.BooleanField(
         verbose_name=_('Limit to one check-in per day'),
-        help_text=_('Each ticket can only be checked in once per calendar day on this list.'),
-        default=True,
+        help_text=_(
+            'Each ticket can only be checked in once per calendar day on this list, '
+            'even after an exit scan. Disable this to allow same-day re-entry after checkout.'
+        ),
+        default=False,
     )
     limit_one_checkin_per_gate = models.BooleanField(
         verbose_name=_('Limit to one check-in per gate'),
-        help_text=_('Each ticket can only be checked in once per gate on this list.'),
-        default=True,
+        help_text=_(
+            'Each ticket can only be checked in once per gate on this list. '
+            'When combined with the per-day limit, the restriction is one entry per gate per day.'
+        ),
+        default=False,
     )
     display_popup_fields = JSONField(
         default=list,

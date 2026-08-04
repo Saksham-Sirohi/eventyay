@@ -341,7 +341,15 @@ def checkin_error_response_data(error):
 
 
 def checkin_reason_explanation(error, position, event):
-    if error.code in ('rules', 'checkout_required', 'product', 'subevent', 'unpaid', 'canceled'):
+    if error.code in (
+        'already_redeemed',
+        'rules',
+        'checkout_required',
+        'product',
+        'subevent',
+        'unpaid',
+        'canceled',
+    ):
         return str(error)
     return None
 
@@ -443,13 +451,13 @@ def _raise_checkin_denied(op, clist, checkin_type, device_gate=None):
 
 
 def _entry_limit_violated(op, clist, dt, gate):
-    if not clist.limit_one_checkin_per_day and not clist.limit_one_checkin_per_gate:
-        return False
+    """
+    Return True when list entry limits block another entry scan.
 
-    last_ci = op.checkins.order_by('-datetime').filter(list=clist).only('type').first()
-    # After an exit scan, allow_entry_after_exit may permit re-entry; skip limit check here
-    # so entry limits apply only while the attendee is considered inside the venue.
-    if last_ci and last_ci.type == Checkin.TYPE_EXIT:
+    Limits count prior ENTRY check-ins regardless of intervening EXIT scans, matching the
+    organizer-facing “once per day / once per gate” settings.
+    """
+    if not clist.limit_one_checkin_per_day and not clist.limit_one_checkin_per_gate:
         return False
 
     tz = clist.event.tz
@@ -529,12 +537,6 @@ def perform_checkin(
     with transaction.atomic():
         # Lock order positions
         op = OrderPosition.all.select_for_update().select_related('product').get(pk=op.pk)
-
-        if type == Checkin.TYPE_ENTRY and not force and not op.product.admission:
-            raise CheckInError(
-                _('This product does not grant admission.'),
-                'product',
-            )
 
         if not clist.all_products and op.product_id not in [i.pk for i in clist.limit_products.all()]:
             raise CheckInError(

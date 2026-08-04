@@ -11,8 +11,11 @@ class Migration(migrations.Migration):
             model_name='checkinlist',
             name='limit_one_checkin_per_day',
             field=models.BooleanField(
-                default=True,
-                help_text='Each ticket can only be checked in once per calendar day on this list.',
+                default=False,
+                help_text=(
+                    'Each ticket can only be checked in once per calendar day on this list, '
+                    'even after an exit scan. Disable this to allow same-day re-entry after checkout.'
+                ),
                 verbose_name='Limit to one check-in per day',
             ),
         ),
@@ -20,8 +23,11 @@ class Migration(migrations.Migration):
             model_name='checkinlist',
             name='limit_one_checkin_per_gate',
             field=models.BooleanField(
-                default=True,
-                help_text='Each ticket can only be checked in once per gate on this list.',
+                default=False,
+                help_text=(
+                    'Each ticket can only be checked in once per gate on this list. '
+                    'When combined with the per-day limit, the restriction is one entry per gate per day.'
+                ),
                 verbose_name='Limit to one check-in per gate',
             ),
         ),
