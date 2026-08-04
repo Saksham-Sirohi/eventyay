@@ -23,6 +23,7 @@ from eventyay.base.templatetags.rich_text import (
     build_email_preview_context,
     compile_email_body,
 )
+from eventyay.base.services.mail import expand_email_variable_chips
 from eventyay.common.mail import get_reply_to_address
 from eventyay.control.permissions import EventPermissionRequiredMixin
 from eventyay.control.views.event import EventSettingsFormView, EventSettingsViewMixin
@@ -136,7 +137,10 @@ class SenderView(EventPermissionRequiredMixin, CopyDraftMixin, BulkReplyToMixin,
                     subject = nh3.clean(form.cleaned_data['subject'].localize(l), tags=set())
                     preview_subject = nh3.clean(subject.format_map(context_dict), tags=set())
                     message = form.cleaned_data['message'].localize(l)
-                    preview_text = compile_email_body(message.format_map(context_dict))
+                    message_preview = expand_email_variable_chips(
+                        message.format_map(context_dict), dict(context_dict)
+                    )
+                    preview_text = compile_email_body(message_preview)
 
                     self.output[l] = {
                         'subject': _('Subject: {subject}').format(subject=preview_subject),
@@ -388,7 +392,10 @@ class EditEmailQueueView(EventPermissionRequiredMixin, UpdateView):
                         return self.form_invalid(form)
 
                     try:
-                        message_preview = message.localize(l).format_map(context_dict)
+                        message_preview = expand_email_variable_chips(
+                            message.localize(l).format_map(context_dict),
+                            dict(context_dict),
+                        )
                     except KeyError as e:
                         form.add_error('message', _('Invalid placeholder(s): {}').format(str(e)))
                         return self.form_invalid(form)
@@ -571,7 +578,10 @@ class ComposeTeamsMail(EventPermissionRequiredMixin, CopyDraftMixin, BulkReplyTo
                     return self.form_invalid(form)
 
                 try:
-                    message_preview = message.localize(l).format_map(context_dict)
+                    message_preview = expand_email_variable_chips(
+                        message.localize(l).format_map(context_dict),
+                        dict(context_dict),
+                    )
                 except KeyError as e:
                     form.add_error('message', _('Invalid placeholder(s): {}').format(str(e)))
                     return self.form_invalid(form)

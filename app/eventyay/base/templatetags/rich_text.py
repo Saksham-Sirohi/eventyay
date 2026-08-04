@@ -200,15 +200,16 @@ def expand_email_preview_placeholders(html_body: str, event, *, locale: str | No
     are wrapped in a highlighted placeholder span.
     """
     from eventyay.base.i18n import language
+    from eventyay.base.services.mail import expand_email_variable_chips
 
     resolved_locale = locale or event.settings.locale
     if resolved_locale not in event.settings.locales:
         resolved_locale = event.settings.locale
 
     with language(resolved_locale, event.settings.region):
-        return html_body.format_map(
-            build_email_preview_context(event, list(_PREVIEW_PLACEHOLDER_CONTEXT))
-        )
+        context_dict = build_email_preview_context(event, list(_PREVIEW_PLACEHOLDER_CONTEXT))
+        expanded = html_body.format_map(context_dict)
+        return expand_email_variable_chips(expanded, dict(context_dict))
 
 
 def compile_email_body(source: str) -> str:

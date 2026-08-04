@@ -227,6 +227,47 @@ def test_get_email_context_resolves_qr_when_earlier_placeholder_hits_scope_error
     assert 'data:image/png;base64,' in ctx['order_qr']
 
 
+def test_expand_email_variable_chips_without_braces():
+    """Chips whose text is bare ``order_qr`` (no braces) must still resolve."""
+    from eventyay.base.services.mail import expand_email_variable_chips, render_mail
+    from i18nfield.strings import LazyI18nString
+
+    qr = render_qr_code_img('secret', alt='Ticket QR code')
+    button = '<a href="https://example.com" class="button">Download tickets (PDF)</a>'
+    body = (
+        '<p>Order QR: <span class="tiptap-placeholder-chip" data-variable="order_qr">order_qr</span></p>'
+        '<p>Ticket QR: <span data-variable="ticket_qr">ticket_qr</span></p>'
+        '<p>Download Ticket: <span data-variable="download_tickets_pdf">download_tickets_pdf</span></p>'
+    )
+    ctx = {
+        'order_qr': qr,
+        'ticket_qr': qr,
+        'download_tickets_pdf': button,
+    }
+    expanded = expand_email_variable_chips(body, ctx)
+    assert 'data-variable=' not in expanded
+    assert '>order_qr<' not in expanded
+    assert '>ticket_qr<' not in expanded
+    assert '>download_tickets_pdf<' not in expanded
+    assert expanded.count('<img') == 2
+    assert 'class="button"' in expanded
+    assert 'Download tickets (PDF)' in expanded
+
+    rendered = render_mail(LazyI18nString(body), ctx)
+    assert 'data:image/png;base64,' in rendered
+    assert '>download_tickets_pdf<' not in rendered
+    assert 'class="button"' in rendered
+
+
+def test_expand_email_variable_chips_leaves_unknown_keys():
+    from eventyay.base.services.mail import expand_email_variable_chips
+
+    body = '<span data-variable="order_qr">order_qr</span>'
+    assert expand_email_variable_chips(body, {'event': 'Demo'}) == body
+    assert expand_email_variable_chips(body, {'order_qr': 'order_qr'}) == body
+    assert expand_email_variable_chips(body, {'order_qr': '{order_qr}'}) == body
+
+
 def test_is_placeholder_html_sample_detects_qr_and_button():
     assert is_placeholder_html_sample('<img src="data:image/png;base64,abc" alt="QR">')
     assert is_placeholder_html_sample('<a href="https://example.com" class="button">Download</a>')

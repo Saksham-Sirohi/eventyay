@@ -607,11 +607,46 @@ def _stringify_mail_context(context: dict[str, Any] | None) -> dict[str, str]:
     return {key: '' if value is None else str(value) for key, value in context.items()}
 
 
+# Tiptap email chips look like:
+#   <span class="tiptap-placeholder-chip" data-variable="order_qr">{order_qr}</span>
+# ``format_map`` only replaces the ``{order_qr}`` text node. When chip text is
+# missing braces (or was left unresolved), replace the whole span from context.
+_DATA_VARIABLE_CHIP_RE = re.compile(
+    r'<span\b([^>]*\bdata-variable=["\']([a-zA-Z][a-zA-Z0-9_]*)["\'][^>]*)>(.*?)</span>',
+    re.IGNORECASE | re.DOTALL,
+)
+
+
+def expand_email_variable_chips(body: str, context: dict[str, str]) -> str:
+    """Replace Tiptap ``data-variable`` chips with resolved context values.
+
+    Runs after ``format_map`` so successfully expanded chips are unwrapped to
+    their HTML content, and chips whose visible text never contained
+    ``{placeholder}`` braces still resolve when the key is in ``context``.
+    """
+    if not body or not context:
+        return body
+
+    def replace_chip(match: re.Match) -> str:
+        key = match.group(2)
+        if key not in context:
+            return match.group(0)
+        value = context[key]
+        # Skip empty / still-unresolved tolerant placeholders.
+        if value == '' or value == f'{{{key}}}' or value == key:
+            return match.group(0)
+        return value
+
+    return _DATA_VARIABLE_CHIP_RE.sub(replace_chip, body)
+
+
 def render_mail(template, context):
     if isinstance(template, LazyI18nString):
         body = str(template)
         if context:
-            body = body.format_map(TolerantDict(_stringify_mail_context(context)))
+            string_context = _stringify_mail_context(context)
+            body = body.format_map(TolerantDict(string_context))
+            body = expand_email_variable_chips(body, string_context)
     else:
         tpl = get_template(template)
         body = tpl.render(context)
