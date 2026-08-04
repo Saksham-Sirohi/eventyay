@@ -541,16 +541,12 @@ def render_order_qr_html(order) -> str:
     Render check-in QR codes for all printable tickets on an order.
 
     Used in order-scoped emails where there is no single position context.
-
-    Markup is inline-friendly (``<strong>``, ``<br>``, ``<img>``) so it survives
-    substitution into Tiptap placeholder chips (``<span data-variable>``). Block
-    tags like ``<p>`` would be hoisted out of those spans by HTML sanitizers.
+    Uses inline markup so HTML sanitizers keep it inside Tiptap placeholder chips.
     """
     from django_scopes import scopes_disabled
 
     parts = []
-    # Email rendering may run outside an active organizer scope (or after another
-    # placeholder already tripped ScopeError). Never depend on request scope here.
+    # Never depend on request scope: mail may run outside organizer scope.
     with scopes_disabled():
         positions = list(
             order.all_positions.select_related('product', 'variation')

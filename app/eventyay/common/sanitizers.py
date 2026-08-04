@@ -23,9 +23,7 @@ _EMAIL_TAGS: frozenset[str] = _RICH_TEXT_TAGS | frozenset({'span', 'img'})
 _LINK_ATTRIBUTES: dict[str, set[str]] = {'a': {'href'}}
 
 _EMAIL_ATTRIBUTES: dict[str, set[str]] = {
-    # ``class`` keeps CTA button styling from placeholders such as
-    # ``{download_tickets_pdf}`` and ``{join_online_event}``.
-    'a': {'href', 'class'},
+    'a': {'href', 'class'},  # class: CTA buttons from email placeholders
     'span': {'data-variable', 'class'},
     'img': {'src', 'alt', 'width', 'height'},
 }

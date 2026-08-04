@@ -51,7 +51,11 @@ from eventyay.base.models.event import EventMetaValue
 from eventyay.base.services import tickets
 from eventyay.base.services.invoices import build_preview_invoice_pdf
 from eventyay.base.signals import register_ticket_outputs
-from eventyay.base.templatetags.rich_text import expand_email_preview_placeholders, markdown_compile_email
+from eventyay.base.templatetags.rich_text import (
+    expand_email_preview_placeholders,
+    is_placeholder_html_sample,
+    markdown_compile_email,
+)
 from eventyay.control.forms.event import (
     CancelSettingsForm,
     CommentForm,
@@ -821,18 +825,13 @@ class MailSettingsPreview(EventPermissionRequiredMixin, View):
 
     # get all supported placeholders with dummy values
     def placeholders(self, product):
-        from eventyay.base.templatetags.rich_text import is_placeholder_html_sample
-
         ctx = {}
         url_pattern = re.compile(r'^(https?://|www\.)[^\s]+$')
 
         for p in get_available_placeholders(self.request.event, MailSettingsForm.base_context[product]).values():
             s = str(p.render_sample(self.request.event)).strip()
 
-            if s.startswith('*'):
-                ctx[p.identifier] = s
-            elif is_placeholder_html_sample(s):
-                # Keep QR images and CTA button HTML intact for preview.
+            if s.startswith('*') or is_placeholder_html_sample(s):
                 ctx[p.identifier] = s
             elif url_pattern.match(s):
                 ctx[p.identifier] = f'<a href="{s}" target="_blank" rel="noopener noreferrer">{s}</a>'

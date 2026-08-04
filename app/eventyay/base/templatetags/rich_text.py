@@ -192,13 +192,7 @@ _PREVIEW_PLACEHOLDER_CONTEXT: tuple[str, ...] = (
 
 
 def expand_email_preview_placeholders(html_body: str, event, *, locale: str | None = None) -> str:
-    """Replace ``{placeholder}`` tokens with sample values for editor preview.
-
-    Uses the same sample rendering as the Message center's full-form preview so
-    the toolbar preview matches what users see after clicking "Preview email".
-    Trusted HTML samples (QR images, CTA buttons) are kept intact; plain samples
-    are wrapped in a highlighted placeholder span.
-    """
+    """Replace ``{placeholder}`` tokens / Tiptap chips with sample values for editor preview."""
     from eventyay.base.i18n import language
     from eventyay.base.services.mail import expand_email_variable_chips
 
@@ -243,22 +237,8 @@ def email_allowed_attributes(tag: str, name: str, value: str) -> bool:
 
 def is_placeholder_html_sample(sample: str) -> bool:
     """Return True when a placeholder sample is trusted HTML (button, QR image)."""
-    stripped = str(sample).lstrip().lower()
-    return stripped.startswith(
-        (
-            '<a ',
-            '<a>',
-            '<img ',
-            '<img>',
-            '<p>',
-            '<p ',
-            '<strong>',
-            '<strong ',
-            '<br>',
-            '<br ',
-            '<br/>',
-        )
-    )
+    stripped = str(sample).lstrip()
+    return stripped.startswith('<') and not stripped.startswith('</')
 
 
 def build_email_preview_context(event, base_parameters: list[str]):

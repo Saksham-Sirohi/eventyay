@@ -144,13 +144,11 @@ class EmailQueue(models.Model):
 
     def _build_email_context(self, order, position, position_or_address, recipient):
         try:
-            if self.composing_for == ComposingFor.TEAMS:
+            if self.composing_for != ComposingFor.ATTENDEES:
                 return get_email_context(event=self.event)
 
             # Only pass keys that are present. ``position=None`` still counts as
             # provided to get_email_context and would break position placeholders.
-            # For buyer/order emails without a single attendee position, prefer a
-            # printable ticket so {ticket_qr} / {order_qr} still resolve.
             if order is not None and position is None:
                 positions = list(
                     order.positions.select_related('product', 'order__event').order_by('positionid')
