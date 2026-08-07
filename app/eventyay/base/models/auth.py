@@ -329,22 +329,22 @@ class User(
                 if 'avatar_url' in self.__dict__:
                     del self.__dict__['avatar_url']
 
-        # Platform accounts back Video JWT uids via email hash. Drop cached
+        # Platform accounts back Video JWT uids via email hash. Refresh cached
         # hash→account entries when identity fields change (or on create, so a
         # prior negative miss cannot hide a newly registered account).
-        account_hash_emails = None
+        account_hash_refresh = None
+        account_hash_invalidate = None
         if self.event_id is None:
             identity_fields = ('email', 'wikimedia_username')
             touches_identity = update_fields is None or any(
                 field in update_fields for field in identity_fields
             )
             if touches_identity:
-                emails = set()
                 new_email = (self.email or '').strip()
-                if new_email:
-                    emails.add(new_email)
+                new_wiki = (self.wikimedia_username or '').strip()
                 if is_new:
-                    account_hash_emails = emails or None
+                    if new_email:
+                        account_hash_refresh = (new_email, new_wiki)
                 else:
                     old = (
                         type(self)
@@ -355,21 +355,29 @@ class User(
                     if old:
                         old_email = (old[0] or '').strip()
                         old_wiki = (old[1] or '').strip()
-                        new_wiki = (self.wikimedia_username or '').strip()
                         if old_email != new_email or old_wiki != new_wiki:
-                            if old_email:
-                                emails.add(old_email)
-                            account_hash_emails = emails or None
+                            stale = set()
+                            if old_email and old_email != new_email:
+                                stale.add(old_email)
+                            account_hash_invalidate = stale or None
+                            if new_email:
+                                account_hash_refresh = (new_email, new_wiki)
+                            elif stale:
+                                account_hash_invalidate = stale
 
         # Check if we need to get the profile picture from gravatar
         update_gravatar = not update_fields or 'get_gravatar' in update_fields
         super().save(*args, **kwargs)
-        if account_hash_emails:
+        if account_hash_invalidate or account_hash_refresh:
             from eventyay.base.services.user import (
                 invalidate_account_hash_cache_for_emails,
+                refresh_account_hash_cache,
             )
 
-            invalidate_account_hash_cache_for_emails(account_hash_emails)
+            if account_hash_invalidate:
+                invalidate_account_hash_cache_for_emails(account_hash_invalidate)
+            if account_hash_refresh:
+                refresh_account_hash_cache(*account_hash_refresh)
         if self.get_gravatar and update_gravatar:
             from eventyay.person.tasks import gravatar_cache
 

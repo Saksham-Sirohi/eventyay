@@ -7,11 +7,14 @@ from eventyay.base.models import event as event_models
 from eventyay.base.models import world as world_models
 from eventyay.base.models.auth import User
 from eventyay.base.services.user import (
+    _ACCOUNT_HASH_MISS_TTL,
     _EMAIL_HASH_CACHE_MISS,
     _account_hash_cache_key,
+    _add_hash_cache_misses,
     _cache_account_hash_hits,
     get_user,
     invalidate_account_hash_cache_for_emails,
+    refresh_account_hash_cache,
 )
 from eventyay.core.permissions import (
     LEGACY_VIDEO_ROLE_NAMES,
@@ -338,6 +341,29 @@ def test_invalidate_account_hash_cache_for_emails_clears_hits_and_misses():
     assert cache.get(_account_hash_cache_key(token)) is None
 
 
+@override_settings(CACHES=_LOCMEM_CACHE)
+def test_account_hash_miss_add_does_not_clobber_hit():
+    email = 'race-person@example.com'
+    token = encode_email(email)
+    key = _account_hash_cache_key(token)
+    _cache_account_hash_hits(email, 'WikiRace')
+    _add_hash_cache_misses([key], ttl=_ACCOUNT_HASH_MISS_TTL)
+    assert cache.get(key)['email'] == email
+
+
+@override_settings(CACHES=_LOCMEM_CACHE)
+def test_refresh_account_hash_cache_write_through_replaces_miss():
+    email = 'refresh-person@example.com'
+    token = encode_email(email)
+    key = _account_hash_cache_key(token)
+    cache.set(key, _EMAIL_HASH_CACHE_MISS, 60)
+    refresh_account_hash_cache(email, 'WikiFresh')
+    assert cache.get(key) == {
+        'email': email,
+        'wikimedia_username': 'WikiFresh',
+    }
+
+
 @pytest.mark.django_db
 @override_settings(CACHES=_LOCMEM_CACHE)
 def test_platform_user_save_invalidates_account_hash_cache(user):
@@ -345,14 +371,16 @@ def test_platform_user_save_invalidates_account_hash_cache(user):
     assert email
     assert user.event_id is None
     token = encode_email(email)
-    _cache_account_hash_hits(email, 'OldWiki')
-    assert cache.get(_account_hash_cache_key(token)) is not None
+    key = _account_hash_cache_key(token)
+    cache.set(key, _EMAIL_HASH_CACHE_MISS, 60)
 
     user.wikimedia_username = 'NewWiki'
     user.save(update_fields=['wikimedia_username'])
-    assert cache.get(_account_hash_cache_key(token)) is None
+    assert cache.get(key) == {
+        'email': email,
+        'wikimedia_username': 'NewWiki',
+    }
 
-    _cache_account_hash_hits(email, 'NewWiki')
     user.save(update_fields=['last_login'])
-    # Unrelated field updates must not drop the cache.
-    assert cache.get(_account_hash_cache_key(token)) is not None
+    # Unrelated field updates must not drop the refreshed cache.
+    assert cache.get(key)['wikimedia_username'] == 'NewWiki'

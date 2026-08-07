@@ -34,9 +34,15 @@ def apply_live_team_video_traits(event, token_id, traits):
     if not event or not token_id:
         return traits
 
-    from eventyay.base.services.user import resolve_account_fields_by_token_ids
+    from eventyay.base.services.user import (
+        _ticket_lookup,
+        resolve_account_fields_by_token_ids,
+    )
 
-    account = resolve_account_fields_by_token_ids([token_id]).get(token_id)
+    account = _ticket_lookup(
+        resolve_account_fields_by_token_ids([token_id]),
+        token_id,
+    )
     if not account:
         return traits
 

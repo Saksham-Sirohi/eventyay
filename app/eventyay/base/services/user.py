@@ -32,6 +32,9 @@ _WIKI_PROFILE_FIELD_KEYS = (
 # Non-empty sentinel: Redis cache may not round-trip empty strings reliably.
 _EMAIL_HASH_CACHE_MISS = "-"
 _EMAIL_HASH_CACHE_TTL = 1800
+# Negative account lookups use a shorter TTL and cache.add so a concurrent
+# account create can overwrite (or block) a stale miss.
+_ACCOUNT_HASH_MISS_TTL = 60
 
 
 def display_wikimedia_username_from_profile(profile, stored_username):
@@ -92,9 +95,15 @@ def _account_hash_cache_key(token_hash):
     return f'video:account_hash:{token_hash}'
 
 
-def _set_hash_cache_values(keys, value):
+def _set_hash_cache_values(keys, value, ttl=_EMAIL_HASH_CACHE_TTL):
     for key in keys:
-        cache.set(key, value, _EMAIL_HASH_CACHE_TTL)
+        cache.set(key, value, ttl)
+
+
+def _add_hash_cache_misses(keys, ttl=_ACCOUNT_HASH_MISS_TTL):
+    """Store misses only if the key is empty so a concurrent hit wins."""
+    for key in keys:
+        cache.add(key, _EMAIL_HASH_CACHE_MISS, ttl)
 
 
 def _cache_email_hash_hits(event_id, email):
@@ -130,6 +139,15 @@ def invalidate_account_hash_cache_for_emails(emails):
             keys.append(_account_hash_cache_key(h))
     if keys:
         cache.delete_many(keys)
+
+
+def refresh_account_hash_cache(email, wikimedia_username=''):
+    """Invalidate then write-through current account fields for an email."""
+    normalized = (email or '').strip()
+    if not normalized:
+        return
+    invalidate_account_hash_cache_for_emails([normalized])
+    _cache_account_hash_hits(normalized, wikimedia_username)
 
 
 def _unresolved_hash_tokens(token_ids, ticket_by_token):
@@ -299,9 +317,9 @@ def resolve_account_fields_by_token_ids(token_ids):
                 uncached.difference_update(email_hashes)
                 if not uncached:
                     break
-        _set_hash_cache_values(
-            (_account_hash_cache_key(h) for h in uncached),
-            _EMAIL_HASH_CACHE_MISS,
+        # Use add() so a concurrent account create/write-through wins over this miss.
+        _add_hash_cache_misses(
+            _account_hash_cache_key(h) for h in uncached
         )
 
     return {
