@@ -36,13 +36,7 @@ def apply_live_team_video_traits(event, token_id, traits):
 
     from eventyay.base.services.user import resolve_account_fields_by_token_ids
 
-    accounts = resolve_account_fields_by_token_ids([token_id])
-    account = accounts.get(token_id)
-    if account is None:
-        for key, value in accounts.items():
-            if key.upper() == str(token_id).upper():
-                account = value
-                break
+    account = resolve_account_fields_by_token_ids([token_id]).get(token_id)
     if not account:
         return traits
 

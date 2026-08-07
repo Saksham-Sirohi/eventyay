@@ -84,15 +84,24 @@ def _make_ticket_row(order_code, ticket_code, contact_email):
     }
 
 
-def _cache_email_hash_hits(event_id, email):
-    for h in _order_email_hash_keys(email):
-        cache.set(
-            f'video:email_hash:{event_id}:{h}', email, _EMAIL_HASH_CACHE_TTL
-        )
+def _email_hash_cache_key(event_id, token_hash):
+    return f'video:email_hash:{event_id}:{token_hash}'
 
 
 def _account_hash_cache_key(token_hash):
     return f'video:account_hash:{token_hash}'
+
+
+def _set_hash_cache_values(keys, value):
+    for key in keys:
+        cache.set(key, value, _EMAIL_HASH_CACHE_TTL)
+
+
+def _cache_email_hash_hits(event_id, email):
+    _set_hash_cache_values(
+        (_email_hash_cache_key(event_id, h) for h in _order_email_hash_keys(email)),
+        email,
+    )
 
 
 def _cache_account_hash_hits(email, wikimedia_username=''):
@@ -101,8 +110,26 @@ def _cache_account_hash_hits(email, wikimedia_username=''):
         'email': email,
         'wikimedia_username': (wikimedia_username or '').strip(),
     }
-    for h in _order_email_hash_keys(email):
-        cache.set(_account_hash_cache_key(h), payload, _EMAIL_HASH_CACHE_TTL)
+    _set_hash_cache_values(
+        (_account_hash_cache_key(h) for h in _order_email_hash_keys(email)),
+        payload,
+    )
+
+
+def invalidate_account_hash_cache_for_emails(emails):
+    """
+    Drop account-hash cache entries for the given emails.
+
+    Call when a platform account is created or its email / Wikimedia username
+    changes so auth does not keep a stale hit or a cached miss.
+    Team permission edits do not need this: traits are recomputed live.
+    """
+    keys = []
+    for email in emails:
+        for h in _order_email_hash_keys(email):
+            keys.append(_account_hash_cache_key(h))
+    if keys:
+        cache.delete_many(keys)
 
 
 def _unresolved_hash_tokens(token_ids, ticket_by_token):
@@ -227,6 +254,7 @@ def resolve_account_fields_by_token_ids(token_ids):
 
     Uses a short-TTL cache keyed by email hash so hot paths (Video auth /
     websocket connect) avoid a full platform-user table scan on every call.
+    Entries are invalidated when a platform account email/username changes.
     """
     hash_tokens = [t for t in token_ids if t and _is_email_hash_uid_token(t)]
     if not hash_tokens:
@@ -253,10 +281,9 @@ def resolve_account_fields_by_token_ids(token_ids):
                 email = (row.get("email") or "").strip()
                 if not email:
                     continue
+                email_hashes = _order_email_hash_keys(email)
                 matched_hashes = [
-                    h
-                    for h in _order_email_hash_keys(email)
-                    if h in uncached and h not in result
+                    h for h in email_hashes if h in uncached and h not in result
                 ]
                 if not matched_hashes:
                     continue
@@ -269,22 +296,19 @@ def resolve_account_fields_by_token_ids(token_ids):
                 for h in matched_hashes:
                     result[h] = payload
                 _cache_account_hash_hits(email, payload["wikimedia_username"])
-                uncached.difference_update(_order_email_hash_keys(email))
+                uncached.difference_update(email_hashes)
                 if not uncached:
                     break
-        for h in uncached:
-            cache.set(
-                _account_hash_cache_key(h),
-                _EMAIL_HASH_CACHE_MISS,
-                _EMAIL_HASH_CACHE_TTL,
-            )
+        _set_hash_cache_values(
+            (_account_hash_cache_key(h) for h in uncached),
+            _EMAIL_HASH_CACHE_MISS,
+        )
 
-    keyed = {
+    return {
         token: result[token.upper()]
         for token in hash_tokens
         if token.upper() in result
     }
-    return keyed
 
 
 def resolve_video_jwt_contact_email(event_id, token_id):
@@ -398,7 +422,7 @@ def build_admin_ticket_rows_by_token(event_id, token_ids):
         # from encode_email(email) never changes for a given address.
         uncached = set()
         for h in need_hash_upper:
-            val = cache.get(f'video:email_hash:{event_id}:{h}')
+            val = cache.get(_email_hash_cache_key(event_id, h))
             if val is not None:
                 if val and val != _EMAIL_HASH_CACHE_MISS:
                     hash_to_email[h] = val
@@ -428,13 +452,14 @@ def build_admin_ticket_rows_by_token(event_id, token_ids):
                         uncached.discard(matched_hash)
                         if not uncached:
                             break
-        for h in need_hash_upper:
-            if h not in hash_to_email:
-                cache.set(
-                    f'video:email_hash:{event_id}:{h}',
-                    _EMAIL_HASH_CACHE_MISS,
-                    _EMAIL_HASH_CACHE_TTL,
-                )
+        _set_hash_cache_values(
+            (
+                _email_hash_cache_key(event_id, h)
+                for h in need_hash_upper
+                if h not in hash_to_email
+            ),
+            _EMAIL_HASH_CACHE_MISS,
+        )
 
         resolved = [
             hash_to_email[t.upper()]
