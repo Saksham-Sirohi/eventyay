@@ -118,7 +118,8 @@ def test_generate_ticket_button_shows_permission_dialog_for_talk_only(
     html = EventWidgetGenerator.generate_ticket_button(event, request)
     assert f'data-dialog-target="#{TICKET_PERMISSION_DIALOG_ID}"' in html
     assert f'aria-controls="{TICKET_PERMISSION_DIALOG_ID}"' in html
-    assert 'role="button"' in html or '<button' in html
+    # Permission-denied control is an <a role="button"> dialog trigger.
+    assert '<a' in html and 'role="button"' in html
     assert reverse(
         'control:event.index',
         kwargs={'organizer': organizer.slug, 'event': event.slug},

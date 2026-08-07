@@ -31,6 +31,7 @@ _WIKI_PROFILE_FIELD_KEYS = (
 
 # Non-empty sentinel: Redis cache may not round-trip empty strings reliably.
 _EMAIL_HASH_CACHE_MISS = "-"
+_EMAIL_HASH_CACHE_TTL = 1800
 
 
 def display_wikimedia_username_from_profile(profile, stored_username):
@@ -85,7 +86,23 @@ def _make_ticket_row(order_code, ticket_code, contact_email):
 
 def _cache_email_hash_hits(event_id, email):
     for h in _order_email_hash_keys(email):
-        cache.set(f'video:email_hash:{event_id}:{h}', email, 1800)
+        cache.set(
+            f'video:email_hash:{event_id}:{h}', email, _EMAIL_HASH_CACHE_TTL
+        )
+
+
+def _account_hash_cache_key(token_hash):
+    return f'video:account_hash:{token_hash}'
+
+
+def _cache_account_hash_hits(email, wikimedia_username=''):
+    """Cache platform account fields for all email-hash variants of an address."""
+    payload = {
+        'email': email,
+        'wikimedia_username': (wikimedia_username or '').strip(),
+    }
+    for h in _order_email_hash_keys(email):
+        cache.set(_account_hash_cache_key(h), payload, _EMAIL_HASH_CACHE_TTL)
 
 
 def _unresolved_hash_tokens(token_ids, ticket_by_token):
@@ -206,33 +223,62 @@ def resolve_wikimedia_usernames_by_email(emails):
 
 
 def resolve_account_fields_by_token_ids(token_ids):
-    """Map video JWT uid (email hash) to account email and Wikimedia username."""
+    """Map video JWT uid (email hash) to account email and Wikimedia username.
+
+    Uses a short-TTL cache keyed by email hash so hot paths (Video auth /
+    websocket connect) avoid a full platform-user table scan on every call.
+    """
     hash_tokens = [t for t in token_ids if t and _is_email_hash_uid_token(t)]
     if not hash_tokens:
         return {}
     wanted = {t.upper() for t in hash_tokens}
     result = {}
-    with scopes_disabled():
-        for row in (
-            User.objects.filter(event__isnull=True)
-            .exclude(email__isnull=True)
-            .exclude(email__exact="")
-            .values("email", "wikimedia_username")
-            .iterator(chunk_size=2000)
-        ):
-            email = (row.get("email") or "").strip()
-            if not email:
-                continue
-            for h in _order_email_hash_keys(email):
-                if h in wanted and h not in result:
-                    result[h] = {
-                        "email": email,
-                        "wikimedia_username": (
-                            row.get("wikimedia_username") or ""
-                        ).strip(),
-                    }
-            if len(result) >= len(wanted):
-                break
+    uncached = set()
+    for h in wanted:
+        val = cache.get(_account_hash_cache_key(h))
+        if val is None:
+            uncached.add(h)
+        elif val and val != _EMAIL_HASH_CACHE_MISS:
+            result[h] = val
+
+    if uncached:
+        with scopes_disabled():
+            for row in (
+                User.objects.filter(event__isnull=True)
+                .exclude(email__isnull=True)
+                .exclude(email__exact="")
+                .values("email", "wikimedia_username")
+                .iterator(chunk_size=2000)
+            ):
+                email = (row.get("email") or "").strip()
+                if not email:
+                    continue
+                matched_hashes = [
+                    h
+                    for h in _order_email_hash_keys(email)
+                    if h in uncached and h not in result
+                ]
+                if not matched_hashes:
+                    continue
+                payload = {
+                    "email": email,
+                    "wikimedia_username": (
+                        row.get("wikimedia_username") or ""
+                    ).strip(),
+                }
+                for h in matched_hashes:
+                    result[h] = payload
+                _cache_account_hash_hits(email, payload["wikimedia_username"])
+                uncached.difference_update(_order_email_hash_keys(email))
+                if not uncached:
+                    break
+        for h in uncached:
+            cache.set(
+                _account_hash_cache_key(h),
+                _EMAIL_HASH_CACHE_MISS,
+                _EMAIL_HASH_CACHE_TTL,
+            )
+
     keyed = {
         token: result[token.upper()]
         for token in hash_tokens
@@ -385,7 +431,9 @@ def build_admin_ticket_rows_by_token(event_id, token_ids):
         for h in need_hash_upper:
             if h not in hash_to_email:
                 cache.set(
-                    f'video:email_hash:{event_id}:{h}', _EMAIL_HASH_CACHE_MISS, 1800
+                    f'video:email_hash:{event_id}:{h}',
+                    _EMAIL_HASH_CACHE_MISS,
+                    _EMAIL_HASH_CACHE_TTL,
                 )
 
         resolved = [

@@ -8,6 +8,7 @@ from typing import Iterable
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.db import transaction
+from django.db.models.functions import Upper
 from django_scopes import scopes_disabled
 
 from eventyay.base.models.auth import User
@@ -97,23 +98,25 @@ def sync_video_traits_for_platform_users(
         email = (getattr(platform_user, 'email', None) or '').strip()
         if not email:
             continue
-        users_by_token[encode_email(email)] = platform_user
+        users_by_token[encode_email(email).upper()] = platform_user
     if not users_by_token:
         return
 
     with scopes_disabled():
+        # Match token_id case-insensitively: JWT uids are uppercased by
+        # encode_email, but older rows may store a different case.
         video_users = list(
-            User.objects.filter(
+            User.objects.annotate(_token_id_upper=Upper('token_id'))
+            .filter(
                 event__organizer=organizer,
-                token_id__in=list(users_by_token.keys()),
+                _token_id_upper__in=list(users_by_token.keys()),
                 deleted=False,
-            ).select_related('event', 'event__organizer')
+            )
+            .select_related('event', 'event__organizer')
         )
 
     for video_user in video_users:
-        platform_user = users_by_token.get(video_user.token_id) or users_by_token.get(
-            (video_user.token_id or '').upper()
-        )
+        platform_user = users_by_token.get((video_user.token_id or '').upper())
         if not platform_user or not video_user.event_id:
             continue
 

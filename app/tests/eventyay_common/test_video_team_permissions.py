@@ -230,6 +230,30 @@ def test_sync_strips_revoked_traits_from_existing_video_user(event, organizer, u
 
 
 @pytest.mark.django_db
+def test_sync_matches_video_user_token_id_case_insensitively(event, organizer, user):
+    team = Team.objects.create(
+        organizer=organizer,
+        name='Video ops',
+        all_events=True,
+        can_video_manage_content=False,
+    )
+    team.members.add(user)
+    token_id = encode_email(user.email)
+    content = f'eventyay-video-event-{event.slug}-video-content-manager'
+    video_user = User.objects.create(
+        event=event,
+        token_id=token_id.lower(),
+        traits=['attendee', content],
+        profile={},
+    )
+
+    sync_video_traits_for_platform_users(organizer, [user], force_reload=False)
+    video_user.refresh_from_db()
+    assert content not in (video_user.traits or [])
+    assert 'attendee' in (video_user.traits or [])
+
+
+@pytest.mark.django_db
 def test_admin_trait_falls_back_when_roles_json_omits_admin(event):
     """Staff admin trait must not lose core perms if stored roles lack ``admin``."""
     # Partial roles JSON: video roles only (no admin key). SYSTEM_ROLES also has no admin.
