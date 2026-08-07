@@ -1,4 +1,5 @@
 from django.conf import settings
+from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Exists, F, JSONField, Max, OuterRef, Q, Subquery
@@ -59,7 +60,8 @@ class CheckinList(LoggedModel):
         ),
         default=False,
     )
-    display_popup_fields = JSONField(
+    display_popup_fields = ArrayField(
+        models.CharField(max_length=190),
         default=list,
         blank=True,
         verbose_name=_('Check-in app display fields'),

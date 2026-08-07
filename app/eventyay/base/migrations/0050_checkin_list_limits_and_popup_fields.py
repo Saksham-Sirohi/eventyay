@@ -1,3 +1,4 @@
+import django.contrib.postgres.fields
 from django.db import migrations, models
 
 
@@ -34,10 +35,12 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='checkinlist',
             name='display_popup_fields',
-            field=models.JSONField(
+            field=django.contrib.postgres.fields.ArrayField(
+                base_field=models.CharField(max_length=190),
                 blank=True,
                 default=list,
                 help_text='Additional attendee registration fields to display on the check-in success pop-up screen.',
+                size=None,
                 verbose_name='Check-in app display fields',
             ),
         ),

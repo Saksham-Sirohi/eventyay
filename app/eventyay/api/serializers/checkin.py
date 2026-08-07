@@ -11,6 +11,11 @@ from eventyay.base.models import Checkin, CheckinList
 class CheckinListSerializer(I18nAwareModelSerializer):
     checkin_count = serializers.IntegerField(read_only=True)
     position_count = serializers.IntegerField(read_only=True)
+    display_popup_fields = serializers.ListField(
+        child=serializers.CharField(max_length=190),
+        required=False,
+        allow_empty=True,
+    )
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -109,6 +114,10 @@ class CheckinRedeemInputSerializer(serializers.Serializer):
 class MiniCheckinListSerializer(I18nAwareModelSerializer):
     event = serializers.SlugRelatedField(slug_field='slug', read_only=True)
     subevent = serializers.PrimaryKeyRelatedField(read_only=True)
+    display_popup_fields = serializers.ListField(
+        child=serializers.CharField(max_length=190),
+        read_only=True,
+    )
 
     class Meta:
         model = CheckinList
