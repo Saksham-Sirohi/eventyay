@@ -112,7 +112,7 @@ def migrate_video_permissions_backward(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('base', '0049_alter_talkquestion_variant_add_video'),
+        ('base', '0050_checkin_list_limits_and_popup_fields'),
     ]
 
     operations = [

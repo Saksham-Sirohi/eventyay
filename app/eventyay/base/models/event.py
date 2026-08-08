@@ -1383,6 +1383,14 @@ class Event(
             augmented.setdefault(role, [f'eventyay-video-event-{slug}-{trait_name.replace("_", "-")}'])
         return augmented
 
+    def _get_default_roles(self):
+        """Return ``default_roles()``, cached on this Event for its instance lifetime."""
+        cached = getattr(self, '_cached_default_roles', None)
+        if cached is None:
+            cached = default_roles()
+            self._cached_default_roles = cached
+        return cached
+
     def _permissions_for_role(self, role_name, event_roles=None):
         """
         Resolve a role's permission list.
@@ -1396,7 +1404,7 @@ class Event(
             event_roles = self.roles if self.roles is not None else {}
         if role_name in event_roles and event_roles[role_name] is not None:
             return event_roles[role_name]
-        defaults = default_roles()
+        defaults = self._get_default_roles()
         if role_name in defaults:
             return defaults[role_name]
         return SYSTEM_ROLES.get(role_name, [])
@@ -1410,7 +1418,7 @@ class Event(
         allow_empty_traits=True,
     ):
         event_trait_grants = self._get_trait_grants_with_defaults()
-        event_roles = self.roles if self.roles is not None else default_roles()
+        event_roles = self.roles if self.roles is not None else self._get_default_roles()
 
         if traits is None:
             traits = []
@@ -1476,7 +1484,7 @@ class Event(
             return True
 
         roles = user.get_role_grants(room)
-        event_roles = self.roles if self.roles is not None else default_roles()
+        event_roles = self.roles if self.roles is not None else self._get_default_roles()
         for r in roles:
             role_perms = self._permissions_for_role(r, event_roles)
             role_perms_str = [normalize_permission_value(rp) for rp in role_perms]
@@ -1508,7 +1516,7 @@ class Event(
             return True
 
         roles = await user.get_role_grants_async(room)
-        event_roles = self.roles if self.roles is not None else default_roles()
+        event_roles = self.roles if self.roles is not None else self._get_default_roles()
         for r in roles:
             role_perms = self._permissions_for_role(r, event_roles)
             role_perms_str = [normalize_permission_value(rp) for rp in role_perms]
@@ -1525,7 +1533,7 @@ class Event(
 
         # Ensure trait_grants and roles are not None
         event_trait_grants = self._get_trait_grants_with_defaults()
-        event_roles = self.roles if self.roles is not None else default_roles()
+        event_roles = self.roles if self.roles is not None else self._get_default_roles()
 
         user_traits = user.traits or []
 
