@@ -24,6 +24,7 @@ export default {
 		gettext(), vue()
 	],
 	css: {
+		// Vite 8 workers cannot clone the buntpapier Stylus plugin (DataCloneError).
 		preprocessorMaxWorkers: 0,
 		preprocessorOptions: {
 			stylus: stylusOptions,
@@ -38,7 +39,6 @@ export default {
 			{ find: '~', replacement: path.resolve(__dirname, './src') },
 			{ find: '@', replacement: path.resolve(__dirname, './src') },
 			{ find: 'moment-timezone', replacement: 'moment-timezone/builds/moment-timezone-with-data-10-year-range.js' },
-			{ find: /^buntpapier$/, replacement: path.resolve(__dirname, 'node_modules/buntpapier/src/index.js') },
 		],
 	},
 	build: {
@@ -60,6 +60,9 @@ export default {
 					if (id.includes('node_modules/i18next')) {
 						return 'i18n'
 					}
+					if (id.includes('node_modules/buntpapier')) {
+						return 'buntpapier'
+					}
 					if (id.includes('node_modules/zod')) {
 						return 'zod'
 					}
@@ -69,8 +72,8 @@ export default {
 		target: 'es2022',
 	},
 	optimizeDeps: {
-		exclude: ['moment', 'buntpapier'],
-		include: ['fuzzysearch', 'popper.js', 'resize-observer-polyfill'],
+		exclude: ['moment'],
+		include: ['buntpapier', 'fuzzysearch', 'popper.js', 'resize-observer-polyfill'],
 	},
 	server: {
 	  port: '8080'

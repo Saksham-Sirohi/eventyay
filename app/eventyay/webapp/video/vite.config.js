@@ -105,10 +105,11 @@ export default defineConfig(({ mode }) => {
           maximumFileSizeToCacheInBytes: 3 * 1024 * 1024
         }
       }),
-      // Lint-on-save during Vite transforms
-      eslint({
+      // Lint during local serve only; cache results so lazy route loads stay fast.
+      mode === 'development' && eslint({
         include: ['src/**/*.js', 'src/**/*.vue'],
-        cache: false
+        cache: true,
+        failOnError: false,
       }),
       mode === 'production' && process.env.ANALYZE && visualizer({
         open: true,
@@ -116,7 +117,6 @@ export default defineConfig(({ mode }) => {
       })
     ].filter(Boolean),
     css: {
-      preprocessorMaxWorkers: 0,
       preprocessorOptions: {
         stylus: stylusOptions,
         styl: stylusOptions
@@ -129,7 +129,6 @@ export default defineConfig(({ mode }) => {
       alias: [
         { find: 'lodash', replacement: 'lodash-es' },
         { find: '~', replacement: path.resolve(__dirname, 'src') },
-        { find: /^buntpapier$/, replacement: path.resolve(__dirname, 'node_modules/buntpapier/src/index.js') },
         { find: 'config', replacement: path.resolve(__dirname, 'config.js') },
         { find: 'react', replacement: 'preact/compat' },
         { find: 'react-dom', replacement: 'preact/compat' },
@@ -157,6 +156,7 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       include: [
         'color',
+        'buntpapier',
         'moment-timezone',
         'fuzzysearch',
         'popper.js',
@@ -166,7 +166,6 @@ export default defineConfig(({ mode }) => {
         'janus-gateway',
         'janus-gateway/html/janus.js',
         'pdfjs-dist',
-        'buntpapier',
       ],
       esbuildOptions: {
         target: 'esnext'
@@ -202,6 +201,7 @@ export default defineConfig(({ mode }) => {
               if (id.includes('quill')) return 'vendor-quill'
               if (id.includes('markdown-it')) return 'vendor-markdown'
               if (id.includes('i18next')) return 'vendor-i18n'
+              if (id.includes('buntpapier')) return 'vendor-buntpapier'
               if (id.includes('preact')) return 'vendor-preact'
               if (id.includes('vue') || id.includes('vue-router') || id.includes('vuex') || id.includes('vue-virtual-scroller')) return 'vendor-vue'
               // removed pretalx chunk assignment since library removed from usage
