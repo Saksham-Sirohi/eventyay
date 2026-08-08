@@ -43,7 +43,6 @@ export default defineConfig({
 		}),
 	],
 	css: {
-		// Vite 8 workers cannot clone the buntpapier Stylus plugin (DataCloneError).
 		preprocessorMaxWorkers: 0,
 		preprocessorOptions: {
 			stylus: stylusOptions,
@@ -55,6 +54,7 @@ export default defineConfig({
 		extensions: ['.js', '.json', '.vue'],
 		alias: [
 			{ find: '~', replacement: path.resolve(__dirname, 'src') },
+			{ find: /^buntpapier$/, replacement: path.resolve(__dirname, 'node_modules/buntpapier/src/index.js') },
 		],
 	},
 	build: {
@@ -90,6 +90,7 @@ export default defineConfig({
 		}
 	},
 	optimizeDeps: {
-		include: ['buntpapier', 'fuzzysearch', 'popper.js', 'resize-observer-polyfill'],
+		exclude: ['buntpapier'],
+		include: ['fuzzysearch', 'popper.js', 'resize-observer-polyfill'],
 	},
 })
