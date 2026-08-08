@@ -74,7 +74,8 @@ class Command(BaseCommand):
         call_command('collectstatic', verbosity=silent, interactive=False, clear=options['clear'])
 
         # We're setting the verbosity to 0 when calling compress on account of https://github.com/django-compressor/django-compressor/issues/881
-        call_command('compress', verbosity=0)
+        # --force: django-compressor>=4.6 refuses offline compress unless COMPRESS_OFFLINE is True
+        call_command('compress', verbosity=0, force=True)
 
         # This fails if we don't have db access, which is fine
         with suppress(Exception):
