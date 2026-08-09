@@ -3,7 +3,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ('base', '0050_checkin_list_limits_and_popup_fields'),
+        ('base', '0051_consolidate_video_team_permissions'),
     ]
 
     operations = [
