@@ -598,7 +598,8 @@ class CheckinListOrderPositionSerializer(OrderPositionSerializer):
         layout = get_badge_layout_for_position(obj.order.event, obj)
         if not layout or not layout.allow_customization:
             return None
-        display_values = get_badge_field_display_values(obj.order.event, obj)
+        # Reuse the resolved layout for display values to avoid a second layout lookup.
+        display_values = get_badge_field_display_values(obj.order.event, obj, layout=layout)
         return {
             'allow_customization': True,
             'allow_badge_editing': layout.allow_badge_editing,

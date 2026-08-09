@@ -93,6 +93,9 @@ def delete_badge_cached_pdfs(event):
 
 def clear_badge_layout_cache(event):
     reset_badge_layout_assignment_cache(event)
+    for attr in ('_badge_layouts_exist', '_badge_pdf_variables'):
+        if hasattr(event, attr):
+            delattr(event, attr)
 
     # Bump the layout version in the cross-process cache so every worker's in-memory
     # renderer cache is invalidated on its very next use, without needing to reach into
@@ -311,16 +314,23 @@ def save_badge_customization(position, *, hidden_fields=None, field_overrides=No
     return True
 
 
-def get_badge_field_display_values(event, position):
-    from eventyay.base.pdf import get_variables
+def _get_cached_badge_variables(event):
+    cached = getattr(event, '_badge_pdf_variables', None)
+    if cached is None:
+        cached = get_variables(event)
+        setattr(event, '_badge_pdf_variables', cached)
+    return cached
 
-    layout = get_badge_layout_for_position(event, position)
+
+def get_badge_field_display_values(event, position, layout=None):
+    if layout is None:
+        layout = get_badge_layout_for_position(event, position)
     if not layout or not layout.allow_customization:
         return {}
 
     ask_user_keys = set(layout.ask_user_fields_data)
     overrides = get_badge_field_overrides(position)
-    variables = get_variables(event)
+    variables = _get_cached_badge_variables(event)
     order = position.order
     ev = position.subevent or event
     values = {}
@@ -376,7 +386,7 @@ def get_badge_customizable_fields(event, layout):
     if not isinstance(layout_data, list):
         return []
 
-    variables = get_variables(event)
+    variables = _get_cached_badge_variables(event)
     fields = []
     seen_keys = set()
     for obj in layout_data:
@@ -507,7 +517,7 @@ def get_badge_visible_field_values(event, position, hidden_fields=None):
         str(value) for value in (hidden_fields if hidden_fields is not None else get_badge_hidden_fields(position))
     }
 
-    variables = get_variables(event)
+    variables = _get_cached_badge_variables(event)
 
     values = []
     for field in get_badge_customizable_fields(event, layout):
