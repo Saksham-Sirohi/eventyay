@@ -56,6 +56,7 @@ eventyay/config/static.dist
 app/eventyay/static/CACHE
 
 # .env files
+.env
 .env.dev
 .env.prod
 deployment/.env.dev

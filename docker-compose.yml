@@ -3,7 +3,7 @@ name: eventyay-next
 x-app-build: &app-build
   context: ./app
   args:
-    # When EVY_NPM_DEV=1 (from --env-file .env.dev), skip make npminstall in the image build.
+    # When EVY_NPM_DEV=1 (from .env → .env.dev), skip make npminstall in the image build.
     EVY_NPM_DEV: ${EVY_NPM_DEV:-0}
 
 services:
