@@ -757,6 +757,40 @@ def get_variables(event):
     return v
 
 
+def font_supports_text(font_name, text):
+    try:
+        font_obj = pdfmetrics.getFont(font_name)
+    except KeyError:
+        return False
+    face = getattr(font_obj, 'face', None)
+    char_to_glyph = getattr(face, 'charToGlyph', None) if face is not None else None
+    if char_to_glyph is None:
+        return False
+    return all(ord(char) < 32 or ord(char) in char_to_glyph for char in text)
+
+
+def resolve_textarea_font(font, text_content):
+    """
+    Pick a font (and optionally transliterate) so ticket text can be drawn.
+
+    Prefer switching to the broader AND font before transliterating attendee-visible
+    text with ``text_unidecode``.
+    """
+    if not text_content or font_supports_text(font, text_content):
+        return font, text_content
+    if font_supports_text('AND', text_content):
+        return 'AND', text_content
+
+    import text_unidecode
+
+    transliterated = text_unidecode.unidecode(text_content)
+    if transliterated and font_supports_text(font, transliterated):
+        return font, transliterated
+    if transliterated and font_supports_text('AND', transliterated):
+        return 'AND', transliterated
+    return font, text_content
+
+
 class Renderer:
     def __init__(self, event, layout, background_file):
         self.layout = layout
@@ -784,9 +818,11 @@ class Renderer:
         pdfmetrics.registerFont(TTFont('Open Sans B', finders.find('fonts/OpenSans-Bold.ttf')))
         pdfmetrics.registerFont(TTFont('Open Sans B I', finders.find('fonts/OpenSans-BoldItalic.ttf')))
         try:
-            pdfmetrics.registerFont(TTFont('AND', finders.find('fonts/AND-Regular.ttf')))
-        except Exception:
-            pass
+            and_font = finders.find('fonts/AND-Regular.ttf')
+            if and_font:
+                pdfmetrics.registerFont(TTFont('AND', and_font))
+        except (OSError, TypeError, ValueError) as exc:
+            logger.warning('Failed to register AND font: %s', exc)
 
         try:
             pdfmetrics.registerFont(TTFont('NotoNaskhArabic', finders.find('fonts/NotoNaskhArabic-Regular.ttf')))
@@ -1061,24 +1097,7 @@ class Renderer:
             self._style_cache = {}
 
         text_content = self._get_text_content(op, order, o) or ''
-
-        def font_supports_text(font_name, text):
-            try:
-                font_obj = pdfmetrics.getFont(font_name)
-                if hasattr(font_obj, 'face') and hasattr(font_obj.face, 'charToGlyph'):
-                    return all(ord(char) < 32 or ord(char) in font_obj.face.charToGlyph for char in text)
-            except Exception:
-                pass
-            return False
-
-        if not font_supports_text(font, text_content):
-            if font_supports_text('AND', text_content):
-                font = 'AND'
-            else:
-                import text_unidecode
-                text_content = text_unidecode.unidecode(text_content)
-                if not font_supports_text(font, text_content):
-                    font = 'AND'
+        font, text_content = resolve_textarea_font(font, text_content)
 
         fontsize = float(o['fontsize'])
         if o.get('autofit_width'):

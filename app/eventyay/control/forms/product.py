@@ -705,7 +705,7 @@ class ProductUpdateForm(I18nModelForm):
                     _('Gift card products should not be admission products at the same time.'),
                 )
         clean_free_price_bounds(d, form=self)
-        Product.clean_admission_validity_data(d)
+        Product.clean_admission_validity_data(d, event=self.event)
 
         return d
 
@@ -864,7 +864,7 @@ class ProductVariationForm(I18nModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        Product.clean_admission_validity_data(cleaned_data)
+        Product.clean_admission_validity_data(cleaned_data, event=self.event)
         return cleaned_data
 
     class Meta:

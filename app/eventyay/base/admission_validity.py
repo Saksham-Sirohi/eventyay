@@ -1,31 +1,62 @@
 from datetime import timedelta
+from types import SimpleNamespace
 
 from django.utils.formats import date_format
 from django.utils.timezone import now as timezone_now
 
-from eventyay.base.models.product import Product
+from eventyay.base.models.product import Product, ProductVariation
 
 
-def _variation_overrides_product(variation):
+def _pick_attr(variation, product, attr):
+    value = getattr(variation, attr)
+    if value is not None:
+        return value
+    return getattr(product, attr)
+
+
+def _merged_catalog_config(product, variation=None):
+    """
+    Merge product and variation admission settings.
+
+    Variation mode ``inherit`` (default) keeps the product mode and overlays only
+    explicitly set variation fields. Any other variation mode replaces the product
+    mode entirely, including ``''`` for an explicit "no restriction" override.
+    """
     if variation is None:
-        return False
-    return bool(
-        variation.admission_validity_mode
-        or variation.admission_valid_from
-        or variation.admission_valid_until
-        or variation.admission_valid_from_offset_minutes is not None
-        or variation.admission_valid_until_offset_minutes is not None
+        return product
+
+    var_mode = variation.admission_validity_mode
+    if var_mode == ProductVariation.ADMISSION_VALIDITY_MODE_INHERIT:
+        mode = product.admission_validity_mode or ''
+    else:
+        mode = var_mode or ''
+
+    if mode in ('', Product.ADMISSION_VALIDITY_MODE_NONE):
+        return SimpleNamespace(
+            admission_validity_mode=Product.ADMISSION_VALIDITY_MODE_NONE,
+            admission_valid_from=None,
+            admission_valid_until=None,
+            admission_valid_from_offset_minutes=None,
+            admission_valid_until_offset_minutes=None,
+        )
+
+    return SimpleNamespace(
+        admission_validity_mode=mode,
+        admission_valid_from=_pick_attr(variation, product, 'admission_valid_from'),
+        admission_valid_until=_pick_attr(variation, product, 'admission_valid_until'),
+        admission_valid_from_offset_minutes=_pick_attr(
+            variation, product, 'admission_valid_from_offset_minutes'
+        ),
+        admission_valid_until_offset_minutes=_pick_attr(
+            variation, product, 'admission_valid_until_offset_minutes'
+        ),
     )
-
-
-def _catalog_source(product, variation=None):
-    if _variation_overrides_product(variation):
-        return variation
-    return product
 
 
 def _effective_mode(source):
     mode = source.admission_validity_mode or ''
+    if mode == ProductVariation.ADMISSION_VALIDITY_MODE_INHERIT:
+        return Product.ADMISSION_VALIDITY_MODE_NONE
     if not mode and (source.admission_valid_from or source.admission_valid_until):
         return Product.ADMISSION_VALIDITY_MODE_FIXED
     return mode
@@ -53,6 +84,12 @@ def _apply_minute_offsets(window_start, window_end, offset_from, offset_until):
         valid_until = window_end
     else:
         valid_until = None
+
+    # Keep resolved windows inside the underlying event/date range.
+    if window_start and valid_from and valid_from < window_start:
+        valid_from = window_start
+    if window_end and valid_until and valid_until > window_end:
+        valid_until = window_end
     return valid_from, valid_until
 
 
@@ -60,11 +97,11 @@ def resolve_catalog_admission_bounds(product, variation=None, event=None, subeve
     """
     Resolve the configured check-in window from product catalog data.
 
-    Variation settings override the product when any admission validity field is set
-    on the variation. Fixed windows use explicit datetimes; subevent/event modes derive
-    bounds from the assigned date or whole event, optionally shifted by minute offsets.
+    Variation settings are merged field-by-field with the product. Fixed windows use
+    explicit datetimes; subevent/event modes derive bounds from the assigned date or
+    whole event, optionally shifted by minute offsets.
     """
-    source = _catalog_source(product, variation)
+    source = _merged_catalog_config(product, variation)
     mode = _effective_mode(source)
     if mode in ('', Product.ADMISSION_VALIDITY_MODE_NONE):
         return None, None
@@ -86,12 +123,17 @@ def assign_issued_admission_bounds(position):
     Copy the resolved check-in window onto an order position at purchase time.
 
     The stored values define check-in enforcement for this ticket even if the
-    product is edited later.
+    product is edited later. Both fields ``None`` means unrestricted at issue time.
     """
+    if position.product_id is None and getattr(position, 'product', None) is None:
+        return
+    order = getattr(position, 'order', None)
+    if order is None:
+        return
     valid_from, valid_until = resolve_catalog_admission_bounds(
         position.product,
         position.variation,
-        event=position.order.event,
+        event=order.event,
         subevent=position.subevent,
     )
     position.admission_valid_from = valid_from
@@ -99,17 +141,14 @@ def assign_issued_admission_bounds(position):
 
 
 def get_issued_admission_bounds(position):
-    """Effective check-in window for a sold ticket (purchase-time snapshot)."""
-    valid_from = position.admission_valid_from
-    valid_until = position.admission_valid_until
-    if valid_from is not None or valid_until is not None:
-        return valid_from, valid_until
-    return resolve_catalog_admission_bounds(
-        position.product,
-        position.variation,
-        event=position.order.event,
-        subevent=position.subevent,
-    )
+    """
+    Effective check-in window for a sold ticket.
+
+    Uses only the purchase-time snapshot on the position. Positions created before
+    this feature (or issued with no restriction) have both fields ``None`` and are
+    unrestricted; catalog configuration is never re-resolved for issued tickets.
+    """
+    return position.admission_valid_from, position.admission_valid_until
 
 
 def is_within_admission_bounds(valid_from, valid_until, dt):

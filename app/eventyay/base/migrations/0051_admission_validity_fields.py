@@ -73,15 +73,19 @@ class Migration(migrations.Migration):
             model_name='productvariation',
             name='admission_validity_mode',
             field=models.CharField(
-                blank=True,
                 choices=[
+                    ('inherit', 'Same as product'),
                     ('', 'No check-in time restriction'),
                     ('fixed', 'Fixed start and end'),
                     ('subevent', 'Valid during assigned event date'),
                     ('event', 'Valid during entire event'),
                 ],
-                default='',
-                help_text='Overrides the product admission validity mode when set.',
+                default='inherit',
+                help_text=(
+                    'Use "Same as product" to inherit the product mode and overlay only the '
+                    'variation fields you set. Choose "No check-in time restriction" to explicitly '
+                    'clear a product-level restriction for this variation.'
+                ),
                 max_length=20,
                 verbose_name='Admission validity mode',
             ),
@@ -136,7 +140,10 @@ class Migration(migrations.Migration):
             name='admission_valid_from',
             field=models.DateTimeField(
                 blank=True,
-                help_text='Check-in allowed from this time for this ticket (copied from the product when the order was placed).',
+                help_text=(
+                    'Check-in allowed from this time for this ticket (snapshotted from the product '
+                    'when the order was placed). Both issued fields empty means unrestricted.'
+                ),
                 null=True,
                 verbose_name='Issued admission valid from',
             ),
@@ -146,7 +153,10 @@ class Migration(migrations.Migration):
             name='admission_valid_until',
             field=models.DateTimeField(
                 blank=True,
-                help_text='Check-in allowed until this time for this ticket (copied from the product when the order was placed).',
+                help_text=(
+                    'Check-in allowed until this time for this ticket (snapshotted from the product '
+                    'when the order was placed). Both issued fields empty means unrestricted.'
+                ),
                 null=True,
                 verbose_name='Issued admission valid until',
             ),

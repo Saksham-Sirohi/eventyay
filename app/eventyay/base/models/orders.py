@@ -2341,13 +2341,19 @@ class OrderPosition(AbstractPosition):
     canceled = models.BooleanField(default=False)
     admission_valid_from = models.DateTimeField(
         verbose_name=_('Issued admission valid from'),
-        help_text=_('Check-in allowed from this time for this ticket (copied from the product when the order was placed).'),
+        help_text=_(
+            'Check-in allowed from this time for this ticket (snapshotted from the product '
+            'when the order was placed). Both issued fields empty means unrestricted.'
+        ),
         null=True,
         blank=True,
     )
     admission_valid_until = models.DateTimeField(
         verbose_name=_('Issued admission valid until'),
-        help_text=_('Check-in allowed until this time for this ticket (copied from the product when the order was placed).'),
+        help_text=_(
+            'Check-in allowed until this time for this ticket (snapshotted from the product '
+            'when the order was placed). Both issued fields empty means unrestricted.'
+        ),
         null=True,
         blank=True,
     )

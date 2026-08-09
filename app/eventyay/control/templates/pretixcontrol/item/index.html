@@ -133,7 +133,7 @@
                             {% bootstrap_field form.admission_valid_from_offset_minutes layout="control" %}
                             {% bootstrap_field form.admission_valid_until_offset_minutes layout="control" %}
                             <p class="help-block">
-                                {% trans "Choose how check-in validity is determined. Fixed times apply explicit start/end datetimes. Event or date modes use the event or assigned date range, optionally shifted by minute offsets." %}
+                                {% trans "Choose how check-in validity is determined. Fixed times apply explicit start/end datetimes. Event or date modes use the event or assigned date range, optionally shifted by non-negative minute offsets that stay within that window. Offsets may not be negative or extend past the event end. Variations default to the product settings and can overlay individual fields, or explicitly choose no restriction." %}
                             </p>
                         {% endif %}
                     </fieldset>

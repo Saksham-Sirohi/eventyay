@@ -1,7 +1,7 @@
 import sys
 import uuid
 from collections import Counter, OrderedDict
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal, DecimalException
 
 import dateutil.parser
@@ -781,27 +781,46 @@ class Product(LoggedModel):
             raise ValidationError(_('Admission validity cannot end before it starts.'))
 
     @staticmethod
-    def clean_admission_validity(mode, valid_from, valid_until, offset_from=None, offset_until=None):
+    def clean_admission_validity(
+        mode, valid_from, valid_until, offset_from=None, offset_until=None, event=None
+    ):
         effective_mode = mode or ''
+        if effective_mode == ProductVariation.ADMISSION_VALIDITY_MODE_INHERIT:
+            # Variation inherit mode: only validate explicitly provided offsets/dates.
+            effective_mode = ''
+            if valid_from or valid_until:
+                Product.clean_admission_valid(valid_from, valid_until)
         if not effective_mode and (valid_from or valid_until):
             effective_mode = Product.ADMISSION_VALIDITY_MODE_FIXED
         if effective_mode == Product.ADMISSION_VALIDITY_MODE_FIXED:
             Product.clean_admission_valid(valid_from, valid_until)
-        if effective_mode in (
-            Product.ADMISSION_VALIDITY_MODE_SUBEVENT,
-            Product.ADMISSION_VALIDITY_MODE_EVENT,
-        ) and offset_from is not None and offset_until is not None:
-            if offset_from > offset_until:
-                raise ValidationError(_('Admission validity offset cannot end before it starts.'))
+        if offset_from is not None and offset_from < 0:
+            raise ValidationError(_('Admission validity offsets cannot be negative.'))
+        if offset_until is not None and offset_until < 0:
+            raise ValidationError(_('Admission validity offsets cannot be negative.'))
+        if offset_from is not None and offset_until is not None and offset_from > offset_until:
+            raise ValidationError(_('Admission validity offset cannot end before it starts.'))
+        if (
+            effective_mode == Product.ADMISSION_VALIDITY_MODE_EVENT
+            and event is not None
+            and event.date_from
+            and event.date_to
+            and offset_until is not None
+        ):
+            if event.date_from + timedelta(minutes=offset_until) > event.date_to:
+                raise ValidationError(
+                    _('Admission validity until offset cannot extend past the event end.')
+                )
 
     @staticmethod
-    def clean_admission_validity_data(data):
+    def clean_admission_validity_data(data, event=None):
         Product.clean_admission_validity(
             data.get('admission_validity_mode'),
             data.get('admission_valid_from'),
             data.get('admission_valid_until'),
             data.get('admission_valid_from_offset_minutes'),
             data.get('admission_valid_until_offset_minutes'),
+            event=event,
         )
 
     @property
@@ -865,13 +884,25 @@ class ProductVariation(models.Model):
             'discounted one. This is just a cosmetic setting and will not actually impact pricing.'
         ),
     )
+    ADMISSION_VALIDITY_MODE_INHERIT = 'inherit'
+    ADMISSION_VALIDITY_MODE_CHOICES = (
+        (ADMISSION_VALIDITY_MODE_INHERIT, _('Same as product')),
+        (Product.ADMISSION_VALIDITY_MODE_NONE, _('No check-in time restriction')),
+        (Product.ADMISSION_VALIDITY_MODE_FIXED, _('Fixed start and end')),
+        (Product.ADMISSION_VALIDITY_MODE_SUBEVENT, _('Valid during assigned event date')),
+        (Product.ADMISSION_VALIDITY_MODE_EVENT, _('Valid during entire event')),
+    )
     admission_validity_mode = models.CharField(
         verbose_name=_('Admission validity mode'),
-        help_text=_('Overrides the product admission validity mode when set.'),
+        help_text=_(
+            'Use "Same as product" to inherit the product mode and overlay only the '
+            'variation fields you set. Choose "No check-in time restriction" to explicitly '
+            'clear a product-level restriction for this variation.'
+        ),
         max_length=20,
-        choices=Product.ADMISSION_VALIDITY_MODE_CHOICES,
-        blank=True,
-        default=Product.ADMISSION_VALIDITY_MODE_NONE,
+        choices=ADMISSION_VALIDITY_MODE_CHOICES,
+        blank=False,
+        default=ADMISSION_VALIDITY_MODE_INHERIT,
     )
     admission_valid_from = models.DateTimeField(
         verbose_name=_('Admission valid from'),

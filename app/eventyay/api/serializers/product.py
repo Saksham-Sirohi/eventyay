@@ -70,9 +70,14 @@ class ProductVariationSerializer(I18nAwareModelSerializer):
 
     def validate(self, data):
         data = super().validate(data)
+        # Merge with instance so PATCH only needs changed fields; validation source of
+        # truth remains Product.clean_admission_validity_data.
         full_data = self.to_internal_value(self.to_representation(self.instance)) if self.instance else {}
         full_data.update(data)
-        Product.clean_admission_validity_data(full_data)
+        event = self.context.get('event')
+        if event is None and self.instance is not None:
+            event = self.instance.product.event
+        Product.clean_admission_validity_data(full_data, event=event)
         return data
 
 
@@ -241,7 +246,9 @@ class ProductSerializer(I18nAwareModelSerializer):
 
         Product.clean_per_order(full_data.get('min_per_order'), full_data.get('max_per_order'))
         Product.clean_available(full_data.get('available_from'), full_data.get('available_until'))
-        Product.clean_admission_validity_data(full_data)
+        # Merge with instance so PATCH only needs changed fields; validation source of
+        # truth remains Product.clean_admission_validity_data.
+        Product.clean_admission_validity_data(full_data, event=self.context.get('event'))
 
         if full_data.get('issue_giftcard'):
             if full_data.get('tax_rule') and full_data.get('tax_rule').rate > 0:
