@@ -158,22 +158,24 @@ def test_snapshot_ignores_later_product_changes(event, item):
 
 
 @pytest.mark.django_db
-def test_unrestricted_snapshot_stays_unrestricted_after_product_restriction(event, item):
+def test_empty_snapshot_falls_back_to_current_catalog(event, item):
     position = _make_position(event, item)
     assert get_issued_admission_bounds(position) == (None, None)
 
+    start = now() - timedelta(days=2)
+    end = now() - timedelta(days=1)
     item.admission_validity_mode = Product.ADMISSION_VALIDITY_MODE_FIXED
-    item.admission_valid_from = now() - timedelta(days=2)
-    item.admission_valid_until = now() - timedelta(days=1)
+    item.admission_valid_from = start
+    item.admission_valid_until = end
     item.save()
 
     position.refresh_from_db()
-    assert get_issued_admission_bounds(position) == (None, None)
+    assert get_issued_admission_bounds(position) == (start, end)
 
 
 @pytest.mark.django_db
-def test_legacy_null_snapshot_is_unrestricted(event, item, clist):
-    """Existing positions with null snapshot fields stay unrestricted."""
+def test_legacy_null_snapshot_uses_catalog_for_checkin(event, item, clist):
+    """Positions with empty snapshot fields follow current product validity."""
     position = _make_position(event, item)
     OrderPosition.objects.filter(pk=position.pk).update(
         admission_valid_from=None,
@@ -186,8 +188,9 @@ def test_legacy_null_snapshot_is_unrestricted(event, item, clist):
     item.admission_valid_until = now() - timedelta(days=1)
     item.save()
 
-    perform_checkin(position, clist, {})
-    assert position.checkins.count() == 1
+    with pytest.raises(CheckInError) as excinfo:
+        perform_checkin(position, clist, {})
+    assert excinfo.value.code == 'invalid_time'
 
 
 @pytest.mark.django_db

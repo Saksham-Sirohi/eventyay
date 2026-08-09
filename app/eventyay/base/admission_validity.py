@@ -125,8 +125,9 @@ def assign_issued_admission_bounds(position):
     """
     Copy the resolved check-in window onto an order position at purchase time.
 
-    The stored values define check-in enforcement for this ticket even if the
-    product is edited later. Both fields ``None`` means unrestricted at issue time.
+    When catalog bounds exist, the stored values freeze that window for the ticket.
+    When both stored fields remain ``None`` (no restriction at issue time, or a
+    pre-feature position), check-in falls back to the current catalog configuration.
     """
     if position.product_id is None and getattr(position, 'product', None) is None:
         return
@@ -147,11 +148,20 @@ def get_issued_admission_bounds(position):
     """
     Effective check-in window for a sold ticket.
 
-    Uses only the purchase-time snapshot on the position. Positions created before
-    this feature (or issued with no restriction) have both fields ``None`` and are
-    unrestricted; catalog configuration is never re-resolved for issued tickets.
+    Prefer the purchase-time snapshot when either bound is set. If both are
+    ``None`` (legacy positions or tickets issued with no restriction), fall back
+    to the current product/variation catalog configuration.
     """
-    return position.admission_valid_from, position.admission_valid_until
+    valid_from = position.admission_valid_from
+    valid_until = position.admission_valid_until
+    if valid_from is not None or valid_until is not None:
+        return valid_from, valid_until
+    return resolve_catalog_admission_bounds(
+        position.product,
+        position.variation,
+        event=position.order.event,
+        subevent=position.subevent,
+    )
 
 
 def is_within_admission_bounds(valid_from, valid_until, dt):

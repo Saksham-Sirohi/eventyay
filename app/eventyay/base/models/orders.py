@@ -2343,7 +2343,8 @@ class OrderPosition(AbstractPosition):
         verbose_name=_('Issued admission valid from'),
         help_text=_(
             'Check-in allowed from this time for this ticket (snapshotted from the product '
-            'when the order was placed). Both issued fields empty means unrestricted.'
+            'when the order was placed). If both issued fields are empty, current product '
+            'admission settings are used.'
         ),
         null=True,
         blank=True,
@@ -2352,7 +2353,8 @@ class OrderPosition(AbstractPosition):
         verbose_name=_('Issued admission valid until'),
         help_text=_(
             'Check-in allowed until this time for this ticket (snapshotted from the product '
-            'when the order was placed). Both issued fields empty means unrestricted.'
+            'when the order was placed). If both issued fields are empty, current product '
+            'admission settings are used.'
         ),
         null=True,
         blank=True,
