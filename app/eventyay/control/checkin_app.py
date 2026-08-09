@@ -2,6 +2,8 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 
+CHECKIN_APP_PRODUCTION_URL = 'https://access.eventyay.com/'
+
 
 def request_hostname_for_dev_url(request):
     """Hostname from request host header, bracketed when IPv6."""
@@ -20,7 +22,7 @@ def get_eventyay_checkin_app_url(request):
     """Public URL for the eventyay Check-in web app (device/kiosk UI)."""
     if is_eventyay_checkin_app_dev():
         return f'http://{request_hostname_for_dev_url(request)}:8085/'
-    return settings.CHECKIN_APP_URL
+    return CHECKIN_APP_PRODUCTION_URL
 
 
 def user_can_open_checkin_app(request):

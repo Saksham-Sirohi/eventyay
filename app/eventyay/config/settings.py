@@ -159,8 +159,6 @@ class BaseSettings(_BaseSettings):
     call_for_speaker_login_button_label: str = 'default'
     # Set to 1 to enable Vite dev servers with HMR for live frontend development.
     npm_dev: bool = False
-    # Public URL of the eventyay Check-in web app (device/kiosk UI) when not in npm_dev mode.
-    checkin_app_url: HttpUrl = 'https://access.eventyay.com/'
 
     @classmethod
     def settings_customise_sources(
@@ -1524,7 +1522,6 @@ LINKEDIN_CLIENT_SECRET = conf.linkedin_client_secret
 
 FRONTEND_DIR = BASE_DIR / 'webapp'
 VITE_DEV_MODE = conf.npm_dev
-CHECKIN_APP_URL = str(conf.checkin_app_url).rstrip('/') + '/'
 VITE_DEV_SERVER_PORTS = {
     'schedule-editor': 'http://localhost:8080',
     'video': 'http://localhost:8880',

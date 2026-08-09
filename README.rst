@@ -86,7 +86,7 @@ Steps:
 
    cp deployment/env.dev.sample .env.dev
 
-   docker compose --env-file .env.dev up -d --build
+   docker compose up -d --build
 
 Create an admin user:
 
@@ -274,7 +274,7 @@ The repository contains several frontend applications under ``app/eventyay/webap
 
 The root app ``Makefile`` installs and builds these frontend applications through npm and places compiled assets into the Django app data directory.
 
-Check-in uses the separate ``eventyay-checkin`` plugin (not built by the Makefile ``npminstall`` target). Override its public URL with ``EVY_CHECKIN_APP_URL`` (default ``https://access.eventyay.com/``).
+Check-in uses the separate ``eventyay-checkin`` plugin (not built by the Makefile ``npminstall`` target).
 
 By default, Docker serves prebuilt frontend assets. To enable hot module replacement for frontend development, set this in ``.env.dev``:
 
@@ -282,7 +282,7 @@ By default, Docker serves prebuilt frontend assets. To enable hot module replace
 
    EVY_NPM_DEV=1
 
-When ``EVY_NPM_DEV=1``, the Docker image build skips ``make npminstall``, and Vite dev servers start automatically inside the container, install npm dependencies as needed, and serve the webapps with HMR. You do **not** need to run ``make npminstall`` in that mode (pass ``--env-file .env.dev`` so Compose applies the build arg).
+When ``EVY_NPM_DEV=1`` in ``.env.dev``, the Docker image build skips ``make npminstall``, and Vite dev servers start automatically inside the container, install npm dependencies as needed, and serve the webapps with HMR.
 
 - ``schedule-editor`` runs on port ``8080``.
 - ``video`` runs on port ``8880``.
@@ -295,7 +295,7 @@ The container must be recreated, not only restarted, for the environment change 
 
 .. code-block:: bash
 
-   docker compose --env-file .env.dev up -d --build web
+   docker compose up -d --build web
 
 The default is:
 
@@ -746,7 +746,7 @@ Bring the development stack back up in detached mode with a rebuild:
 
 .. code-block:: bash
 
-   docker compose --env-file .env.dev up -d --build
+   docker compose up -d --build
 
 Deployment
 ----------

@@ -31,11 +31,11 @@ description: Docker Compose, container services, deployment
 # Copy and edit environment variables
 cp deployment/env.dev.sample .env.dev
 
-# Build images and start all services (pass --env-file so EVY_NPM_DEV build args apply)
-docker compose --env-file .env.dev up --build
+# Build images and start all services
+docker compose up --build
 
 # Run with detached containers
-docker compose --env-file .env.dev up -d --build
+docker compose up -d --build
 
 # View logs
 docker compose logs -f web

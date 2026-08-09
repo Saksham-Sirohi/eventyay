@@ -2,9 +2,9 @@ name: eventyay-next
 
 x-app-build: &app-build
   context: ./app
-  args:
-    # When EVY_NPM_DEV=1 (from --env-file .env.dev), skip make npminstall in the image build.
-    EVY_NPM_DEV: ${EVY_NPM_DEV:-0}
+  # Expose repo root so Dockerfile can read EVY_NPM_DEV from .env.dev at build time.
+  additional_contexts:
+    project_root: .
 
 services:
   web:
