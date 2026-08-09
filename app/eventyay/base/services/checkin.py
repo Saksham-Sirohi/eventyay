@@ -23,7 +23,10 @@ from django.utils.timezone import now, override
 from django.utils.translation import gettext as _
 from django_scopes import scope, scopes_disabled
 
-from eventyay.base.admission_validity import get_issued_admission_bounds
+from eventyay.base.admission_validity import (
+    get_issued_admission_bounds,
+    is_within_admission_bounds,
+)
 from eventyay.base.models import (
     Checkin,
     CheckinList,
@@ -481,11 +484,11 @@ def _entry_limit_violated(op, clist, dt, gate):
 
 def _admission_validity_violated(op, dt):
     valid_from, valid_until = get_issued_admission_bounds(op)
-
+    if is_within_admission_bounds(valid_from, valid_until, dt):
+        return
     if valid_from and dt < valid_from:
         raise CheckInError(_('This ticket is not valid yet.'), 'invalid_time')
-    if valid_until and dt > valid_until:
-        raise CheckInError(_('This ticket is no longer valid.'), 'invalid_time')
+    raise CheckInError(_('This ticket is no longer valid.'), 'invalid_time')
 
 
 def perform_checkin(

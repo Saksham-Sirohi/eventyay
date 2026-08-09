@@ -6,6 +6,14 @@ from django.utils.timezone import now as timezone_now
 
 from eventyay.base.models.product import Product, ProductVariation
 
+ADMISSION_VALIDITY_FIELD_NAMES = (
+    'admission_validity_mode',
+    'admission_valid_from',
+    'admission_valid_until',
+    'admission_valid_from_offset_minutes',
+    'admission_valid_until_offset_minutes',
+)
+
 
 def _pick_attr(variation, product, attr):
     value = getattr(variation, attr)
@@ -29,12 +37,12 @@ def _merged_catalog_config(product, variation=None):
 
     var_mode = variation.admission_validity_mode
     if var_mode == ProductVariation.ADMISSION_VALIDITY_MODE_INHERIT:
-        mode = product.admission_validity_mode or ''
+        mode = product.admission_validity_mode or Product.ADMISSION_VALIDITY_MODE_NONE
     else:
         # Keep '' (NONE) as an explicit override; do not treat it as "unset".
-        mode = var_mode if var_mode is not None else ''
+        mode = var_mode if var_mode is not None else Product.ADMISSION_VALIDITY_MODE_NONE
 
-    if mode in ('', Product.ADMISSION_VALIDITY_MODE_NONE):
+    if mode == Product.ADMISSION_VALIDITY_MODE_NONE:
         return SimpleNamespace(
             admission_validity_mode=Product.ADMISSION_VALIDITY_MODE_NONE,
             admission_valid_from=None,
@@ -57,10 +65,12 @@ def _merged_catalog_config(product, variation=None):
 
 
 def _effective_mode(source):
-    mode = source.admission_validity_mode or ''
+    mode = source.admission_validity_mode or Product.ADMISSION_VALIDITY_MODE_NONE
     if mode == ProductVariation.ADMISSION_VALIDITY_MODE_INHERIT:
         return Product.ADMISSION_VALIDITY_MODE_NONE
-    if not mode and (source.admission_valid_from or source.admission_valid_until):
+    if mode == Product.ADMISSION_VALIDITY_MODE_NONE and (
+        source.admission_valid_from or source.admission_valid_until
+    ):
         return Product.ADMISSION_VALIDITY_MODE_FIXED
     return mode
 
@@ -78,18 +88,15 @@ def _validity_window(event, subevent, mode):
 def _apply_minute_offsets(window_start, window_end, offset_from, offset_until):
     if window_start is None:
         return None, None
-    valid_from = window_start
-    if offset_from is not None:
-        valid_from = window_start + timedelta(minutes=offset_from)
+
+    valid_from = window_start + timedelta(minutes=offset_from) if offset_from is not None else window_start
     if offset_until is not None:
         valid_until = window_start + timedelta(minutes=offset_until)
-    elif window_end:
-        valid_until = window_end
     else:
-        valid_until = None
+        valid_until = window_end
 
     # Keep resolved windows inside the underlying event/date range.
-    if window_start and valid_from and valid_from < window_start:
+    if valid_from and valid_from < window_start:
         valid_from = window_start
     if window_end and valid_until and valid_until > window_end:
         valid_until = window_end
@@ -106,7 +113,7 @@ def resolve_catalog_admission_bounds(product, variation=None, event=None, subeve
     """
     source = _merged_catalog_config(product, variation)
     mode = _effective_mode(source)
-    if mode in ('', Product.ADMISSION_VALIDITY_MODE_NONE):
+    if mode == Product.ADMISSION_VALIDITY_MODE_NONE:
         return None, None
     if mode == Product.ADMISSION_VALIDITY_MODE_FIXED:
         return source.admission_valid_from, source.admission_valid_until
@@ -121,6 +128,19 @@ def resolve_catalog_admission_bounds(product, variation=None, event=None, subeve
     )
 
 
+def _catalog_bounds_for_position(position):
+    product = getattr(position, 'product', None)
+    order = getattr(position, 'order', None)
+    if product is None or order is None:
+        return None, None
+    return resolve_catalog_admission_bounds(
+        product,
+        position.variation,
+        event=order.event,
+        subevent=position.subevent,
+    )
+
+
 def assign_issued_admission_bounds(position):
     """
     Copy the resolved check-in window onto an order position at purchase time.
@@ -129,19 +149,7 @@ def assign_issued_admission_bounds(position):
     When both stored fields remain ``None`` (no restriction at issue time, or a
     pre-feature position), check-in falls back to the current catalog configuration.
     """
-    if position.product_id is None and getattr(position, 'product', None) is None:
-        return
-    order = getattr(position, 'order', None)
-    if order is None:
-        return
-    valid_from, valid_until = resolve_catalog_admission_bounds(
-        position.product,
-        position.variation,
-        event=order.event,
-        subevent=position.subevent,
-    )
-    position.admission_valid_from = valid_from
-    position.admission_valid_until = valid_until
+    position.admission_valid_from, position.admission_valid_until = _catalog_bounds_for_position(position)
 
 
 def get_issued_admission_bounds(position):
@@ -156,12 +164,7 @@ def get_issued_admission_bounds(position):
     valid_until = position.admission_valid_until
     if valid_from is not None or valid_until is not None:
         return valid_from, valid_until
-    return resolve_catalog_admission_bounds(
-        position.product,
-        position.variation,
-        event=position.order.event,
-        subevent=position.subevent,
-    )
+    return _catalog_bounds_for_position(position)
 
 
 def is_within_admission_bounds(valid_from, valid_until, dt):
@@ -176,8 +179,7 @@ def is_catalog_admission_currently_valid(product, variation=None, event=None, su
     valid_from, valid_until = resolve_catalog_admission_bounds(product, variation, event, subevent)
     if not valid_from and not valid_until:
         return True
-    dt = dt or timezone_now()
-    return is_within_admission_bounds(valid_from, valid_until, dt)
+    return is_within_admission_bounds(valid_from, valid_until, dt or timezone_now())
 
 
 def is_product_catalog_admission_orderable(product, event=None, subevent=None, dt=None):
@@ -213,23 +215,33 @@ def format_admission_window(valid_from, valid_until, tz=None):
     return _fmt(valid_until)
 
 
+def _format_bounds_or_event_fallback(valid_from, valid_until, event, fallback_source, *, fallback_to_event):
+    if valid_from or valid_until:
+        return format_admission_window(valid_from, valid_until, event.tz)
+    if not fallback_to_event:
+        return ''
+    return format_admission_window(fallback_source.date_from, fallback_source.date_to, event.tz)
+
+
 def format_catalog_admission_validity(product, event, subevent=None, variation=None, *, fallback_to_event=False):
     valid_from, valid_until = resolve_catalog_admission_bounds(
         product, variation=variation, event=event, subevent=subevent
     )
-    if valid_from or valid_until:
-        return format_admission_window(valid_from, valid_until, event.tz)
-    if not fallback_to_event:
-        return ''
-    source = subevent or event
-    return format_admission_window(source.date_from, source.date_to, event.tz)
+    return _format_bounds_or_event_fallback(
+        valid_from,
+        valid_until,
+        event,
+        subevent or event,
+        fallback_to_event=fallback_to_event,
+    )
 
 
 def format_issued_admission_validity(position, event, *, fallback_to_event=False):
     valid_from, valid_until = get_issued_admission_bounds(position)
-    if valid_from or valid_until:
-        return format_admission_window(valid_from, valid_until, event.tz)
-    if not fallback_to_event:
-        return ''
-    source = position.subevent or event
-    return format_admission_window(source.date_from, source.date_to, event.tz)
+    return _format_bounds_or_event_fallback(
+        valid_from,
+        valid_until,
+        event,
+        position.subevent or event,
+        fallback_to_event=fallback_to_event,
+    )

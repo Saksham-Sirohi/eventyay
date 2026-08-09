@@ -2431,8 +2431,6 @@ class OrderPosition(AbstractPosition):
                     setattr(op, f.name, getattr(cartpos, f.name))
             op._calculate_tax()
             op.positionid = i + 1
-            # Snapshot explicitly here so checkout does not depend solely on save().
-            assign_issued_admission_bounds(op)
             op.save()
             cp_mapping[cartpos.pk] = op
             for answ in cartpos.answers.all():

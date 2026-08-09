@@ -10,6 +10,7 @@ from rest_framework import serializers
 from eventyay.api.serializers.event import MetaDataField
 from eventyay.api.serializers.fields import UploadedFileField
 from eventyay.api.serializers.i18n import I18nAwareModelSerializer
+from eventyay.base.admission_validity import ADMISSION_VALIDITY_FIELD_NAMES
 from eventyay.base.models import (
     Product,
     ProductAddOn,
@@ -24,27 +25,24 @@ from eventyay.base.models import (
 from eventyay.base.models.product import default_product_available_until
 from eventyay.consts import SizeKey
 
+_VARIATION_SERIALIZER_FIELDS = (
+    'id',
+    'value',
+    'active',
+    'description',
+    'position',
+    'default_price',
+    'price',
+    'original_price',
+) + ADMISSION_VALIDITY_FIELD_NAMES
+
 
 class InlineProductVariationSerializer(I18nAwareModelSerializer):
     price = serializers.DecimalField(read_only=True, decimal_places=2, max_digits=10, coerce_to_string=True)
 
     class Meta:
         model = ProductVariation
-        fields = (
-            'id',
-            'value',
-            'active',
-            'description',
-            'position',
-            'default_price',
-            'price',
-            'original_price',
-            'admission_validity_mode',
-            'admission_valid_from',
-            'admission_valid_until',
-            'admission_valid_from_offset_minutes',
-            'admission_valid_until_offset_minutes',
-        )
+        fields = _VARIATION_SERIALIZER_FIELDS
 
 
 class ProductVariationSerializer(I18nAwareModelSerializer):
@@ -52,26 +50,10 @@ class ProductVariationSerializer(I18nAwareModelSerializer):
 
     class Meta:
         model = ProductVariation
-        fields = (
-            'id',
-            'value',
-            'active',
-            'description',
-            'position',
-            'default_price',
-            'price',
-            'original_price',
-            'admission_validity_mode',
-            'admission_valid_from',
-            'admission_valid_until',
-            'admission_valid_from_offset_minutes',
-            'admission_valid_until_offset_minutes',
-        )
+        fields = _VARIATION_SERIALIZER_FIELDS
 
     def validate(self, data):
         data = super().validate(data)
-        # Merge with instance so PATCH only needs changed fields; validation source of
-        # truth remains Product.clean_admission_validity_data.
         full_data = self.to_internal_value(self.to_representation(self.instance)) if self.instance else {}
         full_data.update(data)
         event = self.context.get('event')
@@ -199,11 +181,7 @@ class ProductSerializer(I18nAwareModelSerializer):
             'tax_rate',
             'tax_rule',
             'admission',
-            'admission_validity_mode',
-            'admission_valid_from',
-            'admission_valid_until',
-            'admission_valid_from_offset_minutes',
-            'admission_valid_until_offset_minutes',
+            *ADMISSION_VALIDITY_FIELD_NAMES,
             'position',
             'picture',
             'available_from',
@@ -246,8 +224,6 @@ class ProductSerializer(I18nAwareModelSerializer):
 
         Product.clean_per_order(full_data.get('min_per_order'), full_data.get('max_per_order'))
         Product.clean_available(full_data.get('available_from'), full_data.get('available_until'))
-        # Merge with instance so PATCH only needs changed fields; validation source of
-        # truth remains Product.clean_admission_validity_data.
         Product.clean_admission_validity_data(full_data, event=self.context.get('event'))
 
         if full_data.get('issue_giftcard'):

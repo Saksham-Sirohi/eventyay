@@ -24,6 +24,7 @@ from django_scopes.forms import (
 )
 from i18nfield.forms import I18nFormField, I18nTextarea, I18nTextInput
 
+from eventyay.base.admission_validity import ADMISSION_VALIDITY_FIELD_NAMES
 from eventyay.base.channels import get_all_sales_channels
 from eventyay.base.forms import I18nFormSet, I18nModelForm
 from eventyay.base.forms.widgets import DatePickerWidget
@@ -771,11 +772,7 @@ class ProductUpdateForm(I18nModelForm):
             'tax_rule',
             'available_from',
             'available_until',
-            'admission_validity_mode',
-            'admission_valid_from',
-            'admission_valid_until',
-            'admission_valid_from_offset_minutes',
-            'admission_valid_until_offset_minutes',
+            *ADMISSION_VALIDITY_FIELD_NAMES,
             'require_voucher',
             'require_approval',
             'hide_without_voucher',
@@ -876,11 +873,7 @@ class ProductVariationForm(I18nModelForm):
             'default_price',
             'original_price',
             'description',
-            'admission_validity_mode',
-            'admission_valid_from',
-            'admission_valid_until',
-            'admission_valid_from_offset_minutes',
-            'admission_valid_until_offset_minutes',
+            *ADMISSION_VALIDITY_FIELD_NAMES,
         ]
         field_classes = {
             'admission_valid_from': SplitDateTimeField,
