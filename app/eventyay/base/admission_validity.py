@@ -20,7 +20,9 @@ def _merged_catalog_config(product, variation=None):
 
     Variation mode ``inherit`` (default) keeps the product mode and overlays only
     explicitly set variation fields. Any other variation mode replaces the product
-    mode entirely, including ``''`` for an explicit "no restriction" override.
+    mode entirely. Product ``ADMISSION_VALIDITY_MODE_NONE`` is ``''``; variations
+    distinguish that from inherit via the explicit ``inherit`` mode, so a variation
+    can clear a product restriction by selecting "No check-in time restriction".
     """
     if variation is None:
         return product
@@ -29,7 +31,8 @@ def _merged_catalog_config(product, variation=None):
     if var_mode == ProductVariation.ADMISSION_VALIDITY_MODE_INHERIT:
         mode = product.admission_validity_mode or ''
     else:
-        mode = var_mode or ''
+        # Keep '' (NONE) as an explicit override; do not treat it as "unset".
+        mode = var_mode if var_mode is not None else ''
 
     if mode in ('', Product.ADMISSION_VALIDITY_MODE_NONE):
         return SimpleNamespace(

@@ -14,9 +14,18 @@ from eventyay.base.admission_validity import (
     get_issued_admission_bounds,
     resolve_catalog_admission_bounds,
 )
-from eventyay.base.models import Checkin, Event, Order, OrderPosition, Organizer, Product
+from eventyay.base.models import (
+    CartPosition,
+    Checkin,
+    Event,
+    Order,
+    OrderPosition,
+    Organizer,
+    Product,
+)
 from eventyay.base.models.product import ProductVariation
 from eventyay.base.services.checkin import CheckInError, perform_checkin
+from eventyay.base.services.orders import OrderChangeManager
 
 
 @pytest.fixture
@@ -66,6 +75,65 @@ def _make_position(event, item, variation=None, subevent=None, **kwargs):
         positionid=1,
         **kwargs,
     )
+
+
+@pytest.mark.django_db
+def test_checkout_transform_cart_positions_snapshots_bounds(event, item):
+    start = now() - timedelta(hours=1)
+    end = now() + timedelta(hours=2)
+    item.admission_validity_mode = Product.ADMISSION_VALIDITY_MODE_FIXED
+    item.admission_valid_from = start
+    item.admission_valid_until = end
+    item.save()
+
+    order = Order.objects.create(
+        code='AVCART',
+        event=event,
+        email='cart@dummy.test',
+        status=Order.STATUS_PENDING,
+        locale='en',
+        datetime=now(),
+        expires=now() + timedelta(days=10),
+        total=Decimal('3.00'),
+    )
+    cartpos = CartPosition.objects.create(
+        event=event,
+        cart_id='av-cart',
+        product=item,
+        price=Decimal('3.00'),
+        expires=now() + timedelta(hours=1),
+    )
+
+    OrderPosition.transform_cart_positions([cartpos], order)
+    position = order.positions.get()
+    assert position.admission_valid_from == start
+    assert position.admission_valid_until == end
+
+
+@pytest.mark.django_db
+def test_order_change_product_resnapshots_bounds(event, item):
+    start = now() - timedelta(hours=1)
+    end = now() + timedelta(hours=1)
+    item.admission_validity_mode = Product.ADMISSION_VALIDITY_MODE_FIXED
+    item.admission_valid_from = start
+    item.admission_valid_until = end
+    item.save()
+    position = _make_position(event, item)
+
+    other = event.products.create(name='Other', default_price=5, admission=True)
+    other.admission_validity_mode = Product.ADMISSION_VALIDITY_MODE_FIXED
+    other.admission_valid_from = now() + timedelta(days=1)
+    other.admission_valid_until = now() + timedelta(days=2)
+    other.save()
+    quota = event.quotas.create(name='Q', size=None)
+    quota.products.add(item, other)
+
+    ocm = OrderChangeManager(position.order, None)
+    ocm.change_product(position, other, None)
+    ocm.commit()
+    position.refresh_from_db()
+    assert position.admission_valid_from == other.admission_valid_from
+    assert position.admission_valid_until == other.admission_valid_until
 
 
 @pytest.mark.django_db
