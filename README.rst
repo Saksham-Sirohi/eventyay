@@ -85,9 +85,8 @@ Steps:
    git switch dev
 
    cp deployment/env.dev.sample .env.dev
-   ln -sf .env.dev .env
 
-   docker compose up -d --build
+   docker compose --env-file .env.dev up -d --build
 
 Create an admin user:
 
@@ -283,7 +282,7 @@ By default, Docker serves prebuilt frontend assets. To enable hot module replace
 
    EVY_NPM_DEV=1
 
-When ``EVY_NPM_DEV=1``, the Docker image build skips ``make npminstall``, and Vite dev servers start automatically inside the container, install npm dependencies as needed, and serve the webapps with HMR. You do **not** need to run ``make npminstall`` in that mode. Compose reads ``EVY_NPM_DEV`` from ``.env`` (symlink to ``.env.dev`` created during setup).
+When ``EVY_NPM_DEV=1``, the Docker image build skips ``make npminstall``, and Vite dev servers start automatically inside the container, install npm dependencies as needed, and serve the webapps with HMR. You do **not** need to run ``make npminstall`` in that mode (pass ``--env-file .env.dev`` so Compose applies the build arg).
 
 - ``schedule-editor`` runs on port ``8080``.
 - ``video`` runs on port ``8880``.
@@ -296,7 +295,7 @@ The container must be recreated, not only restarted, for the environment change 
 
 .. code-block:: bash
 
-   docker compose up -d --build web
+   docker compose --env-file .env.dev up -d --build web
 
 The default is:
 
@@ -747,7 +746,7 @@ Bring the development stack back up in detached mode with a rebuild:
 
 .. code-block:: bash
 
-   docker compose up -d --build
+   docker compose --env-file .env.dev up -d --build
 
 Deployment
 ----------

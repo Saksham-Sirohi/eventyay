@@ -30,14 +30,12 @@ description: Docker Compose, container services, deployment
 ```bash
 # Copy and edit environment variables
 cp deployment/env.dev.sample .env.dev
-ln -sf .env.dev .env
 
-# Build images and start all services
-# (.env -> .env.dev symlink lets Compose read EVY_NPM_DEV for the image build)
-docker compose up --build
+# Build images and start all services (pass --env-file so EVY_NPM_DEV build args apply)
+docker compose --env-file .env.dev up --build
 
 # Run with detached containers
-docker compose up -d --build
+docker compose --env-file .env.dev up -d --build
 
 # View logs
 docker compose logs -f web
