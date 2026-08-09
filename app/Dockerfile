@@ -35,10 +35,16 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --all-extras --all-groups
 
-# Run npm stuff (needs nodejs)
-RUN make npminstall
+# Build frontend assets unless EVY_NPM_DEV=1 (Vite HMR installs deps at runtime).
+ARG EVY_NPM_DEV=0
+RUN if [ "$EVY_NPM_DEV" = "1" ]; then \
+      echo "EVY_NPM_DEV=1: skipping make npminstall (Vite HMR will install deps at runtime)"; \
+    else \
+      make npminstall; \
+    fi
 
-# Pre-build static.dist so the image ships with the Vite manifest
+# Pre-build static.dist so the image ships with Django/static assets (and Vite
+# manifests when npminstall ran above).
 RUN uv run python manage.py collectstatic --noinput
 
 
