@@ -583,6 +583,8 @@ class CheckinListOrderPositionSerializer(OrderPositionSerializer):
     attendee_name_parts = AttendeeNamePartsField(source='*')
     order__status = serializers.SlugRelatedField(read_only=True, slug_field='status', source='order')
     badge_customization = serializers.SerializerMethodField(read_only=True)
+    admission_valid_from = serializers.DateTimeField(read_only=True)
+    admission_valid_until = serializers.DateTimeField(read_only=True)
 
     def get_badge_customization(self, obj):
         if 'eventyay.plugins.badges' not in obj.order.event.plugins:
@@ -649,6 +651,8 @@ class CheckinListOrderPositionSerializer(OrderPositionSerializer):
             'seat',
             'require_attention',
             'badge_customization',
+            'admission_valid_from',
+            'admission_valid_until',
             'order__status',
         )
 
