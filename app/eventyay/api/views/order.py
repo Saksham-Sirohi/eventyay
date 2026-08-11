@@ -1,4 +1,5 @@
 import datetime
+import logging
 import mimetypes
 import os
 from decimal import Decimal
@@ -98,6 +99,8 @@ from eventyay.base.signals import (
 from eventyay.base.templatetags.money import money_filter
 from eventyay.control.signals import order_search_filter_q
 
+
+logger = logging.getLogger(__name__)
 
 with scopes_disabled():
 
@@ -1083,11 +1086,46 @@ class OrderPositionViewSet(mixins.DestroyModelMixin, mixins.UpdateModelMixin, vi
             output == 'badge' and 'eventyay.plugins.badges' in self.request.event.plugins
         )
 
+        layout_override = None
+        if badge_download:
+            from django.core.exceptions import ValidationError as DjangoValidationError
+
+            from eventyay.plugins.badges.utils import resolve_badge_layout_override
+
+            try:
+                layout_override = resolve_badge_layout_override(
+                    self.request.event, request.query_params.get('layout')
+                )
+            except DjangoValidationError as exc:
+                raise ValidationError({'layout': exc.messages})
+
         if not badge_download:
             if pos.order.status != Order.STATUS_PAID:
                 raise PermissionDenied('Downloads are not available for unpaid orders.')
             if not pos.generate_ticket:
                 raise PermissionDenied('Downloads are not enabled for this product.')
+
+        # Layout override must bypass CachedTicket so staff can print an alternate design.
+        if layout_override is not None:
+            from eventyay.base.services.export import ExportError
+            from eventyay.plugins.badges.providers import BadgeOutputProvider
+
+            try:
+                _filename, mimetype, pdf_content = BadgeOutputProvider(self.request.event).generate(
+                    pos, layout=layout_override
+                )
+            except ExportError as exc:
+                raise ValidationError(str(exc))
+            except Exception:
+                logger.exception('Badge layout override generation failed for position %s', pos.pk)
+                raise ValidationError(_('Could not generate the selected badge layout.'))
+            resp = HttpResponse(pdf_content, content_type=mimetype or 'application/pdf')
+            resp['Content-Disposition'] = 'attachment; filename="{}-{}-{}-badge.pdf"'.format(
+                self.request.event.slug.upper(),
+                pos.order.code,
+                pos.positionid,
+            )
+            return resp
 
         ct = CachedTicket.objects.filter(order_position=pos, provider=provider.identifier, file__isnull=False).last()
         if not ct or not ct.file:

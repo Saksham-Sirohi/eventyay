@@ -52,6 +52,7 @@ class BadgeLayoutViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = BadgeLayoutSerializer
     queryset = BadgeLayout.objects.none()
     lookup_field = 'id'
+    permission = 'can_view_orders'
 
     def get_queryset(self):
         return self.request.event.badge_layouts.all()
@@ -61,6 +62,7 @@ class BadgeProductViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = BadgeProductAssignmentSerializer
     queryset = BadgeProduct.objects.none()
     lookup_field = 'id'
+    permission = 'can_view_orders'
 
     def get_queryset(self):
         return BadgeProduct.objects.filter(product__event=self.request.event)
@@ -85,12 +87,22 @@ class BadgePreviewView(APIView):
             )
 
         # Generate the badge preview
+        from django.core.exceptions import ValidationError as DjangoValidationError
+
         from .providers import BadgeOutputProvider
+        from .utils import resolve_badge_layout_override
+
+        try:
+            layout_override = resolve_badge_layout_override(
+                op.order.event, request.query_params.get('layout')
+            )
+        except DjangoValidationError as exc:
+            return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
 
         provider = BadgeOutputProvider(op.order.event)
 
         try:
-            _, _, pdf_content = provider.generate(op)
+            _, _, pdf_content = provider.generate(op, layout=layout_override)
             base64_pdf = base64.b64encode(pdf_content).decode('utf-8')
             response = Response({'pdf_base64': base64_pdf}, status=status.HTTP_200_OK)
             response['Access-Control-Allow-Credentials'] = 'true'
@@ -128,12 +140,22 @@ class BadgeDownloadView(APIView):
                 )
 
             # Always regenerate so downloads never return a stale layout PDF.
+            from django.core.exceptions import ValidationError as DjangoValidationError
+
             from .providers import BadgeOutputProvider
+            from .utils import resolve_badge_layout_override
+
+            try:
+                layout_override = resolve_badge_layout_override(
+                    op.order.event, request.query_params.get('layout')
+                )
+            except DjangoValidationError as exc:
+                return Response({'error': exc.messages[0]}, status=status.HTTP_400_BAD_REQUEST)
 
             provider = BadgeOutputProvider(op.order.event)
 
             try:
-                filename, mimetype, pdf_content = provider.generate(op)
+                filename, mimetype, pdf_content = provider.generate(op, layout=layout_override)
                 base64_pdf = base64.b64encode(pdf_content).decode('utf-8')
 
                 return Response(
