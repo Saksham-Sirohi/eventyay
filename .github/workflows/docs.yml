@@ -2,13 +2,13 @@ name: Documentation
 
 on:
   push:
-    branches: [ development, master ]
+    branches: [ dev, main ]
     paths-ignore:
       - 'src/pretix/locale/**'
       - 'src/pretix/static/**'
       - 'src/tests/**'
   pull_request:
-    branches: [ development, master ]
+    branches: [ dev, main ]
     paths-ignore:
       - 'src/pretix/locale/**'
       - 'src/pretix/static/**'
@@ -32,7 +32,7 @@ jobs:
       - name: Install system packages
         run: sudo apt update && sudo apt install enchant hunspell aspell-en
       - name: Install Python dependencies
-        run: uv sync --group docs
+        run: uv sync --extra docs
         working-directory: ./app/
       - name: Spellcheck docs
         run: ../app/.venv/bin/sphinx-build -b spelling -d _build/doctrees . _build/spelling
