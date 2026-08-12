@@ -26,6 +26,7 @@ from rest_framework.exceptions import (
 )
 from rest_framework.filters import OrderingFilter
 from rest_framework.mixins import CreateModelMixin
+from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.response import Response
 
 from eventyay.api.models import OAuthAccessToken
@@ -101,6 +102,21 @@ from eventyay.control.signals import order_search_filter_q
 
 
 logger = logging.getLogger(__name__)
+
+
+class BinaryPDFRenderer(BaseRenderer):
+    """Satisfy Accept: application/pdf for download actions that return HttpResponse."""
+
+    media_type = 'application/pdf'
+    format = 'pdf'
+    charset = None
+    render_style = 'binary'
+
+    def render(self, data, accepted_media_type=None, renderer_context=None):
+        if isinstance(data, (bytes, bytearray)):
+            return data
+        return data
+
 
 with scopes_disabled():
 
@@ -1078,7 +1094,12 @@ class OrderPositionViewSet(mixins.DestroyModelMixin, mixins.UpdateModelMixin, vi
         )
         return resp
 
-    @action(detail=True, url_name='download', url_path='download/(?P<output>[^/]+)')
+    @action(
+        detail=True,
+        url_name='download',
+        url_path='download/(?P<output>[^/]+)',
+        renderer_classes=[JSONRenderer, BinaryPDFRenderer],
+    )
     def download(self, request, output, **kwargs):
         provider = self._get_output_provider(output)
         pos = self.get_object()
@@ -1105,8 +1126,8 @@ class OrderPositionViewSet(mixins.DestroyModelMixin, mixins.UpdateModelMixin, vi
             if not pos.generate_ticket:
                 raise PermissionDenied('Downloads are not enabled for this product.')
 
-        # Layout override must bypass CachedTicket so staff can print an alternate design.
-        if layout_override is not None:
+        # Always generate badge PDFs immediately so check-in print works without CachedTicket.
+        if badge_download:
             from eventyay.base.services.export import ExportError
             from eventyay.plugins.badges.providers import BadgeOutputProvider
 
@@ -1117,8 +1138,8 @@ class OrderPositionViewSet(mixins.DestroyModelMixin, mixins.UpdateModelMixin, vi
             except ExportError as exc:
                 raise ValidationError(str(exc))
             except Exception:
-                logger.exception('Badge layout override generation failed for position %s', pos.pk)
-                raise ValidationError(_('Could not generate the selected badge layout.'))
+                logger.exception('Badge generation failed for position %s', pos.pk)
+                raise ValidationError(_('Could not generate the badge PDF.'))
             resp = HttpResponse(pdf_content, content_type=mimetype or 'application/pdf')
             resp['Content-Disposition'] = 'attachment; filename="{}-{}-{}-badge.pdf"'.format(
                 self.request.event.slug.upper(),

@@ -1,7 +1,9 @@
 import base64
 
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -112,7 +114,7 @@ class BadgePreviewView(APIView):
 
 
 class BadgeDownloadView(APIView):
-    renderer_classes = [PDFRenderer]
+    renderer_classes = [JSONRenderer, PDFRenderer]
 
     def get(self, request, organizer, event, position):
         try:
@@ -156,15 +158,9 @@ class BadgeDownloadView(APIView):
 
             try:
                 filename, mimetype, pdf_content = provider.generate(op, layout=layout_override)
-                base64_pdf = base64.b64encode(pdf_content).decode('utf-8')
-
-                return Response(
-                    {
-                        'filename': filename,
-                        'mimetype': mimetype,
-                        'pdf_base64': base64_pdf,
-                    }
-                )
+                resp = HttpResponse(pdf_content, content_type=mimetype or 'application/pdf')
+                resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return resp
 
             except Exception:
                 # If immediate generation fails, fall back to async generation

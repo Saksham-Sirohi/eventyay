@@ -109,11 +109,39 @@ def test_checkin_staff_download_with_layout_override(checkin_badge_env, monkeypa
             env['event'].slug,
             env['position'].pk,
             alt.pk,
-        )
+        ),
+        HTTP_ACCEPT='application/pdf',
     )
     assert resp.status_code == 200
     assert resp['Content-Type'].startswith('application/pdf')
     assert resp.content == b'%PDF-alt-' + str(alt.pk).encode()
+
+
+@pytest.mark.django_db
+def test_checkin_staff_download_accept_pdf_without_layout(checkin_badge_env, monkeypatch):
+    env = checkin_badge_env
+    client = _device_client(env['device'])
+
+    monkeypatch.setattr(
+        'eventyay.plugins.badges.providers.BadgeOutputProvider.generate',
+        lambda self, op, layout=None: (
+            'badge.pdf',
+            'application/pdf',
+            b'%PDF-default',
+        ),
+    )
+
+    resp = client.get(
+        '/api/v1/organizers/{}/events/{}/orderpositions/{}/download/badge/'.format(
+            env['organizer'].slug,
+            env['event'].slug,
+            env['position'].pk,
+        ),
+        HTTP_ACCEPT='application/pdf',
+    )
+    assert resp.status_code == 200
+    assert resp['Content-Type'].startswith('application/pdf')
+    assert resp.content == b'%PDF-default'
 
 
 @pytest.mark.django_db
