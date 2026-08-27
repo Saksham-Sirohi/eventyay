@@ -13,7 +13,7 @@
 					tabindex="0"
 					role="button"
 					:aria-label="$t('Adding several streams requires a stream schedule.')"
-					v-tooltip.top="$t('Adding several streams requires a stream schedule.')"
+					v-tooltip="{text: $t('Adding several streams requires a stream schedule.'), placement: 'bottom-end', fixed: true}"
 				)
 					i.mdi.mdi-information-outline(aria-hidden="true")
 
