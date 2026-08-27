@@ -16,7 +16,6 @@
 					v-tooltip.top="$t('Adding several streams requires a stream schedule.')"
 				)
 					i.mdi.mdi-information-outline(aria-hidden="true")
-					.tooltip-bubble {{ $t('Adding several streams requires a stream schedule.') }}
 
 	.loading-container(v-if="loading")
 		bunt-progress-circular(size="large")
@@ -105,23 +104,24 @@
 					button.btn-clear-times(type="button" @click="clearScheduleTimes(stream)")
 						| {{ $t('Clear times to make this an always-on stream') }}
 
-				.youtube-advanced-settings(v-if="stream.stream_type === 'youtube'")
+				.stream-playback-settings
 					button.accordion-header.sub-accordion(
 						type="button"
 						@click="stream.showAdvanced = !stream.showAdvanced"
 						:aria-expanded="String(stream.showAdvanced)"
 					)
-						span.accordion-title {{ $t('Advanced playback settings') }}
+						span.accordion-title {{ $t('Playback settings') }}
 						i.mdi(:class="stream.showAdvanced ? 'mdi-chevron-up' : 'mdi-chevron-down'" aria-hidden="true")
 					.advanced-switches(v-if="stream.showAdvanced")
-						bunt-switch(name="enablePrivacyEnhancedMode", v-model="stream.config.enablePrivacyEnhancedMode", :label="$t('Enable No-Cookies')")
-						bunt-switch(name="loop", v-model="stream.config.loop", :label="$t('Loop')")
-						bunt-switch(name="modestBranding", v-model="stream.config.modestBranding", :label="$t('Enable Modest Branding')")
 						bunt-switch(name="startMuted", v-model="stream.config.startMuted", :label="$t('Start muted')")
-						bunt-switch(name="hideControls", v-model="stream.config.hideControls", :label="$t('Hide Controls')", :hint="$t('Note: Hiding controls disables autoplay so the stream can start with sound when the viewer clicks play.')")
-						bunt-switch(name="noRelated", v-model="stream.config.noRelated", :label="$t('Limit related videos to same channel')")
-						bunt-switch(name="disableKb", v-model="stream.config.disableKb", :label="$t('Disable Keyboard Controls')")
-						bunt-switch(name="showInfo", v-model="stream.config.showInfo", :label="$t('Hide Video Info')")
+						template(v-if="stream.stream_type === 'youtube'")
+							bunt-switch(name="enablePrivacyEnhancedMode", v-model="stream.config.enablePrivacyEnhancedMode", :label="$t('Enable No-Cookies')")
+							bunt-switch(name="loop", v-model="stream.config.loop", :label="$t('Loop')")
+							bunt-switch(name="modestBranding", v-model="stream.config.modestBranding", :label="$t('Enable Modest Branding')")
+							bunt-switch(name="hideControls", v-model="stream.config.hideControls", :label="$t('Hide Controls')", :hint="$t('Note: Hiding controls disables autoplay so the stream can start with sound when the viewer clicks play.')")
+							bunt-switch(name="noRelated", v-model="stream.config.noRelated", :label="$t('Limit related videos to same channel')")
+							bunt-switch(name="disableKb", v-model="stream.config.disableKb", :label="$t('Disable Keyboard Controls')")
+							bunt-switch(name="showInfo", v-model="stream.config.showInfo", :label="$t('Hide Video Info')")
 
 		.scheduled-actions-footer(v-if="isScheduledMode")
 			bunt-button.btn-add-another(@click="addScheduledStream")
@@ -342,7 +342,9 @@ export default defineComponent({
 					this.createStreamItem({
 						stream_type: STREAM_TYPE_HLS,
 						url: nativeModule.config.hls_url,
-						config: {},
+						config: {
+							startMuted: nativeModule.config.startMuted,
+						},
 					}),
 				]
 			} else {
@@ -542,6 +544,7 @@ export default defineComponent({
 						config: {
 							playback_mode: PLAYBACK_MODE_ALWAYS_ON,
 							hls_url: primary.url,
+							startMuted: !!primary.config?.startMuted,
 						},
 					})
 				}

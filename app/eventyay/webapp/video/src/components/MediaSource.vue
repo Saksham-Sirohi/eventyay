@@ -905,7 +905,7 @@ function getLanguageIframeUrl(languageUrl) {
 	const origin = window.location.origin;
 	const params = new URLSearchParams();
 	params.append('autoplay', autoplay.value ? '1' : '0');
-	params.append('mute', '0');
+	params.append('mute', config.startMuted ? '1' : '0');
 	params.append('enablejsapi', '1');
 	params.append('origin', origin);
 	params.append('controls', '0');
