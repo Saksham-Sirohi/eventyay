@@ -269,6 +269,7 @@ export default {
 
 	.webhook-header-btn
 		display: flex
+		flex-direction: row
 		align-items: center
 		justify-content: space-between
 		width: 100%
@@ -278,22 +279,32 @@ export default {
 		border-radius: 6px
 		font: inherit
 		cursor: pointer
+		box-sizing: border-box
+		line-height: normal
 		transition: border-color 0.15s ease, background-color 0.15s ease
 		&:hover
 			border-color: $clr-grey-400
 			background-color: $clr-grey-50
 
 		.header-left
-			display: flex
+			display: inline-flex
 			align-items: center
 			gap: 8px
+			flex: 1
+			min-width: 0
 			.webhook-icon
+				display: inline-flex
+				align-items: center
+				justify-content: center
 				font-size: 18px
+				line-height: 1
 				color: var(--clr-primary)
+				flex-shrink: 0
 			.webhook-title
 				font-size: 13px
 				font-weight: 600
 				color: $clr-grey-800
+				line-height: 1
 			.webhook-badge
 				display: inline-flex
 				align-items: center
@@ -302,21 +313,32 @@ export default {
 				border-radius: 12px
 				font-size: 11px
 				font-weight: 500
+				line-height: 1.4
+				flex-shrink: 0
 				&.is-configured
 					background-color: rgba(#4CAF50, 0.12)
 					color: #2E7D32
 					i
 						font-size: 13px
 						color: #2E7D32
+						line-height: 1
 				&.not-configured
 					background-color: $clr-grey-200
 					color: $clr-grey-600
 					i
 						font-size: 13px
+						line-height: 1
 
 		.chevron-icon
-			font-size: 18px
+			display: inline-flex
+			align-items: center
+			justify-content: center
+			font-size: 20px
+			line-height: 1
 			color: $clr-grey-500
+			flex-shrink: 0
+			margin-left: 8px
+			align-self: center
 
 	.webhook-config-body
 		display: flex
