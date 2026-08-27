@@ -8,11 +8,11 @@
 				p.header-subtitle {{ $t('Add multi-language audio or video interpretation channels for attendees.') }}
 		bunt-button.btn-add-entry(@click="addEntry")
 			i.mdi.mdi-plus(aria-hidden="true")
-			span {{ $t('Add language channel') }}
+			span {{ $t('Add another language') }}
 
 	.empty-state(v-if="entries.length === 0")
 		i.mdi.mdi-translate-off(aria-hidden="true")
-		p {{ $t('No interpretation channels added yet. Click "Add language channel" above to add one.') }}
+		p {{ $t('No interpretation channels added yet. Click "Add another language" above to add one.') }}
 
 	.entries-container(v-else)
 		.language-url-entry(v-for="(entry, index) in entries" :key="index")

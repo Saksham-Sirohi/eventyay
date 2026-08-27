@@ -5,12 +5,18 @@
 			h2 {{ $t('Stream schedule') }}
 			p.subtitle {{ $t('Configure the streams and fallback player for this stage.') }}
 		.header-actions
-			bunt-button.btn-add-scheduled(@click="addScheduledStream")
-				i.mdi.mdi-plus(aria-hidden="true")
-				span {{ $t('Add stream') }}
-			.info-tooltip-wrapper(tabindex="0" role="tooltip" :aria-label="$t('Adding several streams requires a stream schedule.')")
-				i.mdi.mdi-information-outline(aria-hidden="true")
-				.tooltip-bubble {{ $t('Adding several streams requires a stream schedule.') }}
+			.btn-add-scheduled-group
+				bunt-button.btn-add-scheduled(@click="addScheduledStream")
+					i.mdi.mdi-plus(aria-hidden="true")
+					span {{ $t('Add scheduled streams') }}
+				.info-tooltip-wrapper(
+					tabindex="0"
+					role="button"
+					:aria-label="$t('Adding several streams requires a stream schedule.')"
+					v-tooltip.top="$t('Adding several streams requires a stream schedule.')"
+				)
+					i.mdi.mdi-information-outline(aria-hidden="true")
+					.tooltip-bubble {{ $t('Adding several streams requires a stream schedule.') }}
 
 	.loading-container(v-if="loading")
 		bunt-progress-circular(size="large")
@@ -66,7 +72,7 @@
 				.fields-grid.datetime-grid(v-if="isScheduledMode")
 					.field-group
 						label.field-label
-							| {{ $t('Start date & time') }}
+							| {{ $t('Start date & time') }} ({{ eventTimezone }})
 							span.required-star *
 						.input-wrapper.datetime-wrapper
 							input.datetime-input(
@@ -79,7 +85,7 @@
 
 					.field-group
 						label.field-label
-							| {{ $t('End date & time') }}
+							| {{ $t('End date & time') }} ({{ eventTimezone }})
 							span.required-star *
 						.input-wrapper.datetime-wrapper
 							input.datetime-input(
@@ -92,7 +98,7 @@
 
 					.timezone-hint
 						i.mdi.mdi-clock-outline(aria-hidden="true")
-						| {{ $t('All times shown in the event timezone') }} ({{ eventTimezone }})
+						| {{ $t('All times shown in the event timezone') }} ({{ eventTimezone }}).
 
 				.single-stream-scheduled-hint(v-if="streams.length === 1 && isScheduledMode")
 					span {{ $t('This stage has a scheduled time window.') }}
@@ -120,7 +126,7 @@
 		.scheduled-actions-footer(v-if="isScheduledMode")
 			bunt-button.btn-add-another(@click="addScheduledStream")
 				i.mdi.mdi-plus(aria-hidden="true")
-				span {{ $t('Add stream') }}
+				span {{ $t('Add scheduled streams') }}
 
 		.interpretation-plugin-language-streams(v-if="roomId && showPluginLanguageStreams")
 			LanguageAudioSourceList(
@@ -182,7 +188,7 @@ export default defineComponent({
 			return this.config?.id ? String(this.config.id) : null
 		},
 		eventTimezone() {
-			return this.$store.state.world?.timezone || 'UTC'
+			return this.$store.state.world?.timezone || this.$store.state.userTimezone || moment.tz.guess() || 'UTC'
 		},
 		isScheduledMode() {
 			return inferPlaybackModeFromStreams(this.streams) === PLAYBACK_MODE_SCHEDULE_DRIVEN
@@ -686,6 +692,10 @@ export default defineComponent({
 			display: flex
 			align-items: center
 			gap: 8px
+			.btn-add-scheduled-group
+				display: inline-flex
+				align-items: center
+				gap: 8px
 			.btn-add-scheduled
 				themed-button-primary()
 				height: 36px
