@@ -167,11 +167,8 @@ export default defineComponent({
 	name: 'StageSettings',
 	components: { Prompt, LanguageAudioSourceList },
 	mixins: [mixin],
-	props: {
-		interpretationAdmin: {
-			type: Object,
-			default: null,
-		},
+	inject: {
+		interpretationAdmin: { default: null },
 	},
 	data() {
 		return {
