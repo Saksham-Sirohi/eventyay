@@ -568,15 +568,27 @@ export default defineComponent({
 			if (csrfToken) headers['X-CSRFToken'] = csrfToken
 
 			// Process deletions first
+			const remainingDeletions = []
 			for (const scheduleId of this.deletedScheduleIds) {
 				try {
-					await fetch(`${baseUrl}${scheduleId}/`, {
+					const res = await fetch(`${baseUrl}${scheduleId}/`, {
 						method: 'DELETE',
 						headers,
 						credentials: 'include',
 					})
+					if (!res.ok && res.status !== 404) {
+						const text = await res.text().catch(() => '')
+						console.warn('Failed to delete stream schedule:', scheduleId, text)
+						remainingDeletions.push(scheduleId)
+						this.deletedScheduleIds = remainingDeletions
+						throw new Error(`Failed to delete stream schedule: ${text || res.statusText}`)
+					}
 				} catch (err) {
-					console.warn('Failed to delete stream schedule:', scheduleId, err)
+					if (!remainingDeletions.includes(scheduleId)) {
+						remainingDeletions.push(scheduleId)
+					}
+					this.deletedScheduleIds = remainingDeletions
+					throw err
 				}
 			}
 			this.deletedScheduleIds = []

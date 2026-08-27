@@ -297,9 +297,7 @@ async function applyInterpretation(interpConfig) {
 			languageIframeUrl.value = getLanguageIframeUrl(audioSource);
 		}
 
-		if (isYouTube) {
-			muteYouTubePlayer();
-		}
+		muteMainPlayer();
 
 		if (mainPlayerPaused.value) {
 			setTimeout(() => {
@@ -311,10 +309,10 @@ async function applyInterpretation(interpConfig) {
 		languageIframeUrl.value = null;
 		setTimeout(() => {
 			if (updateToken !== interpretationUpdateToken) return;
-			if (getYoutubeConfig().startMuted) return;
-			if (isYouTube) {
-				unmuteYouTubePlayer();
-			}
+			const streamType = isScheduleDrivenStage.value ? props.room?.currentStream?.stream_type : null;
+			const isYouTube = streamType === STREAM_TYPE_YOUTUBE || module.value?.type === 'livestream.youtube';
+			if (isYouTube && getYoutubeConfig().startMuted) return;
+			unmuteMainPlayer();
 		}, 100);
 	}
 }
@@ -341,6 +339,22 @@ onBeforeUnmount(() => {
 
 function hasAudioOnlyInterpretation() {
 	return Boolean(activeInterpretation.value?.url && !activeInterpretation.value?.useVideo);
+}
+
+function muteMainPlayer() {
+	muteYouTubePlayer();
+	const videoEl = livestream.value?.$refs?.video || livestream.value?.$el?.querySelector?.('video');
+	if (videoEl) {
+		videoEl.muted = true;
+	}
+}
+
+function unmuteMainPlayer() {
+	unmuteYouTubePlayer();
+	const videoEl = livestream.value?.$refs?.video || livestream.value?.$el?.querySelector?.('video');
+	if (videoEl) {
+		videoEl.muted = false;
+	}
 }
 
 function muteYouTubePlayer() {
