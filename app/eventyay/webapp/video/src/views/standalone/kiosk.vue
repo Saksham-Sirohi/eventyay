@@ -90,13 +90,19 @@ export default {
 			if (!this.polls) return null
 			return this.polls.find(poll => poll.state === 'open' || poll.state === 'closed') || null
 		},
-		topVisibleQuestion() {
-			if (!this.questions) return null
-			const visible = this.questions
+		visibleQuestions() {
+			if (!this.questions) return []
+			return this.questions
 				.filter(question => question.state === 'visible')
 				.slice()
-				.sort((a, b) => (b.score || 0) - (a.score || 0))
-			return visible[0] || null
+				.sort((a, b) => {
+					if (a.is_pinned && !b.is_pinned) return -1
+					if (!a.is_pinned && b.is_pinned) return 1
+					return (b.score || 0) - (a.score || 0)
+				})
+		},
+		topVisibleQuestion() {
+			return this.visibleQuestions[0] || null
 		},
 		nextSession() {
 			if (!this.room || !this.sessions) return null
@@ -136,7 +142,7 @@ export default {
 					label: this.$t('Question'),
 					icon: 'mdi-comment-question-outline',
 					component: QuestionSlide,
-					hasContent: !!(this.pinnedQuestion || this.topVisibleQuestion),
+					hasContent: this.visibleQuestions.length > 0,
 					featured: !!this.pinnedQuestion,
 					pinTarget: this.pinnedQuestion || this.topVisibleQuestion,
 					pinType: 'question'

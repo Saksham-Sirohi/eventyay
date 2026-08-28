@@ -1,21 +1,36 @@
 <template lang="pug">
-.v-presentation-question(:class="[mode, { 'empty-question': !displayQuestion }]")
-	.question-stage-header(v-if="showStageHeader")
-		.live-indicator
-			span.pulse-dot
-		h2.room-name(v-if="room", v-html="$emojify(room.name)")
-	template(v-if="displayQuestion")
-		.question {{ displayQuestion.content }}
-		.info
-			.votes
-				.mdi.mdi-thumb-up
-				.vote-count {{ displayQuestion.score }}
-			.user(v-if="sender")
-				avatar(:user="sender", :size="mode === 'compact' ? 32 : 48")
-				.username {{ senderDisplayName }}
+.v-presentation-question(:class="[mode, { 'empty-question': !hasQuestions, 'single-focus': showPinnedOnly }]")
+	template(v-if="hasQuestions")
+		// Pinned full-screen focus: one question large
+		template(v-if="showPinnedOnly")
+			.question {{ pinnedQuestion.content }}
+			.info
+				.votes
+					.mdi.mdi-thumb-up
+					.vote-count {{ pinnedQuestion.score }}
+				.user(v-if="senderFor(pinnedQuestion)")
+					avatar(:user="senderFor(pinnedQuestion)", :size="mode === 'compact' ? 32 : 48")
+					.username {{ displayNameFor(pinnedQuestion) }}
+		// Otherwise list every visible question (pinned first)
+		.questions-list(v-else)
+			.question-item(
+				v-for="question in visibleQuestions",
+				:key="question.id",
+				:class="{pinned: question.is_pinned}"
+			)
+				.question-main
+					span.pinned-badge(v-if="question.is_pinned") {{ $t('Pinned') }}
+					.question {{ question.content }}
+				.info
+					.votes
+						.mdi.mdi-thumb-up
+						.vote-count {{ question.score }}
+					.user(v-if="senderFor(question)")
+						avatar(:user="senderFor(question)", :size="mode === 'compact' ? 28 : 36")
+						.username {{ displayNameFor(question) }}
 	.empty-card(v-else)
 		i.mdi.mdi-comment-question-outline
-		h2 {{ $t('No Pinned Question') }}
+		h2 {{ $t('No questions yet') }}
 		p {{ emptyHint }}
 </template>
 <script>
@@ -35,46 +50,52 @@ export default {
 		...mapState('chat', ['usersLookup']),
 		...mapState('question', ['questions']),
 		...mapGetters('question', ['pinnedQuestion']),
-		topVisibleQuestion() {
-			if (!this.questions) return null
-			const visible = this.questions
+		visibleQuestions() {
+			if (!this.questions) return []
+			return this.questions
 				.filter(question => question.state === 'visible')
 				.slice()
-				.sort((a, b) => (b.score || 0) - (a.score || 0))
-			return visible[0] || null
+				.sort((a, b) => {
+					// Pinned first, then highest score.
+					if (a.is_pinned && !b.is_pinned) return -1
+					if (!a.is_pinned && b.is_pinned) return 1
+					return (b.score || 0) - (a.score || 0)
+				})
 		},
-		displayQuestion() {
-			return this.pinnedQuestion || this.topVisibleQuestion
+		hasQuestions() {
+			return this.visibleQuestions.length > 0
 		},
-		showStageHeader() {
-			return false
+		// Full-screen pin takeover (kiosk focus when a question is pinned).
+		showPinnedOnly() {
+			return this.mode === 'focus' && !!this.pinnedQuestion
 		},
 		emptyHint() {
 			if (this.mode === 'compact') {
 				return this.$t('Approve questions in Manage to list them here. Pin one to show it full screen.')
 			}
-			return this.$t('Pinned audience questions will appear here during the session.')
-		},
-		sender() {
-			if (!this.displayQuestion) return null
-			return this.usersLookup[this.displayQuestion.sender]
-		},
-		senderDisplayName() {
-			return this.sender?.profile?.display_name ?? this.displayQuestion?.sender
-		},
+			return this.$t('Approved audience questions will appear here during the session.')
+		}
 	},
 	watch: {
-		displayQuestion: {
-			handler(question) {
-				if (question?.sender) this.fetchSender()
+		visibleQuestions: {
+			handler(questions) {
+				const senderIds = questions
+					.map(question => question.sender)
+					.filter(Boolean)
+				if (senderIds.length) {
+					this.$store.dispatch('chat/fetchUsers', senderIds)
+				}
 			},
 			immediate: true
 		}
 	},
 	methods: {
-		fetchSender() {
-			if (!this.displayQuestion?.sender) return
-			this.$store.dispatch('chat/fetchUsers', [this.displayQuestion.sender])
+		senderFor(question) {
+			if (!question?.sender) return null
+			return this.usersLookup[question.sender]
+		},
+		displayNameFor(question) {
+			return this.senderFor(question)?.profile?.display_name ?? question?.sender
 		}
 	}
 }
@@ -97,13 +118,21 @@ export default {
 	&.compact
 		max-width: none
 		padding: 4px
-		.question
+		.questions-list
+			gap: 8px
+		.question-item
+			padding: 8px 10px
+			.question
+				font-size: 14px
+			.info
+				margin-top: 8px
+				padding-top: 6px
+				.votes .mdi, .votes .vote-count
+					font-size: 16px
+				.username
+					font-size: 12px
+		&.single-focus .question
 			font-size: 16px
-		.info
-			margin-top: 12px
-			padding-top: 8px
-			.votes .mdi, .votes .vote-count
-				font-size: 18px
 		.empty-card
 			i.mdi
 				font-size: 36px
@@ -113,40 +142,86 @@ export default {
 			p
 				font-size: 12px
 
-	.question-stage-header
-		display: none
+	.questions-list
+		display: flex
+		flex-direction: column
+		gap: 12px
+		width: 100%
+		min-height: 0
 
-	.question
+	.question-item
+		display: flex
+		flex-direction: column
+		width: 100%
+		padding: 14px 16px
+		border: 1px solid #e5e7eb
+		border-radius: 8px
+		background: #ffffff
+		box-sizing: border-box
+		&.pinned
+			border-color: var(--clr-primary, #2185d0)
+			box-shadow: 0 0 0 1px var(--clr-primary, #2185d0)
+		.question-main
+			display: flex
+			flex-direction: column
+			gap: 6px
+			min-width: 0
+		.pinned-badge
+			align-self: flex-start
+			font-size: 10px
+			font-weight: 700
+			text-transform: uppercase
+			letter-spacing: 0.4px
+			color: #fff
+			background: var(--clr-primary, #2185d0)
+			padding: 2px 6px
+			border-radius: 3px
+		.question
+			font-size: 20px
+			font-weight: 700
+			line-height: 1.35
+			color: #1e2327
+		.info
+			margin-top: 12px
+			padding-top: 10px
+
+	&.single-focus > .question
 		font-size: 32px
 		font-weight: 700
 		line-height: 1.35
 		color: #1e2327
+	&.single-focus > .info
+		margin-top: 20px
+		padding-top: 12px
+
 	.info
 		display: flex
 		justify-content: space-between
 		align-items: center
 		align-self: stretch
-		padding: 12px 0 0
-		margin-top: 20px
 		border-top: 1px solid #e5e7eb
 		.votes
 			display: flex
 			align-items: center
 			.mdi
-				font-size: 24px
+				font-size: 22px
 				color: var(--clr-primary, #2185d0)
 			.vote-count
 				margin: 0 0 0 8px
-				font-size: 24px
+				font-size: 20px
 				font-weight: 700
 				color: #1e2327
 		.user
 			display: flex
 			align-items: center
+			min-width: 0
 			.username
 				margin: 0 0 0 8px
 				color: #4b5563
 				font-weight: 600
+				overflow: hidden
+				text-overflow: ellipsis
+				white-space: nowrap
 
 	.empty-card
 		display: flex
