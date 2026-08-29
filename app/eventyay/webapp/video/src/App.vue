@@ -75,6 +75,7 @@ export default {
 				scheduleLoaded: computed(() => this.$store.state.schedule?.scheduleLoaded),
 				errorLoading: computed(() => this.$store.state.schedule?.errorLoading),
 				speakersLookup: computed(() => this.$store.getters['schedule/speakersLookup']),
+				sessionsLookup: computed(() => this.$store.getters['schedule/sessionsLookup']),
 				sessionsBySpeaker: computed(() => this.$store.getters['schedule/sessionsBySpeaker']),
 			}),
 			scheduleFav: (id) => this.$store.dispatch('schedule/fav', id),
@@ -103,10 +104,14 @@ export default {
 			},
 			showJoinRoom: true,
 			getJoinRoomLink: (session) => {
-				// Mirror agenda logic: only show join room link when the session
-				// has both a room and either a stream_url or a video room
-				if ((!session?.stream_url && !session?.has_video_room) || !session?.room) return ''
-				const roomId = typeof session.room === 'object' ? session.room.id : session.room
+				const room = session?.room
+				if (!room) return ''
+				const rawId = typeof room === 'object' ? (room.pretalx_id ?? room.id) : room
+				const worldRoom = (this.rooms || []).find(r =>
+					String(r.id) === String(typeof room === 'object' ? room.id : room) ||
+					(r.pretalx_id != null && String(r.pretalx_id) === String(rawId))
+				)
+				const roomId = worldRoom?.id || (typeof room === 'object' ? room.id : room)
 				if (!roomId) return ''
 				return this.$router.resolve({name: 'room', params: {roomId}}).href
 			},
@@ -177,7 +182,7 @@ export default {
 				return rooms.find(room => room && room.modules && room.modules.some(m => m.type === 'page.landing'))
 			}
 			const wantedId = String(this.$route.params.roomId)
-			return rooms.find(room => String(room.id) === wantedId)
+			return rooms.find(room => String(room.id) === wantedId || (room.pretalx_id != null && String(room.pretalx_id) === wantedId))
 		},
 		isAdminRoute() {
 			const isAdminRouteName = name => typeof name === 'string' && name.startsWith('admin')
