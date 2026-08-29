@@ -75,7 +75,6 @@ export default {
 				scheduleLoaded: computed(() => this.$store.state.schedule?.scheduleLoaded),
 				errorLoading: computed(() => this.$store.state.schedule?.errorLoading),
 				speakersLookup: computed(() => this.$store.getters['schedule/speakersLookup']),
-				sessionsLookup: computed(() => this.$store.getters['schedule/sessionsLookup']),
 				sessionsBySpeaker: computed(() => this.$store.getters['schedule/sessionsBySpeaker']),
 			}),
 			scheduleFav: (id) => this.$store.dispatch('schedule/fav', id),
@@ -104,16 +103,15 @@ export default {
 			},
 			showJoinRoom: true,
 			getJoinRoomLink: (session) => {
-				const room = session?.room
-				if (!room) return ''
+				if ((!session?.stream_url && !session?.has_video_room) || !session?.room) return ''
+				const room = session.room
 				const rawId = typeof room === 'object' ? (room.pretalx_id ?? room.id) : room
 				const worldRoom = (this.rooms || []).find(r =>
 					String(r.id) === String(typeof room === 'object' ? room.id : room) ||
 					(r.pretalx_id != null && String(r.pretalx_id) === String(rawId))
 				)
-				const roomId = worldRoom?.id || (typeof room === 'object' ? room.id : room)
-				if (!roomId) return ''
-				return this.$router.resolve({name: 'room', params: {roomId}}).href
+				if (!worldRoom?.id) return ''
+				return this.$router.resolve({name: 'room', params: {roomId: worldRoom.id}}).href
 			},
 			generateStarrerLinkUrl: (user) => {
 				if (!user?.url || !user?.code) return ''

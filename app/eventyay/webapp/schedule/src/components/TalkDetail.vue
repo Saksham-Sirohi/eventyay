@@ -272,17 +272,7 @@ export default {
 		},
 		computedJoinRoomLink() {
 			if (!this.resolvedTalk) return ''
-			const injected = this.getJoinRoomLink?.(this.resolvedTalk) || ''
-			if (injected) return injected
-			const room = this.resolvedTalk.room
-			if (!room) return ''
-			const roomId = typeof room === 'object' ? room.id : room
-			if (!roomId || !this.$router) return ''
-			try {
-				return this.$router.resolve({name: 'room', params: {roomId}}).href || ''
-			} catch {
-				return ''
-			}
+			return this.getJoinRoomLink?.(this.resolvedTalk) || ''
 		},
 		showJoinSession() {
 			return Boolean(this.computedJoinRoomLink && this.isLive)
