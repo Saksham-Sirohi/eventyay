@@ -1132,18 +1132,15 @@ onUnmounted(() => {
 	.days
 		background-color: $clr-white
 		tabs-style(active-color: var(--color-primary), indicator-color: var(--color-primary), background-color: transparent)
-		overflow-x: auto
 		margin-bottom: 0
 		flex: 1
 		min-width: 0
 		height: 48px
 		.bunt-tabs-header
-			min-width: min-content
+			width: 100%
 		.bunt-tabs-header-items
+			width: 100%
 			justify-content: center
-			min-width: min-content
-			.bunt-tab-header-item
-				min-width: min-content
 			.bunt-tab-header-item-text
 				white-space: nowrap
 	#unassigned
