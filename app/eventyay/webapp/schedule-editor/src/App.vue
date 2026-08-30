@@ -1461,7 +1461,7 @@ onUnmounted(() => {
 							border-color: var(--color-primary, #2185d0)
 							color: var(--color-primary, #2185d0)
 						.time-box
-							display: none !important
+							display: none
 						.info
 							display: flex
 							align-items: center
@@ -1479,7 +1479,7 @@ onUnmounted(() => {
 									text-overflow: ellipsis
 									max-width: 120px
 			.desktop-break.c-linear-schedule-session
-				display: none !important
+				display: none
 		#schedule-wrapper
 			width: 100%
 			margin-right: 0
@@ -1532,7 +1532,7 @@ onUnmounted(() => {
 			margin-top: 24px
 
 			.bunt-button-content
-				font-size: 16px !important
+				font-size: 16px
 			#btn-delete
 				button-style(color: $clr-danger, text-color: $clr-white)
 				font-weight: bold

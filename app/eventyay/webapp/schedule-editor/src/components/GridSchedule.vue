@@ -890,9 +890,9 @@ onUnmounted(() => {
 		position: relative
 		min-width: min-content
 		&.illegal-hover
-			cursor: not-allowed !important
+			cursor: not-allowed
 			.c-linear-schedule-session
-				cursor: not-allowed !important
+				cursor: not-allowed
 		> .room
 			position: sticky
 			top: calc(48px)
