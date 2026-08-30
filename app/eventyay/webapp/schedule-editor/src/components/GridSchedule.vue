@@ -747,16 +747,10 @@ const isSliceExpandable = (slice: Timeslice): boolean => {
 }
 
 const getSliceStyle = (slice: Timeslice): Record<string, string> => {
-  if (slice.datebreak) {
-    let index = timeslices.value.findIndex(s => s.date.isAfter(slice.date, 'day'))
-    if (index < 0) index = timeslices.value.length - 1
-    return { 'grid-area': `${slice.name} / 1 / ${timeslices.value[index].name} / auto` }
-  }
   return { 'grid-area': `${slice.name} / 1 / auto / auto` }
 }
 
 const getSliceLabel = (slice: Timeslice): string => {
-  if (slice.datebreak) return slice.date.format('ddd[\n]DD. MMM')
   return slice.date.format('LT')
 }
 
