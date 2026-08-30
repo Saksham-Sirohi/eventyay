@@ -1135,12 +1135,38 @@ onUnmounted(() => {
 		margin-bottom: 0
 		flex: 1
 		min-width: 0
+		width: 100%
 		height: 48px
+		max-height: 48px
+		overflow-x: auto
+		overflow-y: hidden
+		scrollbar-width: thin
+		&::-webkit-scrollbar
+			height: 4px
+		&::-webkit-scrollbar-thumb
+			background: #cbd5e1
+			border-radius: 4px
 		.bunt-tabs-header
 			width: 100%
+			min-width: max-content
+			height: 48px
+			overflow: visible
 		.bunt-tabs-header-items
+			display: flex
+			flex-wrap: nowrap
 			width: 100%
-			justify-content: center
+			min-width: max-content
+			height: 48px
+			margin: 0
+			padding: 0
+			list-style: none
+			.bunt-tab-header-item
+				flex: 0 0 auto
+				flex-shrink: 0
+				white-space: nowrap
+				height: 48px
+				min-width: max-content
+				padding: 0 16px
 			.bunt-tab-header-item-text
 				white-space: nowrap
 	#unassigned
@@ -1340,12 +1366,10 @@ onUnmounted(() => {
 		z-index: 50
 		background-color: $clr-white
 		width: 100%
+		height: 48px
+		max-height: 48px
 		box-sizing: border-box
-		.days
-			flex: 1
-			@media (max-width: 767px)
-				overflow-x: auto
-				white-space: nowrap
+		overflow: hidden
 	#schedule-wrapper
 		flex: 1
 		min-height: 0
