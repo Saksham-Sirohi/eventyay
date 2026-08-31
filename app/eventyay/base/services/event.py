@@ -14,7 +14,7 @@ from eventyay.timezones import common_timezones
 from rest_framework import serializers
 
 from eventyay.base.models.audit import AuditLog
-from eventyay.base.models.chat import Channel
+from eventyay.base.models.chat import Channel, ChatEvent, Membership
 from eventyay.base.models.event import Event
 from eventyay.base.models.room import Room, RoomConfigSerializer, RoomView
 from eventyay.base.services.room_creation_gate import (
@@ -213,6 +213,37 @@ def batch_room_current_stream_data(rooms):
 
 _UNSET = object()
 
+_MEDIA_MODULE_TYPES = frozenset({
+    'livestream.native',
+    'livestream.youtube',
+    'call.bigbluebutton',
+    'call.janus',
+    'call.zoom',
+    'call.jitsi',
+    'networking.roulette',
+    'page.landing',
+})
+
+
+def is_chat_channel_room(room):
+    modules = room.module_config or []
+    if not isinstance(modules, list) or not modules:
+        return False
+    types = [module.get('type') for module in modules if isinstance(module, dict)]
+    return 'chat.native' in types and not any(module_type in _MEDIA_MODULE_TYPES for module_type in types)
+
+
+def count_chat_participants(channel_id):
+    member_ids = Membership.objects.filter(
+        channel_id=channel_id,
+        user_id__isnull=False,
+    ).values_list("user_id", flat=True)
+    sender_ids = ChatEvent.objects.filter(
+        channel_id=channel_id,
+        sender_id__isnull=False,
+    ).values_list("sender_id", flat=True)
+    return len(set(member_ids) | set(sender_ids))
+
 
 def get_room_config(room, permissions, *, current_stream=_UNSET):
     str_permissions = [p if isinstance(p, str) else getattr(p, "value", p) for p in permissions]
@@ -234,7 +265,12 @@ def get_room_config(room, permissions, *, current_stream=_UNSET):
         "currentStream": stream_data,
     }
 
-    if hasattr(room, "current_roomviews"):
+    if is_chat_channel_room(room):
+        try:
+            room_config["users"] = count_chat_participants(room.channel.id)
+        except Channel.DoesNotExist:
+            room_config["users"] = 0
+    elif hasattr(room, "current_roomviews"):
         room_config["users"] = room.current_roomviews or 0
     else:
         room_config["users"] = 0

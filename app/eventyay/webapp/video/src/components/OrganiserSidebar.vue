@@ -56,9 +56,9 @@ aside.c-organiser-sidebar(
 								@click="onNavClick"
 							)
 								span.room-name(v-html="$emojify(room.name)")
-								span.viewer-count-badge(v-if="getRoomViewerCount(room) > 0", :title="`${getRoomViewerCount(room)} ${getRoomViewerCount(room) === 1 ? $t('active viewer') : $t('active viewers')}`")
+								span.viewer-count-badge(:title="getOccupancyTitle(room)", :aria-label="getOccupancyTitle(room)")
 									i.mdi.mdi-account-outline(aria-hidden="true")
-									span {{ getRoomViewerCount(room) }}
+									span {{ getOccupancyCount(room) }}
 							router-link.nav-sub-link.nav-sub-link--add.nav-sub-link--nested(:to="{name: 'admin:rooms:new'}", @click="onNavClick")
 								span.mdi.mdi-plus(aria-hidden="true")
 								span {{ $t('New Room') }}
@@ -87,9 +87,9 @@ aside.c-organiser-sidebar(
 								@click="onNavClick"
 							)
 								span.room-name(v-html="$emojify(channel.name)")
-								span.viewer-count-badge(v-if="getRoomViewerCount(channel) > 0", :title="`${getRoomViewerCount(channel)} ${getRoomViewerCount(channel) === 1 ? $t('active viewer') : $t('active viewers')}`")
+								span.viewer-count-badge(:title="getOccupancyTitle(channel)", :aria-label="getOccupancyTitle(channel)")
 									i.mdi.mdi-account-outline(aria-hidden="true")
-									span {{ getRoomViewerCount(channel) }}
+									span {{ getOccupancyCount(channel) }}
 							router-link.nav-sub-link.nav-sub-link--add.nav-sub-link--nested(:to="{name: 'admin:chat:new'}", @click="onNavClick")
 								span.mdi.mdi-plus(aria-hidden="true")
 								span {{ $t('New Channel') }}
@@ -167,6 +167,7 @@ import { mapState, mapGetters } from 'vuex'
 import theme from 'theme'
 import api from 'lib/api'
 import { inferRoomType, isChatManagedRoom } from 'lib/room-types'
+import { getRoomOccupancyCount, usesParticipantOccupancy } from 'lib/room-occupancy'
 
 export default {
 	name: 'OrganiserSidebar',
@@ -267,26 +268,20 @@ export default {
 			}
 			return { name: 'admin:rooms:item', params: { roomId: room.id } }
 		},
-		getRoomViewerCount(room) {
-			if (!room) return 0
-			if (typeof room.users === 'number' && room.users > 0) return room.users
-			const storeRoom = this.rooms?.find(r => String(r.id) === String(room.id))
-			if (typeof storeRoom?.users === 'number' && storeRoom.users > 0) return storeRoom.users
-			const isCurrentActiveRoom = this.$store.state.activeRoom?.id === room.id || (this.$route.params.roomId && String(this.$route.params.roomId) === String(room.id))
-			if (isCurrentActiveRoom && Array.isArray(this.$store.state.roomViewers) && this.$store.state.roomViewers.length > 0) {
-				return this.$store.state.roomViewers.length
+		getOccupancyCount(room) {
+			return getRoomOccupancyCount(room, {
+				rooms: this.rooms,
+				activeRoomId: this.$store.state.activeRoom?.id,
+				routeRoomId: this.$route.params.roomId,
+				roomViewers: this.$store.state.roomViewers,
+			})
+		},
+		getOccupancyTitle(room) {
+			const count = this.getOccupancyCount(room)
+			if (usesParticipantOccupancy(room)) {
+				return `${count} ${count === 1 ? this.$t('participant') : this.$t('participants')}`
 			}
-			const activeChannelId = this.$store.state.chat?.channel
-			const roomChannelIds = [
-				String(room.id),
-				...(Array.isArray(room.modules) ? room.modules.map(m => String(m.channel_id)).filter(Boolean) : []),
-				...(Array.isArray(storeRoom?.modules) ? storeRoom.modules.map(m => String(m.channel_id)).filter(Boolean) : [])
-			]
-			const isCurrentChatChannel = isCurrentActiveRoom || (activeChannelId && roomChannelIds.includes(String(activeChannelId)))
-			if (isCurrentChatChannel && Array.isArray(this.$store.state.chat?.members) && this.$store.state.chat.members.length > 0) {
-				return this.$store.state.chat.members.length
-			}
-			return 0
+			return `${count} ${count === 1 ? this.$t('active viewer') : this.$t('active viewers')}`
 		},
 		async fetchKiosks() {
 			if (!this.hasPermission('world:kiosks.manage')) return

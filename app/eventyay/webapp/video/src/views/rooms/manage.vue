@@ -4,9 +4,6 @@
 		panel.media
 			.manage-room-header
 				.manage-room-title(v-if="room") {{ room.name }}
-				.active-viewers-badge(v-if="viewerCount > 0", :title="`${viewerCount} ${viewerCount === 1 ? $t('active viewer') : $t('active viewers')}`")
-					i.mdi.mdi-account-outline(aria-hidden="true")
-					span.count {{ viewerCount }}
 				router-link.btn-edit-settings(v-if="hasPermission('room:update')", :to="{name: 'admin:rooms:item', params: {roomId: room.id}}")
 					i.mdi.mdi-cog-outline
 					span {{ $t('Edit Settings') }}
@@ -167,14 +164,6 @@ export default {
 		},
 		chatTimeline() {
 			return this.$store.state.chat?.timeline || []
-		},
-		viewerCount() {
-			if (!this.room) return 0
-			if (typeof this.room.users === 'number' && this.room.users > 0) return this.room.users
-			if (Array.isArray(this.$store.state.roomViewers) && this.$store.state.roomViewers.length > 0) {
-				return this.$store.state.roomViewers.length
-			}
-			return this.room.users || 0
 		}
 	},
 	watch: {
@@ -362,24 +351,9 @@ export default {
 		.manage-room-title
 			font-size: 15px
 			font-weight: 600
+			flex: auto
+			min-width: 0
 			ellipsis()
-		.active-viewers-badge
-			display: inline-flex
-			align-items: center
-			gap: 6px
-			padding: 3px 8px
-			background-color: var(--clr-surface-secondary, rgba(0, 0, 0, 0.05))
-			border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08))
-			border-radius: 999px
-			font-size: 12px
-			font-weight: 500
-			color: var(--clr-text-secondary, #555555)
-			margin-left: auto
-			margin-right: 12px
-			flex-shrink: 0
-			i
-				font-size: 14px
-				color: $clr-primary
 		.btn-edit-settings
 			display: flex
 			align-items: center

@@ -4,9 +4,6 @@ router-link.c-room-list-item.table-row(:to="to", :class="{'mystery': !inferredTy
 	.name(v-html="$emojify(room.name)")
 	.badge-cell
 		.badges-wrapper
-			.viewer-count-badge(v-if="viewerCount > 0", :title="`${viewerCount} ${viewerCount === 1 ? $t('active viewer') : $t('active viewers')}`")
-				i.mdi.mdi-account-outline(aria-hidden="true")
-				span {{ viewerCount }}
 			.room-type-badge.unscheduled-room-badge(v-if="room.is_unscheduled")
 				.mdi.mdi-calendar-remove
 				span {{ $t('Unscheduled') }}
@@ -54,10 +51,6 @@ export default {
 		},
 		badgeClass () {
 			return `type-${this.inferredType.id}`
-		},
-		viewerCount() {
-			if (typeof this.room?.users === 'number') return this.room.users
-			return 0
 		}
 	},
 	methods: {
@@ -95,21 +88,6 @@ export default {
 		flex-direction: row
 		align-items: center
 		gap: 8px
-	.viewer-count-badge
-		display: inline-flex
-		align-items: center
-		gap: 3px
-		padding: 2px 8px
-		background-color: var(--clr-surface-secondary, rgba(0, 0, 0, 0.05))
-		border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08))
-		border-radius: 999px
-		font-size: 11px
-		font-weight: 600
-		color: var(--clr-text-secondary, #555555)
-		flex-shrink: 0
-		i
-			font-size: 13px
-			color: $clr-primary
 	.room-type-badge
 		display: flex
 		align-items: center

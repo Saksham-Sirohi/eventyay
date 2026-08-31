@@ -10,9 +10,6 @@
 			h1 {{ inferredType ? inferredType.name : $t('Channel') }} :
 				span.room-name(v-html="$emojify(currentRoom.name)")
 			.actions
-				.active-viewers-badge(v-if="viewerCount > 0", :title="`${viewerCount} ${viewerCount === 1 ? $t('active viewer') : $t('active viewers')}`")
-					i.mdi.mdi-account-outline(aria-hidden="true")
-					span.count {{ viewerCount }}
 				bunt-button.btn-edit-settings(v-if="hasPermission('room:update')", @click="showRoomEditPrompt = true")
 					i.mdi.mdi-cog-outline
 					span {{ $t('Edit Settings') }}
@@ -74,16 +71,6 @@ export default {
 				if (m?.channel_id) return m
 			}
 			return { channel_id: this.room?.modules?.[0]?.channel_id || this.roomId, type: 'chat.native' }
-		},
-		viewerCount() {
-			if (!this.currentRoom) return 0
-			if (typeof this.currentRoom.users === 'number' && this.currentRoom.users > 0) return this.currentRoom.users
-			const storeRoom = this.$store.state.rooms?.find(r => String(r.id) === String(this.currentRoom.id))
-			if (typeof storeRoom?.users === 'number' && storeRoom.users > 0) return storeRoom.users
-			if (Array.isArray(this.$store.state.chat?.members) && this.$store.state.chat.members.length > 0) {
-				return this.$store.state.chat.members.length
-			}
-			return 0
 		}
 	},
 	watch: {
@@ -182,22 +169,6 @@ export default {
 			align-items: center
 			gap: 8px
 			flex: none
-			.active-viewers-badge
-				display: inline-flex
-				align-items: center
-				gap: 6px
-				padding: 4px 10px
-				background-color: var(--clr-surface-secondary, rgba(0, 0, 0, 0.05))
-				border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08))
-				border-radius: 999px
-				font-size: 13px
-				font-weight: 500
-				color: var(--clr-text-secondary, #555555)
-				margin-right: 8px
-				flex-shrink: 0
-				i
-					font-size: 16px
-					color: $clr-primary
 			.btn-edit-settings
 				display: flex
 				align-items: center
