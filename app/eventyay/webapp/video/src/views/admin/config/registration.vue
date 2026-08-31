@@ -103,15 +103,37 @@ export default {
 		socialGravatar: generateSocialComputed('gravatar')
 	},
 	async created() {
-		// TODO: Force reloading if world.updated is received from the server
-		try {
-			this.config = await api.call('world.config.get')
-		} catch (error) {
-			this.error = error.message || error.toString()
-			console.log(error)
-		}
+		this.ensureConnectedAndFetch()
+	},
+	beforeUnmount() {
+		if (this._unwatchConnected) this._unwatchConnected()
 	},
 	methods: {
+		ensureConnectedAndFetch() {
+			if (this.$store.state.connected) {
+				this.fetchConfig()
+			} else {
+				this._unwatchConnected = this.$store.watch(
+					state => state.connected,
+					connected => {
+						if (connected) {
+							this.fetchConfig()
+							if (this._unwatchConnected) this._unwatchConnected()
+						}
+					}
+				)
+			}
+		},
+		async fetchConfig() {
+			try {
+				const data = await api.call('world.config.get')
+				if (!data.profile_fields) data.profile_fields = []
+				this.config = data
+			} catch (error) {
+				this.error = error.message || error.toString()
+				console.error(error)
+			}
+		},
 		addField() {
 			this.config.profile_fields.push({id: uuid(), label: '', type: 'text', searchable: false})
 		},

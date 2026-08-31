@@ -1,7 +1,7 @@
 <template lang="pug">
 .c-media-source(:class="{'in-background': background, 'in-room-manager': inRoomManager}")
 	transition(name="background-room")
-		router-link.background-room(v-if="background", :to="room ? {name: 'room', params: {roomId: room.id}}: {name: 'channel', params: {channelId: call.channel}}")
+		router-link.background-room(v-if="background", :to="backgroundRoomLink")
 			.description
 				.hint {{ $t('Currently playing') }}
 				.room-name(v-if="room", v-html="$emojify(room.name)")
@@ -160,7 +160,33 @@ const iframeOffline = computed(() => {
 	return !moduleUrl;
 });
 
+// Remember the room:manage route when navigating away from it so the miniplayer can return there.
 const inRoomManager = computed(() => route.name === 'room:manage');
+const originRoute = ref(null);
+
+const backgroundRoomLink = computed(() => {
+	if (!props.room) return props.call ? { name: 'channel', params: { channelId: props.call.channel } } : { name: 'about' };
+	if (originRoute.value) return originRoute.value;
+	return { name: 'room', params: { roomId: props.room.id } };
+});
+
+// Watch route changes: when navigating away from room:manage, capture it as the origin
+// so the miniplayer knows where to return. Use a deep watch on an object snapshot
+// so we can read oldRoute.params before they change.
+watch(
+	() => ({ name: route.name, params: { ...route.params } }),
+	(newRoute, oldRoute) => {
+		if (oldRoute && oldRoute.name === 'room:manage') {
+			// Navigated away from manage view — store it as origin for the miniplayer
+			originRoute.value = { name: 'room:manage', params: { ...oldRoute.params } }
+		}
+		if (newRoute.name === 'room:manage') {
+			// Returned to manage view — clear origin so future navigation recaptures correctly
+			originRoute.value = null
+		}
+	},
+	{ deep: true }
+);
 
 watch(
 	() => props.background,
@@ -168,6 +194,10 @@ watch(
 		if (value && consentBlockedUrl.value && !iframeEl.value) {
 			emit('close')
 			return
+		}
+		if (!value) {
+			// Stream returned to foreground; reset origin
+			originRoute.value = null
 		}
 		if (!iframeEl.value) return;
 		if (value) {
