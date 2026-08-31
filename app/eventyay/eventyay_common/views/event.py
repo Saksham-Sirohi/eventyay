@@ -1458,11 +1458,14 @@ class VideoAccessAuthenticator(View):
             for t in traits
         )
         if not is_organizer and resume_suffix:
-            if resume_suffix.startswith('event') or 'manage' in resume_suffix:
-                if 'rooms/' in resume_suffix and 'manage' in resume_suffix:
-                    resume_suffix = resume_suffix.replace('/manage', '').replace('manage', '').strip('/')
-                else:
-                    resume_suffix = None
+            # Prevent non-organizers from landing on administrative or management routes
+            cleaned_suffix = re.sub(r'(^|/)manage(/|$)', r'\1', resume_suffix).strip('/')
+            if cleaned_suffix.startswith('event'):
+                resume_suffix = None
+            elif 'rooms/' in resume_suffix and re.search(r'(^|/)manage(/|$)', resume_suffix):
+                resume_suffix = cleaned_suffix if cleaned_suffix else None
+            elif resume_suffix.startswith('event') or re.search(r'(^|/)manage(/|$)', resume_suffix):
+                resume_suffix = None
 
         if resume_suffix:
             tail = resume_suffix.lstrip('/')
