@@ -134,6 +134,7 @@ export default {
 	data() {
 		return {
 			backgroundRoom: null,
+			previousRouteName: null,
 			sidebarCollapsed: typeof window !== 'undefined' ? localStorage.getItem('sidebarCollapsed') === '1' : false,
 			showMobileSidebar: false,
 			windowHeight: null,
@@ -190,10 +191,9 @@ export default {
 			return null
 		},
 		isAdminRoute() {
-			const isAdminRouteName = name => typeof name === 'string' && (name.startsWith('admin') || name === 'room:manage')
 			const route = this.$route
-			return isAdminRouteName(route?.name) ||
-				route?.matched?.some(match => isAdminRouteName(match.name))
+			return this.isOrganizerRouteName(route?.name) ||
+				route?.matched?.some(match => this.isOrganizerRouteName(match.name))
 		},
 		// TODO since this is used EVERYWHERE, use provide/inject?
 		modules() {
@@ -210,12 +210,14 @@ export default {
 		// Returns the current room if it has media, otherwise the background room
 		streamingRoom() {
 			if (this.roomHasMedia) return this.room
+			if (this.isAdminRoute) return null
 			if (this.backgroundRoom && !this.hasFatalError(this.backgroundRoom)) return this.backgroundRoom
 			return null
 		},
 		// Determines if the streaming room should be shown in background (mini-window) mode
 		// True when we have a background room that's different from the current room
 		isStreamInBackground() {
+			if (this.isAdminRoute) return false
 			return this.backgroundRoom && this.room !== this.backgroundRoom
 		},
 		stageStreamCollapsed() {
@@ -266,7 +268,19 @@ export default {
 			}
 		}
 	},
+	created() {
+		this.previousRouteName = this.$route?.name ?? null
+	},
 	watch: {
+		'$route': {
+			handler(to, from) {
+				this.previousRouteName = from?.name ?? null
+				if (this.isOrganizerRouteName(to?.name) || to?.matched?.some(match => this.isOrganizerRouteName(match.name))) {
+					this.backgroundRoom = null
+				}
+			},
+			flush: 'sync'
+		},
 		world: 'worldChange',
 		rooms: 'roomListChange',
 		room: 'roomChange',
@@ -373,6 +387,9 @@ export default {
 		reload() {
 			location.reload()
 		},
+		isOrganizerRouteName(name) {
+			return typeof name === 'string' && (name.startsWith('admin') || name === 'room:manage')
+		},
 		worldChange() {
 			// initial connect
 			document.title = this.world.title
@@ -401,6 +418,10 @@ export default {
 			const isExclusive = module => module.type === 'call.bigbluebutton' || module.type === 'call.zoom' || module.type === 'call.jitsi'
 			if (!this.$mq.above.m) return // no background rooms for mobile
 			if (this.call) return // When a DM call is running, we never want background media
+			if (this.isAdminRoute || this.isOrganizerRouteName(this.previousRouteName)) {
+				this.backgroundRoom = null
+				return
+			}
 			const newRoomHasMedia = newRoom && newRoom.modules && newRoom.modules.some(module => mediaModules.includes(module.type))
 			// We treat "undefined / not callable" as true to avoid race conditions.
 			let primaryWasPlaying = true
