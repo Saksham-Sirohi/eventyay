@@ -7,7 +7,7 @@
 		//- bunt-icon-button(v-if="$features.enabled('schedule-control')", @click="showEditSchedule = true") calendar_edit
 		.actions
 			.active-viewers-badge(v-if="viewerCount > 0", :title="`${viewerCount} ${viewerCount === 1 ? $t('active viewer') : $t('active viewers')}`")
-				i.mdi.mdi-account-multiple-outline(aria-hidden="true")
+				i.mdi.mdi-account-outline(aria-hidden="true")
 				span.count {{ viewerCount }}
 			bunt-icon-button(v-if="modules['call.bigbluebutton'] && hasPermission('room:bbb.recordings')", :tooltip="$t('Recordings')", tooltipPlacement="bottom-end", @click="showRecordingsPrompt = true") file-video-outline
 	router-view(:room="room", :modules="modules")
@@ -87,6 +87,9 @@ export default {
 			if (typeof this.room.users === 'number' && this.room.users > 0) return this.room.users
 			if (Array.isArray(this.$store.state.roomViewers) && this.$store.state.roomViewers.length > 0) {
 				return this.$store.state.roomViewers.length
+			}
+			if (Array.isArray(this.$store.state.chat?.members) && this.$store.state.chat.members.length > 0) {
+				return this.$store.state.chat.members.length
 			}
 			return this.room.users || 0
 		}

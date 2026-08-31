@@ -268,7 +268,16 @@ export default {
 			return { name: 'admin:rooms:item', params: { roomId: room.id } }
 		},
 		getRoomViewerCount(room) {
-			if (typeof room?.users === 'number') return room.users
+			if (!room) return 0
+			if (typeof room.users === 'number' && room.users > 0) return room.users
+			const storeRoom = this.rooms?.find(r => String(r.id) === String(room.id))
+			if (typeof storeRoom?.users === 'number' && storeRoom.users > 0) return storeRoom.users
+			if (this.$store.state.activeRoom?.id === room.id && Array.isArray(this.$store.state.roomViewers) && this.$store.state.roomViewers.length > 0) {
+				return this.$store.state.roomViewers.length
+			}
+			if (this.$store.state.activeRoom?.id === room.id && Array.isArray(this.$store.state.chat?.members) && this.$store.state.chat.members.length > 0) {
+				return this.$store.state.chat.members.length
+			}
 			return 0
 		},
 		async fetchKiosks() {
@@ -595,14 +604,11 @@ export default {
 					border: none
 					transition: background-color 0.15s ease, color 0.15s ease
 
-					span
-						padding-left: 1.6em
-						ellipsis()
-
-					.room-name
+					> span:first-child, > .room-name
 						padding-left: 1.6em
 						ellipsis()
 						flex: auto
+						min-width: 0
 
 					.viewer-count-badge
 						display: inline-flex
@@ -617,14 +623,15 @@ export default {
 						margin-left: auto
 						margin-right: 0
 						flex-shrink: 0
+						span
+							padding: 0 !important
+							flex: none !important
 						i
 							font-size: 12px
 							color: $clr-primary
 
 					&.nav-sub-link--nested
-						span
-							padding-left: 2.6em
-						.room-name
+						> span:first-child, > .room-name
 							padding-left: 2.6em
 
 					&.nav-sub-link--add
@@ -632,7 +639,7 @@ export default {
 						color: #337ab7
 						gap: 4px
 
-						span
+						> span:first-child
 							padding-left: 0
 
 						.mdi

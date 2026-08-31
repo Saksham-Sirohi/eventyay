@@ -68,9 +68,9 @@ aside.c-rooms-sidebar(
 								@click="onNavClick"
 							)
 								span.room-name(v-html="$emojify(stage.room.name)")
-								span.viewer-count-badge(v-if="stage.room.users > 0", :title="`${stage.room.users} ${stage.room.users === 1 ? $t('active viewer') : $t('active viewers')}`")
+								span.viewer-count-badge(v-if="getRoomViewerCount(stage.room) > 0", :title="`${getRoomViewerCount(stage.room)} ${getRoomViewerCount(stage.room) === 1 ? $t('active viewer') : $t('active viewers')}`")
 									i.mdi.mdi-account-outline(aria-hidden="true")
-									span {{ stage.room.users }}
+									span {{ getRoomViewerCount(stage.room) }}
 								span.notifications(v-if="stage.notifications") {{ stage.notifications }}
 							router-link.nav-sub-link(
 								v-for="room of roomsByType.networking",
@@ -80,9 +80,9 @@ aside.c-rooms-sidebar(
 								@click="onNavClick"
 							)
 								span.room-name(v-html="$emojify(room.name)")
-								span.viewer-count-badge(v-if="room.users > 0", :title="`${room.users} ${room.users === 1 ? $t('active viewer') : $t('active viewers')}`")
+								span.viewer-count-badge(v-if="getRoomViewerCount(room) > 0", :title="`${getRoomViewerCount(room)} ${getRoomViewerCount(room) === 1 ? $t('active viewer') : $t('active viewers')}`")
 									i.mdi.mdi-account-outline(aria-hidden="true")
-									span {{ room.users }}
+									span {{ getRoomViewerCount(room) }}
 
 				//- Chat Channels (collapsible, expanded by default)
 				li.nav-fold(v-if="hasChatChannels")
@@ -102,9 +102,9 @@ aside.c-rooms-sidebar(
 								@click="onNavClick"
 							)
 								span.room-name(v-html="$emojify(chat.room.name)")
-								span.viewer-count-badge(v-if="chat.room.users > 0", :title="`${chat.room.users} ${chat.room.users === 1 ? $t('active viewer') : $t('active viewers')}`")
+								span.viewer-count-badge(v-if="getRoomViewerCount(chat.room) > 0", :title="`${getRoomViewerCount(chat.room)} ${getRoomViewerCount(chat.room) === 1 ? $t('active viewer') : $t('active viewers')}`")
 									i.mdi.mdi-account-outline(aria-hidden="true")
-									span {{ chat.room.users }}
+									span {{ getRoomViewerCount(chat.room) }}
 								span.notifications(v-if="chat.notifications") {{ chat.notifications }}
 							router-link.nav-sub-link(
 								v-for="chat of roomsByType.videoChat",
@@ -114,9 +114,9 @@ aside.c-rooms-sidebar(
 								@click="onNavClick"
 							)
 								span.room-name(v-html="$emojify(chat.name)")
-								span.viewer-count-badge(v-if="chat.users > 0", :title="`${chat.users} ${chat.users === 1 ? $t('active viewer') : $t('active viewers')}`")
+								span.viewer-count-badge(v-if="getRoomViewerCount(chat) > 0", :title="`${getRoomViewerCount(chat)} ${getRoomViewerCount(chat) === 1 ? $t('active viewer') : $t('active viewers')}`")
 									i.mdi.mdi-account-outline(aria-hidden="true")
-									span {{ chat.users }}
+									span {{ getRoomViewerCount(chat) }}
 							a.nav-sub-link.nav-sub-link--action(v-if="worldHasTextChannels", @click.prevent="showChannelBrowser = true; onNavClick()")
 								span.mdi.mdi-compass-outline(aria-hidden="true")
 								span {{ $t('Browse Channels') }}
@@ -288,6 +288,19 @@ export default {
 		}
 	},
 	methods: {
+		getRoomViewerCount(room) {
+			if (!room) return 0
+			if (typeof room.users === 'number' && room.users > 0) return room.users
+			const storeRoom = this.rooms?.find(r => String(r.id) === String(room.id))
+			if (typeof storeRoom?.users === 'number' && storeRoom.users > 0) return storeRoom.users
+			if (this.$store.state.activeRoom?.id === room.id && Array.isArray(this.$store.state.roomViewers) && this.$store.state.roomViewers.length > 0) {
+				return this.$store.state.roomViewers.length
+			}
+			if (this.$store.state.activeRoom?.id === room.id && Array.isArray(this.$store.state.chat?.members) && this.$store.state.chat.members.length > 0) {
+				return this.$store.state.chat.members.length
+			}
+			return 0
+		},
 		toggleFold(key) {
 			this.openFolds[key] = !this.openFolds[key]
 		},
@@ -618,10 +631,11 @@ export default {
 					cursor: pointer
 					transition: background-color 0.15s ease, color 0.15s ease
 
-					.room-name, span:first-child
+					> .room-name, > span:first-child
 						padding-left: 1.6em
 						ellipsis()
 						flex: auto
+						min-width: 0
 
 					.viewer-count-badge
 						display: inline-flex
@@ -636,6 +650,9 @@ export default {
 						margin-left: auto
 						margin-right: 0
 						flex-shrink: 0
+						span
+							padding: 0 !important
+							flex: none !important
 						i
 							font-size: 12px
 							color: $clr-primary
@@ -648,13 +665,14 @@ export default {
 						padding: 1px 7px
 						font-size: 11px
 						font-weight: 600
+						flex-shrink: 0
 
 					&.nav-sub-link--action, &.nav-sub-link--add
 						font-style: italic
 						color: #337ab7
 						gap: 4px
 
-						span:first-child
+						> span:first-child
 							padding-left: 0
 
 						.mdi
