@@ -293,10 +293,18 @@ export default {
 			if (typeof room.users === 'number' && room.users > 0) return room.users
 			const storeRoom = this.rooms?.find(r => String(r.id) === String(room.id))
 			if (typeof storeRoom?.users === 'number' && storeRoom.users > 0) return storeRoom.users
-			if (this.$store.state.activeRoom?.id === room.id && Array.isArray(this.$store.state.roomViewers) && this.$store.state.roomViewers.length > 0) {
+			const isCurrentActiveRoom = this.$store.state.activeRoom?.id === room.id || (this.$route.params.roomId && String(this.$route.params.roomId) === String(room.id))
+			if (isCurrentActiveRoom && Array.isArray(this.$store.state.roomViewers) && this.$store.state.roomViewers.length > 0) {
 				return this.$store.state.roomViewers.length
 			}
-			if (this.$store.state.activeRoom?.id === room.id && Array.isArray(this.$store.state.chat?.members) && this.$store.state.chat.members.length > 0) {
+			const activeChannelId = this.$store.state.chat?.channel
+			const roomChannelIds = [
+				String(room.id),
+				...(Array.isArray(room.modules) ? room.modules.map(m => String(m.channel_id)).filter(Boolean) : []),
+				...(Array.isArray(storeRoom?.modules) ? storeRoom.modules.map(m => String(m.channel_id)).filter(Boolean) : [])
+			]
+			const isCurrentChatChannel = isCurrentActiveRoom || (activeChannelId && roomChannelIds.includes(String(activeChannelId)))
+			if (isCurrentChatChannel && Array.isArray(this.$store.state.chat?.members) && this.$store.state.chat.members.length > 0) {
 				return this.$store.state.chat.members.length
 			}
 			return 0
@@ -670,14 +678,27 @@ export default {
 					&.nav-sub-link--action, &.nav-sub-link--add
 						font-style: italic
 						color: #337ab7
-						gap: 4px
+						gap: 6px
 
 						> span:first-child
-							padding-left: 0
+							padding-left: 0 !important
+							flex: none !important
 
 						.mdi
 							font-size: 14px
 							margin-left: 1.6em
+							flex: none !important
+
+						&.nav-sub-link--nested
+							> span:first-child
+								padding-left: 0 !important
+							.mdi
+								margin-left: 2.6em
+
+						> span:last-child
+							flex: auto
+							min-width: 0
+							ellipsis()
 
 					&:hover, &:focus
 						background-color: #eeeeee
