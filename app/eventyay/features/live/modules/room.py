@@ -336,9 +336,14 @@ class RoomModule(BaseModule):
             prev_value = await redis.getset(
                 f"room:approxcount:known:{room.pk}", actual_view_count
             )
-            if prev_value != actual_view_count:
+            is_changed = True
+            if prev_value is not None:
+                try:
+                    is_changed = int(prev_value) != actual_view_count
+                except (ValueError, TypeError):
+                    is_changed = True
+            if is_changed:
                 await redis.expire(f"room:approxcount:known:{room.pk}", 900)
-                # broadcast actual viewer count instead of approximate text
                 await self.consumer.channel_layer.group_send(
                     GROUP_EVENT.format(id=self.consumer.event.pk),
                     {

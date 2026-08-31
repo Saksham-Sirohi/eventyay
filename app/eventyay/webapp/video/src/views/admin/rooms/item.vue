@@ -17,6 +17,9 @@
 				bunt-icon-button(@click="$router.push({name: 'admin:rooms:index'})") arrow_left
 				h1 {{ roomTypeLabel }} :
 					span.room-name(v-html="$emojify(config.name)")
+				.active-viewers-badge(v-if="viewerCount > 0", :title="`${viewerCount} ${viewerCount === 1 ? $t('active viewer') : $t('active viewers')}`")
+					i.mdi.mdi-account-outline(aria-hidden="true")
+					span.count {{ viewerCount }}
 			edit-form(:config="config")
 	bunt-progress-circular(v-else, size="huge")
 </template>
@@ -63,6 +66,12 @@ export default {
 				this.isAdminMode,
 				(flag) => features.enabled(flag)
 			)
+		},
+		viewerCount() {
+			if (!this.config) return 0
+			const room = this.$store.state.rooms?.find(r => String(r.id) === String(this.config.id))
+			if (typeof room?.users === 'number') return room.users
+			return room?.users || 0
 		}
 	},
 	watch: {
@@ -181,6 +190,23 @@ export default {
 					height: @width
 					&.needs-space
 						margin-right: 8px
+		.active-viewers-badge
+			display: inline-flex
+			align-items: center
+			gap: 6px
+			padding: 4px 10px
+			background-color: var(--clr-surface-secondary, rgba(0, 0, 0, 0.05))
+			border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08))
+			border-radius: 999px
+			font-size: 13px
+			font-weight: 500
+			color: var(--clr-text-secondary, #555555)
+			margin-left: auto
+			margin-right: 16px
+			flex-shrink: 0
+			i
+				font-size: 16px
+				color: $clr-primary
 		.actions
 			display: flex
 			flex: none

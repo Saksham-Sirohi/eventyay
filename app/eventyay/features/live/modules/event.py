@@ -110,14 +110,12 @@ class EventModule(BaseModule):
                 "pretalx",
                 "video_player",
                 "videoPlayer",
-                "profile_fields",
                 "track_room_views",
                 "track_event_views",
                 "onsite_traits",
                 "conftool_url",
                 "conftool_password",
                 "iframe_blockers",
-                "social_logins",
             )
             model_fields = {
                 "title": "name",

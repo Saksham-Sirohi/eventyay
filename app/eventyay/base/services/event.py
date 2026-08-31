@@ -107,8 +107,7 @@ def get_rooms(event, user):
                     .values("room_id")
                     .order_by()
                     .annotate(
-                        # Count('user_id', distinct=True) would be more accurate, but might be slow, and we don't need accurate
-                        c=Count("user_id")
+                        c=Count("user_id", distinct=True)
                     )
                     .values("c")
                 )
@@ -259,8 +258,9 @@ def get_room_config(room, permissions, *, current_stream=_UNSET):
     }
 
     if hasattr(room, "current_roomviews"):
-        # set actual viewer count instead of approximate text
-        room_config["users"] = room.current_roomviews
+        room_config["users"] = room.current_roomviews or 0
+    else:
+        room_config["users"] = 0
 
     for module in room.module_config:
         module_config = copy.deepcopy(module)

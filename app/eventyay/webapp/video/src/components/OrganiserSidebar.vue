@@ -55,7 +55,10 @@ aside.c-organiser-sidebar(
 								:class="{active: ($route.name === 'room:manage' || $route.name === 'admin:rooms:item') && String($route.params.roomId) === String(room.id)}",
 								@click="onNavClick"
 							)
-								span(v-html="$emojify(room.name)")
+								span.room-name(v-html="$emojify(room.name)")
+								span.viewer-count-badge(v-if="getRoomViewerCount(room) > 0", :title="`${getRoomViewerCount(room)} ${getRoomViewerCount(room) === 1 ? $t('active viewer') : $t('active viewers')}`")
+									i.mdi.mdi-account-outline(aria-hidden="true")
+									span {{ getRoomViewerCount(room) }}
 							router-link.nav-sub-link.nav-sub-link--add.nav-sub-link--nested(:to="{name: 'admin:rooms:new'}", @click="onNavClick")
 								span.mdi.mdi-plus(aria-hidden="true")
 								span {{ $t('New Room') }}
@@ -83,7 +86,10 @@ aside.c-organiser-sidebar(
 								:class="{active: $route.name === 'admin:chat:item' && $route.params.roomId === channel.id}",
 								@click="onNavClick"
 							)
-								span(v-html="$emojify(channel.name)")
+								span.room-name(v-html="$emojify(channel.name)")
+								span.viewer-count-badge(v-if="getRoomViewerCount(channel) > 0", :title="`${getRoomViewerCount(channel)} ${getRoomViewerCount(channel) === 1 ? $t('active viewer') : $t('active viewers')}`")
+									i.mdi.mdi-account-outline(aria-hidden="true")
+									span {{ getRoomViewerCount(channel) }}
 							router-link.nav-sub-link.nav-sub-link--add.nav-sub-link--nested(:to="{name: 'admin:chat:new'}", @click="onNavClick")
 								span.mdi.mdi-plus(aria-hidden="true")
 								span {{ $t('New Channel') }}
@@ -140,8 +146,6 @@ aside.c-organiser-sidebar(
 						.nav-sub-list(v-show="openFolds.config")
 							router-link.nav-sub-link(:to="{name: 'admin:config'}", exact, @click="onNavClick")
 								span {{ $t('General') }}
-							router-link.nav-sub-link(:to="{name: 'admin:config:registration'}", @click="onNavClick")
-								span {{ $t('Registration') }}
 							router-link.nav-sub-link(:to="{name: 'admin:config:privacy'}", @click="onNavClick")
 								span {{ $t('Privacy') }}
 							router-link.nav-sub-link(:to="{name: 'admin:config:token-generator'}", @click="onNavClick")
@@ -262,6 +266,10 @@ export default {
 				return { name: 'room:manage', params: { roomId: room.id } }
 			}
 			return { name: 'admin:rooms:item', params: { roomId: room.id } }
+		},
+		getRoomViewerCount(room) {
+			if (typeof room?.users === 'number') return room.users
+			return 0
 		},
 		async fetchKiosks() {
 			if (!this.hasPermission('world:kiosks.manage')) return
@@ -591,8 +599,32 @@ export default {
 						padding-left: 1.6em
 						ellipsis()
 
+					.room-name
+						padding-left: 1.6em
+						ellipsis()
+						flex: auto
+
+					.viewer-count-badge
+						display: inline-flex
+						align-items: center
+						gap: 3px
+						padding: 1px 6px
+						background-color: rgba(0, 0, 0, 0.06)
+						border-radius: 10px
+						font-size: 11px
+						font-weight: 600
+						color: #555555
+						margin-left: auto
+						margin-right: 0
+						flex-shrink: 0
+						i
+							font-size: 12px
+							color: $clr-primary
+
 					&.nav-sub-link--nested
 						span
+							padding-left: 2.6em
+						.room-name
 							padding-left: 2.6em
 
 					&.nav-sub-link--add

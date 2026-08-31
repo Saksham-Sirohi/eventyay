@@ -6,6 +6,9 @@
 			.room-session(v-if="currentSession") {{ $localize(currentSession.title) }}
 		//- bunt-icon-button(v-if="$features.enabled('schedule-control')", @click="showEditSchedule = true") calendar_edit
 		.actions
+			.active-viewers-badge(v-if="viewerCount > 0", :title="`${viewerCount} ${viewerCount === 1 ? $t('active viewer') : $t('active viewers')}`")
+				i.mdi.mdi-account-multiple-outline(aria-hidden="true")
+				span.count {{ viewerCount }}
 			bunt-icon-button(v-if="modules['call.bigbluebutton'] && hasPermission('room:bbb.recordings')", :tooltip="$t('Recordings')", tooltipPlacement="bottom-end", @click="showRecordingsPrompt = true") file-video-outline
 	router-view(:room="room", :modules="modules")
 	transition(name="prompt")
@@ -78,6 +81,14 @@ export default {
 				if (this.hasPermission(permission)) return true
 			}
 			return false
+		},
+		viewerCount() {
+			if (!this.room) return 0
+			if (typeof this.room.users === 'number' && this.room.users > 0) return this.room.users
+			if (Array.isArray(this.$store.state.roomViewers) && this.$store.state.roomViewers.length > 0) {
+				return this.$store.state.roomViewers.length
+			}
+			return this.room.users || 0
 		}
 	},
 	watch: {
@@ -164,7 +175,22 @@ export default {
 		.actions
 			flex: none
 			display: flex
+			align-items: center
 			gap: 8px
+			.active-viewers-badge
+				display: inline-flex
+				align-items: center
+				gap: 6px
+				padding: 4px 10px
+				background-color: var(--clr-surface-secondary, rgba(0, 0, 0, 0.05))
+				border: 1px solid var(--clr-border, rgba(0, 0, 0, 0.08))
+				border-radius: 999px
+				font-size: 13px
+				font-weight: 500
+				color: var(--clr-text-secondary, #555555)
+				i
+					font-size: 16px
+					color: $clr-primary
 			.bunt-icon-button
 				icon-button-style(style: clear)
 </style>

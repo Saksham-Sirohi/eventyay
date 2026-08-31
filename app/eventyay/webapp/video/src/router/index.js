@@ -215,11 +215,6 @@ const routes = [
 				component: () => import('views/admin/config/token-generator')
 			},
 			{
-				path: 'event/config/registration',
-				name: 'admin:config:registration',
-				component: () => import('views/admin/config/registration')
-			},
-			{
 				path: 'event/config/privacy',
 				name: 'admin:config:privacy',
 				component: () => import('views/admin/config/privacy')

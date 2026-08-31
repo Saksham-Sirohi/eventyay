@@ -67,7 +67,10 @@ aside.c-rooms-sidebar(
 								:class="{active: stage.room.id === $route.params.roomId}",
 								@click="onNavClick"
 							)
-								span(v-html="$emojify(stage.room.name)")
+								span.room-name(v-html="$emojify(stage.room.name)")
+								span.viewer-count-badge(v-if="stage.room.users > 0", :title="`${stage.room.users} ${stage.room.users === 1 ? $t('active viewer') : $t('active viewers')}`")
+									i.mdi.mdi-account-outline(aria-hidden="true")
+									span {{ stage.room.users }}
 								span.notifications(v-if="stage.notifications") {{ stage.notifications }}
 							router-link.nav-sub-link(
 								v-for="room of roomsByType.networking",
@@ -76,7 +79,10 @@ aside.c-rooms-sidebar(
 								:class="{active: room.id === $route.params.roomId}",
 								@click="onNavClick"
 							)
-								span(v-html="$emojify(room.name)")
+								span.room-name(v-html="$emojify(room.name)")
+								span.viewer-count-badge(v-if="room.users > 0", :title="`${room.users} ${room.users === 1 ? $t('active viewer') : $t('active viewers')}`")
+									i.mdi.mdi-account-outline(aria-hidden="true")
+									span {{ room.users }}
 
 				//- Chat Channels (collapsible, expanded by default)
 				li.nav-fold(v-if="hasChatChannels")
@@ -95,7 +101,10 @@ aside.c-rooms-sidebar(
 								:class="{active: chat.room.id === $route.params.roomId, unread: hasUnreadMessages(chat.room.modules[0].channel_id)}",
 								@click="onNavClick"
 							)
-								span(v-html="$emojify(chat.room.name)")
+								span.room-name(v-html="$emojify(chat.room.name)")
+								span.viewer-count-badge(v-if="chat.room.users > 0", :title="`${chat.room.users} ${chat.room.users === 1 ? $t('active viewer') : $t('active viewers')}`")
+									i.mdi.mdi-account-outline(aria-hidden="true")
+									span {{ chat.room.users }}
 								span.notifications(v-if="chat.notifications") {{ chat.notifications }}
 							router-link.nav-sub-link(
 								v-for="chat of roomsByType.videoChat",
@@ -104,7 +113,10 @@ aside.c-rooms-sidebar(
 								:class="{active: chat.id === $route.params.roomId}",
 								@click="onNavClick"
 							)
-								span(v-html="$emojify(chat.name)")
+								span.room-name(v-html="$emojify(chat.name)")
+								span.viewer-count-badge(v-if="chat.users > 0", :title="`${chat.users} ${chat.users === 1 ? $t('active viewer') : $t('active viewers')}`")
+									i.mdi.mdi-account-outline(aria-hidden="true")
+									span {{ chat.users }}
 							a.nav-sub-link.nav-sub-link--action(v-if="worldHasTextChannels", @click.prevent="showChannelBrowser = true; onNavClick()")
 								span.mdi.mdi-compass-outline(aria-hidden="true")
 								span {{ $t('Browse Channels') }}
@@ -606,9 +618,27 @@ export default {
 					cursor: pointer
 					transition: background-color 0.15s ease, color 0.15s ease
 
-					span:first-child
+					.room-name, span:first-child
 						padding-left: 1.6em
 						ellipsis()
+						flex: auto
+
+					.viewer-count-badge
+						display: inline-flex
+						align-items: center
+						gap: 3px
+						padding: 1px 6px
+						background-color: rgba(0, 0, 0, 0.06)
+						border-radius: 10px
+						font-size: 11px
+						font-weight: 600
+						color: #555555
+						margin-left: auto
+						margin-right: 0
+						flex-shrink: 0
+						i
+							font-size: 12px
+							color: $clr-primary
 
 					.notifications
 						margin-left: 6px
