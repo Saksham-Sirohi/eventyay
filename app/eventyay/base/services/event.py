@@ -38,10 +38,6 @@ class EventConfigSerializer(serializers.Serializer):
     timezone = serializers.ChoiceField(choices=[(a, a) for a in common_timezones])
     connection_limit = serializers.IntegerField(allow_null=True)
     available_permissions = serializers.SerializerMethodField("_available_permissions")
-    profile_fields = serializers.JSONField()
-    social_logins = serializers.ListSerializer(
-        child=serializers.CharField(), required=False, allow_empty=True
-    )
     iframe_blockers = serializers.JSONField()
     track_room_views = serializers.BooleanField()
     track_event_views = serializers.BooleanField()
@@ -58,25 +54,6 @@ class EventConfigSerializer(serializers.Serializer):
 
     def _available_permissions(self, *args):
         return [d.value for d in Permission]
-
-    def validate_social_logins(self, val):
-        known = ("gravatar", "twitter", "linkedin")
-        if any(v not in known for v in val):
-            raise ValidationError("Invalid value for social_logins")
-
-        if "twitter" in val and not settings.TWITTER_CLIENT_ID:
-            raise ValidationError(
-                "Twitter login can't be enabled since there's no Twitter API keys set for this "
-                "Eventyay installation."
-            )
-
-        if "linkedin" in val and not settings.LINKEDIN_CLIENT_ID:
-            raise ValidationError(
-                "LinkedIn login can't be enabled since there's no LinkedIn API keys set for this "
-                "Eventyay installation."
-            )
-
-        return val
 
 
 @database_sync_to_async
@@ -304,8 +281,6 @@ def get_event_config_for_user(event, user):
         "visible_logo_url": event.visible_logo_url,
         "visible_header_image_url": event.visible_header_image_url,
         "pretalx": pretalx_public,
-        "profile_fields": cfg.get("profile_fields", []),
-        "social_logins": cfg.get("social_logins", []),
         "iframe_blockers": cfg.get(
             "iframe_blockers",
             {"default": {"enabled": False, "policy_url": None}},
@@ -608,8 +583,6 @@ def _config_serializer(event, *args, **kwargs):
             "timezone": event.timezone,
             "trait_grants": event.trait_grants,
             "connection_limit": cfg.get("connection_limit", 0),
-            "profile_fields": cfg.get("profile_fields", []),
-            "social_logins": cfg.get("social_logins", []),
             "onsite_traits": cfg.get("onsite_traits", []),
             "conftool_url": cfg.get("conftool_url", ""),
             "conftool_password": cfg.get("conftool_password", ""),
