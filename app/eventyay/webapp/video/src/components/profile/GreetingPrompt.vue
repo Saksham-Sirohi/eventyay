@@ -150,33 +150,6 @@ export default {
 			min-height: 0
 			overflow-y: auto
 			width: 100%
-		.step-connect-social
-			margin-bottom: 16px
-			.social-connection
-				// margin-bottom: 8px
-				.bunt-button-text
-					display: flex
-					align-items: center
-					.mdi
-						margin-right: 8px
-						font-size: 24px
-					.label
-						width: 72px
-			.social-twitter
-				button-style(style: clear, color: #1DA1F2)
-			.social-linkedin
-				button-style(style: clear, color: #0A66C2)
-			.social-gravatar
-				button-style(style: clear, color: #4678eb)
-				svg
-					width: 20px
-					margin: 0 12px 0 4px
-					path
-						fill: #4678eb
-			.joiner
-				text-align: center
-			.manual
-				themed-button-secondary()
 		.display-name
 			max-width: 280px
 			margin-top: 16px
