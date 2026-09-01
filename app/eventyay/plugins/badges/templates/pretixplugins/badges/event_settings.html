@@ -1,12 +1,17 @@
 {% extends 'pretixcontrol/event/base.html' %}
+{% load compress %}
 {% load i18n %}
 {% load bootstrap3 %}
+{% load static %}
 
 {% block title %}{% trans 'Badge settings' %}{% endblock %}
 
 {% block custom_header %}
   {{ block.super }}
-  {{ form.media }}
+  {% compress css %}
+    <link rel="stylesheet" href="{% static 'pretixcontrol/css/badge-placeholders.css' %}">
+  {% endcompress %}
+  <script src="{% static 'pretixcontrol/js/ui/badge-placeholders.js' %}" defer></script>
 {% endblock %}
 
 {% block content %}

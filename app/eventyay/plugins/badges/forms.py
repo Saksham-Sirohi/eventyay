@@ -186,14 +186,6 @@ class MultiplePlaceholdersWidget(forms.CheckboxSelectMultiple):
     template_name = 'pretixplugins/badges/placeholder_grid_select.html'
     option_template_name = 'pretixplugins/badges/placeholder_grid_option.html'
 
-    class Media:
-        css = {
-            'all': ('pretixcontrol/css/badge-placeholders.css',),
-        }
-        js = (
-            'pretixcontrol/js/ui/badge-placeholders.js',
-        )
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.sample_map = {}
