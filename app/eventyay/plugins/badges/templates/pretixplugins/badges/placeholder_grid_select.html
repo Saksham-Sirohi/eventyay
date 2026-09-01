@@ -1,0 +1,390 @@
+{% load i18n %}
+<div class="placeholder-grid-widget" id="{{ widget.attrs.id }}-grid-widget" data-placeholder-grid-widget>
+  <div class="placeholder-grid-summary"
+       data-placeholder-grid-summary
+       role="button"
+       tabindex="0"
+       aria-expanded="true"
+       aria-controls="{{ widget.attrs.id }}-grid-panel">
+    <div class="placeholder-grid-badges" data-placeholder-grid-badges></div>
+    <span class="placeholder-grid-summary-label"
+          data-placeholder-grid-count
+          data-empty-text="{% translate 'No placeholders selected' %}"
+          data-selected-singular-text="{% translate 'placeholder enabled' %}"
+          data-selected-plural-text="{% translate 'placeholders enabled' %}">
+      {% translate 'No placeholders selected' %}
+    </span>
+    <span class="placeholder-grid-toggle-icon fa fa-chevron-down" aria-hidden="true"></span>
+  </div>
+
+  <div class="placeholder-grid-panel"
+       id="{{ widget.attrs.id }}-grid-panel"
+       data-placeholder-grid-panel>
+    <div class="placeholder-grid-search-wrap">
+      <input type="text"
+             class="placeholder-grid-search"
+             data-placeholder-grid-search
+             placeholder="{% translate 'Search placeholders…' %}"
+             autocomplete="off"
+             aria-label="{% translate 'Search placeholders' %}">
+    </div>
+
+    <div class="placeholder-grid-toolbar">
+      <button type="button" class="btn btn-default btn-xs" data-placeholder-grid-select-default>
+        <span class="fa fa-undo"></span> {% translate 'Select default set' %}
+      </button>
+      <button type="button" class="btn btn-default btn-xs" data-placeholder-grid-select-all>
+        <span class="fa fa-check-square-o"></span> {% translate 'Select all' %}
+      </button>
+      <button type="button" class="btn btn-default btn-xs" data-placeholder-grid-deselect-all>
+        <span class="fa fa-square-o"></span> {% translate 'Deselect all' %}
+      </button>
+    </div>
+
+    <div class="placeholder-grid-categories" data-placeholder-grid-categories>
+      {% for group, options, index in widget.optgroups %}
+        <div class="placeholder-category-group" data-placeholder-category-group>
+          <div class="placeholder-category-header">
+            <strong>{{ group }}</strong>
+            <span class="badge placeholder-category-badge">{{ options|length }}</span>
+          </div>
+          <div class="placeholder-grid-grid">
+            {% for option in options %}
+              <div class="placeholder-grid-cell{% if option.attrs.checked %} is-checked{% endif %}"
+                   data-placeholder-grid-cell
+                   data-placeholder-key="{{ option.value }}"
+                   data-placeholder-name="{{ option.label }}"
+                   data-is-default="{% if option.is_default %}true{% else %}false{% endif %}">
+                {% include option.template_name with widget=option %}
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% endfor %}
+      <div class="placeholder-grid-no-results" data-placeholder-grid-no-results style="display: none;">
+        {% translate 'No placeholders match your search.' %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .placeholder-grid-widget {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+    margin-bottom: 15px;
+  }
+  .placeholder-grid-summary {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px 12px;
+    min-height: 42px;
+    cursor: pointer;
+    user-select: none;
+    background: #fafafa;
+    border-radius: 4px 4px 0 0;
+    transition: background 0.15s ease;
+  }
+  .placeholder-grid-summary:hover {
+    background: #f0f0f0;
+  }
+  .placeholder-grid-toggle-icon {
+    margin-left: auto;
+    font-size: 14px;
+    color: #666;
+    transition: transform 0.2s ease;
+  }
+  .placeholder-grid-widget.is-collapsed .placeholder-grid-toggle-icon {
+    transform: rotate(-90deg);
+  }
+  .placeholder-grid-widget.is-collapsed .placeholder-grid-panel {
+    display: none;
+  }
+  .placeholder-grid-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+  }
+  .placeholder-grid-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    font-size: 12px;
+    line-height: 1.4;
+    border-radius: 12px;
+    background: #e8f4fd;
+    color: #1a73a7;
+    border: 1px solid #c4dfe6;
+    white-space: nowrap;
+  }
+  .placeholder-grid-summary-label {
+    font-size: 13px;
+    color: #555;
+    font-weight: 600;
+  }
+  .placeholder-grid-panel {
+    border-top: 1px solid #ddd;
+    padding: 12px;
+  }
+  .placeholder-grid-search-wrap {
+    margin-bottom: 10px;
+  }
+  input.placeholder-grid-search {
+    width: 100%;
+    padding: 7px 12px 7px 32px;
+    font-size: 13px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    outline: none;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") 10px center no-repeat;
+    box-sizing: border-box;
+  }
+  input.placeholder-grid-search:focus {
+    border-color: #2185d0;
+    box-shadow: 0 0 0 2px rgba(33, 133, 208, 0.15);
+  }
+  .placeholder-grid-toolbar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .placeholder-category-group {
+    margin-bottom: 16px;
+  }
+  .placeholder-category-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+    border-bottom: 2px solid #eee;
+    font-size: 14px;
+    color: #333;
+  }
+  .placeholder-category-badge {
+    background-color: #777;
+    font-size: 11px;
+    font-weight: normal;
+  }
+  .placeholder-grid-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 6px;
+  }
+  .placeholder-grid-cell {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid #e5e5e5;
+    background: #fafafa;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    min-height: 38px;
+  }
+  .placeholder-grid-cell:hover {
+    background: #f0f7fd;
+    border-color: #b8dcf5;
+  }
+  .placeholder-grid-cell.is-checked {
+    background: #ebf6ff;
+    border-color: #70b8f0;
+  }
+  .placeholder-grid-cell label {
+    margin-bottom: 0;
+    font-weight: normal;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 100%;
+    margin-left: 6px;
+  }
+  .placeholder-default-tag {
+    font-size: 10px;
+    background-color: #5bc0de;
+    text-transform: uppercase;
+    font-weight: 600;
+  }
+  .placeholder-sample-text {
+    font-size: 11px;
+    color: #888;
+    word-break: break-all;
+  }
+  .placeholder-grid-no-results {
+    padding: 20px;
+    text-align: center;
+    color: #777;
+    font-style: italic;
+  }
+</style>
+
+<script>
+  (function () {
+    function initPlaceholderGrids() {
+      var widgets = document.querySelectorAll('[data-placeholder-grid-widget]');
+      widgets.forEach(function (widget) {
+        if (!widget || widget.dataset.initialized === 'true') return;
+        widget.dataset.initialized = 'true';
+
+        var summary = widget.querySelector('[data-placeholder-grid-summary]');
+        var panel = widget.querySelector('[data-placeholder-grid-panel]');
+        var searchInput = widget.querySelector('[data-placeholder-grid-search]');
+        var badgesContainer = widget.querySelector('[data-placeholder-grid-badges]');
+        var countLabel = widget.querySelector('[data-placeholder-grid-count]');
+        var noResults = widget.querySelector('[data-placeholder-grid-no-results]');
+        var selectDefaultBtn = widget.querySelector('[data-placeholder-grid-select-default]');
+        var selectAllBtn = widget.querySelector('[data-placeholder-grid-select-all]');
+        var deselectAllBtn = widget.querySelector('[data-placeholder-grid-deselect-all]');
+        var categoryGroups = Array.from(widget.querySelectorAll('[data-placeholder-category-group]'));
+        var cells = Array.from(widget.querySelectorAll('[data-placeholder-grid-cell]'));
+
+        function syncSummary() {
+          var selectedCount = 0;
+          var maxBadges = 6;
+          if (badgesContainer) badgesContainer.innerHTML = '';
+
+          cells.forEach(function (cell) {
+            var checkbox = cell.querySelector('input[type="checkbox"]');
+            if (checkbox && checkbox.checked) {
+              cell.classList.add('is-checked');
+              selectedCount++;
+              if (selectedCount <= maxBadges && badgesContainer) {
+                var badge = document.createElement('span');
+                badge.className = 'placeholder-grid-badge';
+                badge.textContent = cell.getAttribute('data-placeholder-name') || checkbox.value;
+                badgesContainer.appendChild(badge);
+              }
+            } else {
+              cell.classList.remove('is-checked');
+            }
+          });
+
+          if (countLabel) {
+            if (selectedCount === 0) {
+              countLabel.textContent = countLabel.dataset.emptyText || 'No placeholders selected';
+            } else if (selectedCount > maxBadges) {
+              var diff = selectedCount - maxBadges;
+              countLabel.textContent = '+' + diff + ' ' + (countLabel.dataset.selectedPluralText || 'placeholders enabled');
+            } else {
+              countLabel.textContent = selectedCount === 1 ? '1 ' + (countLabel.dataset.selectedSingularText || 'placeholder enabled') : selectedCount + ' ' + (countLabel.dataset.selectedPluralText || 'placeholders enabled');
+            }
+          }
+        }
+
+        if (summary) {
+          summary.addEventListener('click', function (e) {
+            e.preventDefault();
+            widget.classList.toggle('is-collapsed');
+            var isExpanded = !widget.classList.contains('is-collapsed');
+            summary.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+          });
+
+          summary.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              summary.click();
+            }
+          });
+        }
+
+        cells.forEach(function (cell) {
+          var checkbox = cell.querySelector('input[type="checkbox"]');
+          if (!checkbox) return;
+          checkbox.addEventListener('change', function () {
+            syncSummary();
+          });
+
+          cell.addEventListener('click', function (e) {
+            if (e.target.tagName.toLowerCase() === 'input' || e.target.closest('label')) {
+              return;
+            }
+            checkbox.checked = !checkbox.checked;
+            syncSummary();
+          });
+        });
+
+        if (searchInput) {
+          searchInput.addEventListener('input', function () {
+            var query = searchInput.value.trim().toLowerCase();
+            var totalVisible = 0;
+
+            categoryGroups.forEach(function (group) {
+              var groupCells = Array.from(group.querySelectorAll('[data-placeholder-grid-cell]'));
+              var visibleInGroup = 0;
+
+              groupCells.forEach(function (cell) {
+                var name = (cell.getAttribute('data-placeholder-name') || '').toLowerCase();
+                var key = (cell.getAttribute('data-placeholder-key') || '').toLowerCase();
+                var matches = !query || name.indexOf(query) !== -1 || key.indexOf(query) !== -1;
+                cell.style.display = matches ? '' : 'none';
+                if (matches) visibleInGroup++;
+              });
+
+              group.style.display = visibleInGroup > 0 ? '' : 'none';
+              totalVisible += visibleInGroup;
+            });
+
+            if (noResults) {
+              noResults.style.display = totalVisible === 0 ? '' : 'none';
+            }
+          });
+        }
+
+        if (selectDefaultBtn) {
+          selectDefaultBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            cells.forEach(function (cell) {
+              var isDefault = cell.getAttribute('data-is-default') === 'true';
+              var checkbox = cell.querySelector('input[type="checkbox"]');
+              if (checkbox) {
+                checkbox.checked = isDefault;
+              }
+            });
+            syncSummary();
+          });
+        }
+
+        if (selectAllBtn) {
+          selectAllBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            cells.forEach(function (cell) {
+              var checkbox = cell.querySelector('input[type="checkbox"]');
+              if (checkbox && cell.style.display !== 'none') {
+                checkbox.checked = true;
+              }
+            });
+            syncSummary();
+          });
+        }
+
+        if (deselectAllBtn) {
+          deselectAllBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            cells.forEach(function (cell) {
+              var checkbox = cell.querySelector('input[type="checkbox"]');
+              if (checkbox && cell.style.display !== 'none') {
+                checkbox.checked = false;
+              }
+            });
+            syncSummary();
+          });
+        }
+
+        syncSummary();
+      });
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initPlaceholderGrids);
+    } else {
+      initPlaceholderGrids();
+    }
+  })();
+</script>
