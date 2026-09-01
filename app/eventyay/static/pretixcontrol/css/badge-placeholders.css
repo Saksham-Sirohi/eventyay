@@ -151,6 +151,7 @@ input.placeholder-grid-search:focus {
   word-break: break-all;
 }
 .placeholder-grid-no-results {
+  display: none;
   padding: 20px;
   text-align: center;
   color: #777;

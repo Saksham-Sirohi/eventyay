@@ -105,7 +105,7 @@
           });
 
           if (noResults) {
-            noResults.style.display = totalVisible === 0 ? '' : 'none';
+            noResults.style.display = totalVisible === 0 ? 'block' : 'none';
           }
         });
       }
