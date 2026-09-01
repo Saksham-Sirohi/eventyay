@@ -156,7 +156,7 @@ class LayoutSettingsView(BadgePluginEnabledMixin, EventPermissionRequiredMixin, 
 
 class BadgeSettingsView(BadgePluginEnabledMixin, EventPermissionRequiredMixin, FormView):
     form_class = BadgeSettingsForm
-    template_name = 'pretixplugins/badges/settings.html'
+    template_name = 'pretixplugins/badges/event_settings.html'
     permission = 'can_change_event_settings'
 
     def get_form_kwargs(self):
