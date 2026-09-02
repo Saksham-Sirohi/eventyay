@@ -251,6 +251,7 @@ export default {
 			return this.$router.resolve({ name: 'organizer' }).href
 		},
 		hasOrganiserPermissions() {
+			if (window.eventyay?.isOrganizerArea) return true
 			const hasToken = Boolean(this.$store.state.token)
 			if (hasToken) {
 				const tokenPayload = this.$store.getters.tokenPayload
@@ -266,7 +267,6 @@ export default {
 				)
 			}
 			return Boolean(
-				window.eventyay?.isOrganizerArea ||
 				window.eventyay?.hasOrganiserPermissions ||
 				this.isAdminMode ||
 				(Array.isArray(this.$store.state.user?.traits) && this.$store.state.user.traits.includes('admin')) ||
