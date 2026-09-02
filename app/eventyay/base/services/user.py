@@ -724,10 +724,25 @@ def get_user(
 
         token_id = encode_email(with_platform_user.email)
         permission_set = with_platform_user.get_event_permission_set(event.organizer, event)
+        has_active_staff = False
+        if hasattr(with_platform_user, 'has_active_staff_session'):
+            try:
+                has_active_staff = bool(with_platform_user.has_active_staff_session())
+            except Exception:
+                pass
+        elif getattr(with_platform_user, 'is_staff', False) and getattr(with_platform_user, 'pk', None):
+            try:
+                with scopes_disabled():
+                    from eventyay.base.models.auth import StaffSession
+                    has_active_staff = StaffSession.objects.filter(
+                        user=with_platform_user,
+                        date_end__isnull=True,
+                    ).exists()
+            except Exception:
+                pass
         is_event_admin = (
-            with_platform_user.is_staff
-            or getattr(with_platform_user, 'is_superuser', False)
-            or bool({'can_change_event_settings', 'can_change_teams', 'can_change_organizer_settings'}.intersection(permission_set))
+            getattr(with_platform_user, 'is_superuser', False)
+            or has_active_staff
         )
         base_traits = ['attendee', video_attendee_trait(event.slug)]
         if is_event_admin:

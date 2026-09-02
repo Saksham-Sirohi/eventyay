@@ -60,6 +60,9 @@ VIDEO_PERMISSION_DEFINITIONS: dict[str, VideoPermissionDefinition] = {
     'can_change_config': VideoPermissionDefinition(
         'can_change_config', 'video_config_manager'
     ),
+    'can_change_event_settings': VideoPermissionDefinition(
+        'can_change_event_settings', 'video_config_manager'
+    ),
 }
 
 VIDEO_PERMISSION_BY_FIELD: dict[str, VideoPermissionDefinition] = VIDEO_PERMISSION_DEFINITIONS

@@ -75,21 +75,28 @@ def apply_live_team_video_traits(event, token_id, traits):
 
     # Check if this platform user has an active staff session
     has_active_staff = False
-    with scopes_disabled():
-        from eventyay.base.models.auth import StaffSession
-        has_active_staff = StaffSession.objects.filter(
-            user=platform_user,
-            date_end__isnull=True,
-        ).exists()
+    if hasattr(platform_user, 'has_active_staff_session'):
+        try:
+            has_active_staff = bool(platform_user.has_active_staff_session())
+        except Exception:
+            pass
+    elif getattr(platform_user, 'is_staff', False) and getattr(platform_user, 'pk', None):
+        try:
+            with scopes_disabled():
+                from eventyay.base.models.auth import StaffSession
+                has_active_staff = StaffSession.objects.filter(
+                    user=platform_user,
+                    date_end__isnull=True,
+                ).exists()
+        except Exception:
+            pass
 
     # Fresh team membership after permission edits (avoid request-scoped cache).
     platform_user._teamcache = {}
     permission_set = platform_user.get_event_permission_set(event.organizer, event)
     is_event_admin = (
-        platform_user.is_staff
-        or getattr(platform_user, 'is_superuser', False)
+        getattr(platform_user, 'is_superuser', False)
         or has_active_staff
-        or bool({'can_change_event_settings', 'can_change_teams', 'can_change_organizer_settings'}.intersection(permission_set))
     )
 
     if not is_event_admin and 'admin' in traits:

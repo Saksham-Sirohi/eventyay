@@ -246,6 +246,7 @@ const router = createRouter({
 
 export function checkRoutePermission(to) {
 	if (!store.state.permissions) return true
+	if (store.getters.isAdminMode) return true
 	const name = typeof to.name === 'string' ? to.name : ''
 	const hasPerm = store.getters.hasPermission
 	const liveFeatures = Object.assign({
@@ -259,22 +260,22 @@ export function checkRoutePermission(to) {
 		return hasPerm('world:update')
 	}
 	if (name === 'admin:reports') {
-		return hasPerm('world:graphs') || hasPerm('world:update')
+		return hasPerm('world:graphs')
 	}
 	if (name.startsWith('admin:users') || name === 'admin:user') {
-		return hasPerm('world:users.list') || hasPerm('world:update')
+		return hasPerm('world:users.list')
 	}
 	if (name.startsWith('admin:announcements')) {
-		return liveFeatures.announcements !== false && (hasPerm('world:announce') || hasPerm('world:update'))
+		return liveFeatures.announcements !== false && hasPerm('world:announce')
 	}
 	if (name.startsWith('admin:kiosks')) {
-		return liveFeatures.kiosks && (hasPerm('world:kiosks.manage') || hasPerm('world:update'))
+		return liveFeatures.kiosks && hasPerm('world:kiosks.manage')
 	}
 	if (name.startsWith('admin:chat')) {
-		return liveFeatures.chat_rooms && (hasPerm('room:update') || hasPerm('world:rooms.create.chat') || hasPerm('world:update'))
+		return liveFeatures.chat_rooms && (hasPerm('room:update') || hasPerm('world:rooms.create.chat'))
 	}
 	if (name.startsWith('admin:rooms') || name === 'room:manage') {
-		return hasPerm('room:update') || hasPerm('world:rooms.create.stage') || hasPerm('world:rooms.create.bbb') || hasPerm('world:rooms.create.jitsi') || hasPerm('world:update')
+		return hasPerm('room:update') || hasPerm('world:rooms.create.stage') || hasPerm('world:rooms.create.bbb') || hasPerm('world:rooms.create.jitsi')
 	}
 	return true
 }

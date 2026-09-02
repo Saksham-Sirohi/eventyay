@@ -155,3 +155,81 @@ def test_video_permission_definitions_mapping():
     traits = collect_user_video_traits(slug, ['can_change_config'])
     assert traits == [f'eventyay-video-event-{slug}-video-config-manager']
 
+    traits = collect_user_video_traits(slug, ['can_change_event_settings'])
+    assert traits == [f'eventyay-video-event-{slug}-video-config-manager']
+
+    # Non-video permissions yield no video traits
+    traits = collect_user_video_traits(slug, ['can_change_submissions', 'can_view_orders'])
+    assert traits == []
+
+
+def test_apply_live_team_video_traits_no_video_permissions(monkeypatch):
+    from eventyay.eventyay_common.video.traits_sync import apply_live_team_video_traits
+
+    fake_event = MagicMock()
+    fake_event.slug = 'demo-event'
+    fake_event.organizer = MagicMock()
+
+    fake_platform_user = MagicMock()
+    fake_platform_user.is_staff = True  # Staff user, but no active staff session!
+    fake_platform_user.is_superuser = False
+    fake_platform_user.has_active_staff_session.return_value = False
+    fake_platform_user.get_event_permission_set.return_value = {'can_change_submissions'}
+
+    monkeypatch.setattr(
+        'eventyay.base.services.user.resolve_account_fields_by_token_ids',
+        lambda ids: {'token123': {'email': 'user@example.com'}},
+    )
+    monkeypatch.setattr(
+        'eventyay.base.services.user._ticket_lookup',
+        lambda accounts, tid: {'email': 'user@example.com'},
+    )
+    monkeypatch.setattr(
+        'eventyay.eventyay_common.video.traits_sync.User.objects.filter',
+        lambda **kwargs: MagicMock(order_by=lambda *args: MagicMock(first=lambda: fake_platform_user)),
+    )
+
+    initial_traits = ['attendee', 'eventyay-video-event-demo-event', 'eventyay-video-event-demo-event-organizer', 'admin']
+    result = apply_live_team_video_traits(fake_event, 'token123', initial_traits)
+
+    # 'admin' must be removed, and no video managed traits added
+    assert 'admin' not in result
+    assert f'eventyay-video-event-demo-event-video-content-manager' not in result
+    assert f'eventyay-video-event-demo-event-video-moderator' not in result
+    assert f'eventyay-video-event-demo-event-video-kiosk-manager' not in result
+    assert f'eventyay-video-event-demo-event-video-analyst' not in result
+    assert f'eventyay-video-event-demo-event-video-config-manager' not in result
+    assert result == ['attendee', 'eventyay-video-event-demo-event', 'eventyay-video-event-demo-event-organizer']
+
+
+def test_apply_live_team_video_traits_with_active_staff_session(monkeypatch):
+    from eventyay.eventyay_common.video.traits_sync import apply_live_team_video_traits
+
+    fake_event = MagicMock()
+    fake_event.slug = 'demo-event'
+    fake_event.organizer = MagicMock()
+
+    fake_platform_user = MagicMock()
+    fake_platform_user.is_staff = True
+    fake_platform_user.is_superuser = False
+    fake_platform_user.has_active_staff_session.return_value = True
+    fake_platform_user.get_event_permission_set.return_value = set()
+
+    monkeypatch.setattr(
+        'eventyay.base.services.user.resolve_account_fields_by_token_ids',
+        lambda ids: {'token123': {'email': 'user@example.com'}},
+    )
+    monkeypatch.setattr(
+        'eventyay.base.services.user._ticket_lookup',
+        lambda accounts, tid: {'email': 'user@example.com'},
+    )
+    monkeypatch.setattr(
+        'eventyay.eventyay_common.video.traits_sync.User.objects.filter',
+        lambda **kwargs: MagicMock(order_by=lambda *args: MagicMock(first=lambda: fake_platform_user)),
+    )
+
+    initial_traits = ['attendee', 'eventyay-video-event-demo-event', 'eventyay-video-event-demo-event-organizer']
+    result = apply_live_team_video_traits(fake_event, 'token123', initial_traits)
+
+    assert 'admin' in result
+
