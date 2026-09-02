@@ -30,8 +30,8 @@
 			.stat-icon.rooms
 				i.mdi.mdi-door-open
 			.stat-content
-				.stat-value {{ allRooms.length }}
-				.stat-label {{ $t('Total Rooms') }}
+				.stat-value {{ regularRooms.length }}
+				.stat-label {{ $t('Rooms') }}
 		.stat-card
 			.stat-icon.viewers
 				i.mdi.mdi-account-group
@@ -136,7 +136,7 @@
 <script>
 import { mapState, mapGetters } from 'vuex'
 import moment from 'lib/timetravelMoment'
-import { inferRoomType, inferType } from 'lib/room-types'
+import { inferRoomType, inferType, isChatManagedRoom } from 'lib/room-types'
 
 export default {
 	name: 'VideoOrganiserOverview',
@@ -151,12 +151,18 @@ export default {
 			}, this.world?.live_features || window.eventyay?.liveFeatures || {})
 		},
 		allRooms() {
-			return this.rooms || []
+			return (this.rooms || []).filter(room => !isChatManagedRoom(room))
 		},
 		stageRooms() {
-			return this.allRooms.filter(room =>
-				room.modules && room.modules.some(m => ['livestream.native', 'livestream.youtube', 'call.janus'].includes(m.type))
-			)
+			return this.allRooms.filter(room => {
+				const inferred = inferRoomType(room)
+				if (inferred?.id === 'stage') return true
+				return room.modules && room.modules.some(m => ['livestream.native', 'livestream.youtube', 'livestream.iframe'].includes(m.type) || m.type.startsWith('livestream.'))
+			})
+		},
+		regularRooms() {
+			const stageIds = new Set(this.stageRooms.map(r => r.id))
+			return this.allRooms.filter(room => !stageIds.has(room.id))
 		},
 		totalViewersCount() {
 			if (!this.allRooms.length) return 0
