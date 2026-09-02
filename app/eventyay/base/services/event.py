@@ -344,6 +344,12 @@ def get_event_config_for_user(event, user):
             world_aliases.append("world:update")
         elif p.startswith("event:"):
             world_aliases.append("world:" + p[len("event:"):])
+        elif p == "world:view":
+            world_aliases.append("event.view")
+        elif p == "world:update":
+            world_aliases.append("event.update")
+        elif p.startswith("world:"):
+            world_aliases.append("event:" + p[len("world:"):])
     merged_permissions = sorted(set(event_perm_values) | set(world_aliases))
 
     result = {

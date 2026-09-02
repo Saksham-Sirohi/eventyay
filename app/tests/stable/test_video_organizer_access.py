@@ -296,3 +296,76 @@ def test_check_has_active_staff_session_and_is_platform_event_admin():
     assert is_platform_event_admin(staff_active) is True
 
 
+def test_normalize_permission_value_world_aliases():
+    from eventyay.core.permissions import Permission, normalize_permission_value
+
+    assert normalize_permission_value(Permission.EVENT_UPDATE) == 'event.update'
+    assert normalize_permission_value('event.update') == 'event.update'
+    assert normalize_permission_value('world:update') == 'event.update'
+    assert normalize_permission_value(Permission.EVENT_VIEW) == 'event.view'
+    assert normalize_permission_value('world:view') == 'event.view'
+    assert normalize_permission_value('world:rooms.create.stage') == 'event:rooms.create.stage'
+    assert normalize_permission_value(Permission.EVENT_ROOMS_CREATE_STAGE) == 'event:rooms.create.stage'
+
+
+def test_event_has_permission_with_world_update_in_roles():
+    from unittest.mock import MagicMock, PropertyMock, patch
+    from eventyay.base.models import Event, User
+    from eventyay.core.permissions import Permission
+
+    with patch.object(Event, 'settings', new=MagicMock(get=lambda *a, **kw: False)), \
+         patch.object(Event, 'rooms', new_callable=PropertyMock) as mock_rooms:
+        mock_rooms.return_value = MagicMock(all=lambda: [])
+        event = Event(
+            pk=1,
+            slug='test-slug',
+            trait_grants=None,
+            roles={'video_config_manager': ['world:update']},
+        )
+        fake_user = MagicMock()
+        fake_user.is_banned = False
+        fake_user.is_silenced = False
+        fake_user.type = User.UserType.PERSON
+        fake_user.traits = [
+            'attendee',
+            'eventyay-video-event-test-slug',
+            'eventyay-video-event-test-slug-video-config-manager',
+        ]
+
+        assert event.has_permission(user=fake_user, permission=Permission.EVENT_UPDATE) is True
+        assert event.has_permission(user=fake_user, permission=Permission.EVENT_VIEW) is True
+
+
+def test_get_event_config_for_user_aliases_world_and_event_update():
+    from unittest.mock import MagicMock, PropertyMock, patch
+    from eventyay.base.models import Event, User
+    from eventyay.base.services.event import get_event_config_for_user
+
+    with patch.object(Event, 'settings', new=MagicMock(get=lambda *a, **kw: None)), \
+         patch.object(Event, 'rooms', new_callable=PropertyMock) as mock_rooms:
+        mock_rooms.return_value = MagicMock(all=lambda: [])
+        event = Event(
+            pk=1,
+            slug='test-slug',
+            config={},
+            trait_grants=None,
+            roles={'video_config_manager': ['world:update']},
+        )
+        fake_user = MagicMock()
+        fake_user.is_banned = False
+        fake_user.is_silenced = False
+        fake_user.type = User.UserType.PERSON
+        fake_user.traits = [
+            'attendee',
+            'eventyay-video-event-test-slug',
+            'eventyay-video-event-test-slug-video-config-manager',
+        ]
+
+        config = get_event_config_for_user(event, fake_user)
+        perms = config['permissions']
+        assert 'event.update' in perms
+        assert 'world:update' in perms
+        assert 'event.view' in perms
+        assert 'world:view' in perms
+
+

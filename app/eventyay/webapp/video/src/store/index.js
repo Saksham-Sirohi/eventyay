@@ -449,7 +449,7 @@ export default new Vuex.Store({
 		},
 		'api::world.updated'({state, commit, dispatch}, {world, rooms, permissions}) {
 			state.world = world
-			state.permission = permissions
+			state.permissions = permissions
 			commit('updateRooms', rooms)
 		},
 		// Backwards-compat: server emits 'event.updated' with a payload that contains both
@@ -459,7 +459,7 @@ export default new Vuex.Store({
 			const rooms = payload.rooms || []
 			const permissions = payload.permissions
 			state.world = world
-			state.permission = permissions
+			state.permissions = permissions
 			commit('updateRooms', rooms)
 		},
 		'api::world.schedule.updated'({state, commit, dispatch}, pretalx) {

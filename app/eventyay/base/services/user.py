@@ -774,7 +774,7 @@ def get_user(
 
     if user:
         if with_token or with_platform_user:
-            if list(user.traits or []) != list(token_traits or []):
+            if set(user.traits or []) != set(token_traits or []):
                 update_user(event.id, id=user.id, traits=token_traits, serialize=False)
                 user = get_user_by_id(event.id, user.id)
             if token_id:
