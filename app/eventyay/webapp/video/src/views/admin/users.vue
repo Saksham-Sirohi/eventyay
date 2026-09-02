@@ -49,7 +49,7 @@
 					.wikimedia(:title="user.wikimedia_username || ''") {{ user.wikimedia_username || '–' }}
 					.state {{ user.moderation_state || '–' }}
 					.row-actions(v-if="user.id !== ownUser.id", @click.stop="")
-						bunt-button.btn-open-dm(v-if="hasPermission('world:chat.direct')", @click="$store.dispatch('chat/openDirectMessage', {users: [user]})") message
+						bunt-button.btn-open-dm(v-if="hasPermission('world:chat.direct') && liveFeatures.direct_messaging", @click="$store.dispatch('chat/openDirectMessage', {users: [user]})") message
 						bunt-button.btn-ban(
 							v-if="hasPermission('world:users.manage') && user.moderation_state !== 'banned'",
 							:key="`${user.id}-ban`",
@@ -101,9 +101,18 @@ export default {
 	},
 	computed: {
 		...mapState({
-			ownUser: 'user'
+			ownUser: 'user',
+			world: 'world'
 		}),
-		...mapGetters(['hasPermission', 'eventRouting'])
+		...mapGetters(['hasPermission', 'eventRouting']),
+		liveFeatures() {
+			return Object.assign({
+				chat_rooms: false,
+				kiosks: false,
+				direct_messaging: false,
+				announcements: true
+			}, this.world?.live_features || window.eventyay?.liveFeatures || {})
+		},
 	},
 	watch: {
 		search() {

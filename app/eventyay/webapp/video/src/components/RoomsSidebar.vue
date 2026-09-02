@@ -123,7 +123,7 @@ aside.c-rooms-sidebar(
 								span {{ $t('Browse Channels') }}
 
 				//- Direct Messages (distinct collapsible section, expanded by default)
-				li.nav-fold(v-if="hasPermission('world:chat.direct')")
+				li.nav-fold(v-if="hasPermission('world:chat.direct') && liveFeatures.direct_messaging")
 					.has-children
 						span.nav-link.nav-link-inner(@click="toggleFold('dms')")
 							span.fa.mdi.mdi-account-multiple-outline(aria-hidden="true")
@@ -154,8 +154,8 @@ aside.c-rooms-sidebar(
 
 		teleport(to="body")
 			transition(name="prompt")
-				channel-browser(v-if="showChannelBrowser", @close="showChannelBrowser = false")
-				create-dm-prompt(v-else-if="showDMCreationPrompt && hasPermission('world:chat.direct')", @close="showDMCreationPrompt = false")
+				channel-browser(v-if="showChannelBrowser && liveFeatures.chat_rooms", @close="showChannelBrowser = false")
+				create-dm-prompt(v-else-if="showDMCreationPrompt && hasPermission('world:chat.direct') && liveFeatures.direct_messaging", @close="showDMCreationPrompt = false")
 </template>
 <script>
 import { mapState, mapGetters } from 'vuex'
@@ -233,7 +233,16 @@ export default {
 		hasStagesOrRooms() {
 			return (this.roomsByType.stage?.length > 0 || this.roomsByType.networking?.length > 0)
 		},
+		liveFeatures() {
+			return Object.assign({
+				chat_rooms: false,
+				kiosks: false,
+				direct_messaging: false,
+				announcements: true
+			}, this.world?.live_features || window.eventyay?.liveFeatures || {})
+		},
 		hasChatChannels() {
+			if (!this.liveFeatures.chat_rooms) return false
 			return (this.roomsByType.textChat?.length > 0 || this.roomsByType.videoChat?.length > 0 || this.worldHasTextChannels)
 		},
 		manageVideoUrl() {
@@ -282,6 +291,7 @@ export default {
 				if (!inferred) continue
 
 				if (room.modules.length === 1 && room.modules[0].type === 'chat.native') {
+					if (!this.liveFeatures.chat_rooms) continue
 					if (this.joinedChannels && !this.joinedChannels.some(channel => channel.id === room.modules[0].channel_id)) continue
 					const notifications = this.notificationCount ? this.notificationCount(room.modules[0].channel_id) : 0
 					rooms.textChat.push({
@@ -291,6 +301,7 @@ export default {
 				} else if (room.modules.some(module => NETWORKING_MODULE_TYPES.has(module.type))) {
 					rooms.networking.push(room)
 				} else if (room.modules.some(module => VIDEO_CHANNEL_MODULE_TYPES.has(module.type))) {
+					if (!this.liveFeatures.chat_rooms) continue
 					rooms.videoChat.push(room)
 				} else if (room.modules.some(module => ['livestream.native', 'livestream.youtube'].includes(module.type))) {
 					let session
@@ -310,12 +321,13 @@ export default {
 			return rooms
 		},
 		directMessageChannels() {
-			if (!this.hasPermission('world:chat.direct')) {
+			if (!this.hasPermission('world:chat.direct') || !this.liveFeatures.direct_messaging) {
 				return []
 			}
 			return this.$store.getters['chat/directMessageChannels'] || []
 		},
 		worldHasTextChannels() {
+			if (!this.liveFeatures.chat_rooms) return false
 			return (this.rooms || []).some(room => room.modules?.length === 1 && room.modules[0].type === 'chat.native')
 		}
 	},

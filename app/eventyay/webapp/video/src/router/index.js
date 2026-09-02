@@ -280,6 +280,16 @@ export function checkRoutePermission(to) {
 	if (name.startsWith('admin:rooms') || name === 'room:manage') {
 		return hasPerm('room:update') || hasPerm('world:rooms.create.stage') || hasPerm('world:rooms.create.bbb') || hasPerm('world:rooms.create.jitsi')
 	}
+	if (name === 'channel') {
+		return Boolean(liveFeatures.direct_messaging) && hasPerm('world:chat.direct')
+	}
+	if (name === 'room' && to.params?.roomId) {
+		const room = store.state.rooms?.find(r => r.id === to.params.roomId)
+		if (room && !liveFeatures.chat_rooms) {
+			const isChatRoom = room.modules?.length === 1 && room.modules[0].type === 'chat.native'
+			if (isChatRoom) return false
+		}
+	}
 	return true
 }
 
@@ -317,6 +327,10 @@ router.beforeEach((to, from, next) => {
 		if (!checkRoutePermission(to)) {
 			return next({ name: 'organizer' })
 		}
+	} else {
+		if (!checkRoutePermission(to)) {
+			return next({ name: 'about' })
+		}
 	}
 	next()
 })
@@ -326,7 +340,9 @@ store.watch(
 	(permissions) => {
 		if (permissions && router.currentRoute.value) {
 			if (!checkRoutePermission(router.currentRoute.value)) {
-				router.replace({ name: 'organizer' })
+				const isOrganizerRoute = typeof router.currentRoute.value.name === 'string' &&
+					(router.currentRoute.value.name.startsWith('admin') || router.currentRoute.value.name === 'organizer' || router.currentRoute.value.name === 'room:manage')
+				router.replace({ name: isOrganizerRoute ? 'organizer' : 'about' })
 			}
 		}
 	}
