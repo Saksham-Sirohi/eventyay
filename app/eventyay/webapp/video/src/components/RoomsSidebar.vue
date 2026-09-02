@@ -166,6 +166,7 @@ import { getRoomOccupancyCount, usesParticipantOccupancy } from 'lib/room-occupa
 import Avatar from 'components/Avatar'
 import ChannelBrowser from 'components/ChannelBrowser'
 import CreateDmPrompt from 'components/CreateDmPrompt'
+import { hasOrganizerTraits } from 'lib/traitGrants'
 
 export default {
 	name: 'RoomsSidebar',
@@ -250,18 +251,28 @@ export default {
 			return this.$router.resolve({ name: 'organizer' }).href
 		},
 		hasOrganiserPermissions() {
-			const tokenPayload = this.$store.state.token ? this.$store.getters.tokenPayload : null
-			const hasAdminTrait = Array.isArray(tokenPayload?.traits) && tokenPayload.traits.includes('admin')
+			const hasToken = Boolean(this.$store.state.token)
+			if (hasToken) {
+				const tokenPayload = this.$store.getters.tokenPayload
+				const traits = Array.isArray(tokenPayload?.traits) ? tokenPayload.traits : []
+				return Boolean(
+					hasOrganizerTraits(traits) ||
+					this.hasPermission('world:update') ||
+					this.hasPermission('world:users.list') ||
+					this.hasPermission('world:announce') ||
+					this.hasPermission('world:rooms.create.stage') ||
+					this.hasPermission('world:rooms.create.bbb') ||
+					this.hasPermission('world:kiosks.manage')
+				)
+			}
 			return Boolean(
-				hasAdminTrait ||
-				window.eventyay?.hasOrganiserPermissions ||
 				window.eventyay?.isOrganizerArea ||
+				window.eventyay?.hasOrganiserPermissions ||
 				this.isAdminMode ||
 				(Array.isArray(this.$store.state.user?.traits) && this.$store.state.user.traits.includes('admin')) ||
 				this.hasPermission('world:update') ||
 				this.hasPermission('world:users.list') ||
 				this.hasPermission('world:announce') ||
-				this.hasPermission('room:update') ||
 				this.hasPermission('world:rooms.create.stage') ||
 				this.hasPermission('world:rooms.create.bbb') ||
 				this.hasPermission('world:kiosks.manage')

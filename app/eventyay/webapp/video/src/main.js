@@ -85,7 +85,8 @@ async function init({ token, inviteToken }) {
       tokenTraits = jwtDecode(localStorage.token)?.traits || []
     } catch (e) { /* ignore */ }
   }
-  const isOrganizer = isOrganizerArea || hasOrganizerTraits(tokenTraits) || Boolean(window.eventyay?.hasOrganiserPermissions)
+  const hasToken = Boolean(token || (localStorage.token && !isOrganizerArea))
+  const isOrganizer = isOrganizerArea || (hasToken ? hasOrganizerTraits(tokenTraits) : Boolean(window.eventyay?.hasOrganiserPermissions))
 
   if (!relativePath || relativePath === '/') {
     if (isOrganizerArea) {
@@ -118,7 +119,7 @@ async function init({ token, inviteToken }) {
   store.commit('setUserLocale', i18n.resolvedLanguage)
   store.dispatch('updateUserTimezone', localStorage.userTimezone || moment.tz.guess())
 
-  if (isOrganizerArea || window.eventyay?.hasOrganiserPermissions) {
+  if (isOrganizerArea) {
     router.replace(relativePath)
     store.dispatch('login', {})
   } else if (token) {
@@ -127,6 +128,9 @@ async function init({ token, inviteToken }) {
     store.dispatch('login', { token })
   } else if (localStorage.token) {
     store.dispatch('login', { token: localStorage.token })
+  } else if (window.eventyay?.hasOrganiserPermissions) {
+    router.replace(relativePath)
+    store.dispatch('login', {})
   } else if (inviteToken && anonymousRoomId) {
     const clientId = uuid()
     localStorage[`clientId:room:${anonymousRoomId}`] = clientId
