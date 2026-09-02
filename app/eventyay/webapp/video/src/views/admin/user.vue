@@ -2,7 +2,7 @@
 .c-admin-user
 	template(v-if="user")
 		.ui-page-header
-			bunt-icon-button(@click="$router.push({name: 'admin:users'})") arrow_left
+			bunt-icon-button(@click="$router.push({name: 'admin:users'})", :tooltip="$t('Back to Users')", tooltip-placement="bottom-start", :tooltip-fixed="true") arrow-left
 			h1 {{ $t('User') }} {{ (user.profile && user.profile.display_name) || user.id }}
 			.actions(v-if="user.id !== ownUser.id")
 				bunt-button.btn-dm(v-if="hasPermission('world:chat.direct') && !user.deleted", @click="openDM") {{ $t('message') }}

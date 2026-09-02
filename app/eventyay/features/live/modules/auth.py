@@ -74,17 +74,21 @@ class AuthModule(BaseModule):
         }
         body = body or {}
         if "token" not in body or not body.get("token"):
-            client_id = body.get("client_id")
-            if not client_id:
-                async with statsd() as s:
-                    s.increment(
-                        f"authentication.failed,reason=missing_token,event={self.consumer.event.pk}"
-                    )
-                await self.consumer.send_error(code="auth.missing_id_or_token")
-                return
-            kwargs["client_id"] = client_id
-            if "invite_token" in body:
-                kwargs["invite_token"] = body.get("invite_token")
+            session_user = self.consumer.scope.get("user")
+            if session_user and getattr(session_user, "is_authenticated", False):
+                kwargs["platform_user"] = session_user
+            else:
+                client_id = body.get("client_id")
+                if not client_id:
+                    async with statsd() as s:
+                        s.increment(
+                            f"authentication.failed,reason=missing_token,event={self.consumer.event.pk}"
+                        )
+                    await self.consumer.send_error(code="auth.missing_id_or_token")
+                    return
+                kwargs["client_id"] = client_id
+                if "invite_token" in body:
+                    kwargs["invite_token"] = body.get("invite_token")
         else:
             try:
                 # decode_token may read event.settings (DB-backed) when JWT_secrets are unset

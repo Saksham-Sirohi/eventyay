@@ -63,6 +63,8 @@ export default new Vuex.Store({
 			}
 		},
 		isAdminMode(state) {
+			if (window.eventyay?.isOrganizerArea) return true
+			if (Array.isArray(state.user?.traits) && state.user.traits.includes('admin')) return true
 			if (!state.token) return false
 			try {
 				const token = jwtDecode(state.token)

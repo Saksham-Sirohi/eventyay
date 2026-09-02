@@ -17,7 +17,8 @@ aside.c-rooms-sidebar(
 					.context-indicator
 						span.context-name(v-if="world && world.title", v-html="$emojify(world.title)")
 						span.context-name(v-else) {{ $t('Live Video') }}
-						span.context-meta {{ $t('Event stream') }}
+						span.context-meta(v-if="eventDateSubtitle") {{ eventDateSubtitle }}
+						span.context-meta(v-else) {{ $t('Live Video') }}
 				bunt-icon-button.btn-close-mobile(
 					v-if="$mq.below.m",
 					icon="close",
@@ -147,7 +148,7 @@ aside.c-rooms-sidebar(
 			.buffer
 
 			.sidebar-footer-action(v-if="hasOrganiserPermissions")
-				router-link.btn-manage-video(:to="{name: 'admin'}", @click="onNavClick")
+				a.btn-manage-video(:href="manageVideoUrl", @click="onNavClick")
 					i.fa.fa-cog(aria-hidden="true")
 					span {{ $t('Manage') }}
 
@@ -158,6 +159,7 @@ aside.c-rooms-sidebar(
 </template>
 <script>
 import { mapState, mapGetters } from 'vuex'
+import moment from 'lib/timetravelMoment'
 import theme from 'theme'
 import ROOM_TYPES, { NETWORKING_MODULE_TYPES, VIDEO_CHANNEL_MODULE_TYPES, inferRoomType, inferType } from 'lib/room-types'
 import { getRoomOccupancyCount, usesParticipantOccupancy } from 'lib/room-occupancy'
@@ -199,6 +201,23 @@ export default {
 		...mapGetters(['hasPermission', 'isAdminMode']),
 		...mapGetters('chat', ['joinedChannels', 'directMessageChannels', 'notificationCount']),
 		...mapGetters('schedule', ['currentSessionPerRoom']),
+		eventDateSubtitle() {
+			const dateFrom = this.world?.date_from || window.eventyay?.eventDates?.date_from
+			const dateTo = this.world?.date_to || window.eventyay?.eventDates?.date_to
+			if (!dateFrom) return ''
+			const fromMoment = moment(dateFrom)
+			if (!dateTo || fromMoment.isSame(moment(dateTo), 'day')) {
+				return fromMoment.format('ll')
+			}
+			const toMoment = moment(dateTo)
+			if (fromMoment.isSame(toMoment, 'month')) {
+				return `${fromMoment.format('MMM D')} – ${toMoment.format('D, YYYY')}`
+			}
+			if (fromMoment.isSame(toMoment, 'year')) {
+				return `${fromMoment.format('MMM D')} – ${toMoment.format('MMM D, YYYY')}`
+			}
+			return `${fromMoment.format('ll')} – ${toMoment.format('ll')}`
+		},
 		networkingTitle() {
 			return this.networkingRoomType?.name || this.$t('Networking')
 		},
@@ -217,11 +236,23 @@ export default {
 		hasChatChannels() {
 			return (this.roomsByType.textChat?.length > 0 || this.roomsByType.videoChat?.length > 0 || this.worldHasTextChannels)
 		},
+		manageVideoUrl() {
+			if (window.eventyay?.videoUrl) return window.eventyay.videoUrl
+			return this.$router.resolve({ name: 'organizer' }).href
+		},
 		hasOrganiserPermissions() {
-			return (
+			const hasToken = Boolean(this.$store.state.token)
+			if (hasToken) {
+				const tokenPayload = this.$store.getters.tokenPayload
+				return Array.isArray(tokenPayload?.traits) && tokenPayload.traits.includes('admin')
+			}
+			return Boolean(
+				window.eventyay?.hasOrganiserPermissions ||
+				window.eventyay?.isOrganizerArea ||
 				this.isAdminMode ||
-				this.hasPermission('world:users.list') ||
+				(Array.isArray(this.$store.state.user?.traits) && this.$store.state.user.traits.includes('admin')) ||
 				this.hasPermission('world:update') ||
+				this.hasPermission('world:users.list') ||
 				this.hasPermission('world:announce') ||
 				this.hasPermission('room:update') ||
 				this.hasPermission('world:kiosks.manage')

@@ -82,13 +82,21 @@ def apply_live_team_video_traits(event, token_id, traits):
             date_end__isnull=True,
         ).exists()
 
-    # If the user does not have an active staff session, strip 'admin' from traits
-    if not has_active_staff and 'admin' in traits:
-        traits = [t for t in traits if t != 'admin']
-
     # Fresh team membership after permission edits (avoid request-scoped cache).
     platform_user._teamcache = {}
     permission_set = platform_user.get_event_permission_set(event.organizer, event)
+    is_event_admin = (
+        platform_user.is_staff
+        or getattr(platform_user, 'is_superuser', False)
+        or has_active_staff
+        or bool({'can_change_event_settings', 'can_change_teams', 'can_change_organizer_settings'}.intersection(permission_set))
+    )
+
+    if not is_event_admin and 'admin' in traits:
+        traits = [t for t in traits if t != 'admin']
+    elif is_event_admin and 'admin' not in traits:
+        traits.append('admin')
+
     return replace_managed_video_traits(
         event.slug,
         traits,

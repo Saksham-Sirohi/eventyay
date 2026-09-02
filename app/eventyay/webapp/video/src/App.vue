@@ -181,7 +181,7 @@ export default {
 			if (routeName === 'about') {
 				return rooms.find(room => room && room.modules && room.modules.some(m => m.type === 'page.landing'))
 			}
-			if (typeof routeName === 'string' && routeName.startsWith('admin')) {
+			if (typeof routeName === 'string' && (routeName.startsWith('admin') || routeName === 'organizer')) {
 				return null
 			}
 			const wantedId = this.$route.params?.roomId ? String(this.$route.params.roomId) : null
@@ -388,7 +388,7 @@ export default {
 			location.reload()
 		},
 		isOrganizerRouteName(name) {
-			return typeof name === 'string' && (name.startsWith('admin') || name === 'room:manage')
+			return typeof name === 'string' && (name.startsWith('admin') || name === 'organizer' || name === 'room:manage')
 		},
 		worldChange() {
 			// initial connect

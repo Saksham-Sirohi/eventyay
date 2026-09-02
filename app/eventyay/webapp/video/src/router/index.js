@@ -54,15 +54,24 @@ const routes = [
 		props: route => ({ worldName: route.params.worldName ?? '' }),
 		children: [
 			{
-				// we can't alias this because vue-router links seem to explode
-				// manage view gets linked to room url
-				// use a relative empty path instead of absolute '/' so parent params (like worldName) are preserved
+				// In organizer area, default root route to the organizer overview dashboard
 				path: '',
-				redirect: { name: 'about' }
+				redirect: () => {
+					if (window.eventyay?.isOrganizerArea) {
+						return { name: 'organizer' }
+					}
+					return { name: 'about' }
+				}
 			},
 			{
 				path: 'about',
 				alias: 'info',
+				redirect: () => {
+					if (window.eventyay?.isOrganizerArea) {
+						return { name: 'organizer' }
+					}
+					return undefined
+				},
 				component: RoomHeader,
 				children: [{
 					path: '',
@@ -131,7 +140,8 @@ const routes = [
 			},
 			{
 				path: 'event',
-				name: 'admin',
+				name: 'organizer',
+				alias: 'admin',
 				component: () => import('views/admin')
 			},
 			{
@@ -210,24 +220,16 @@ const routes = [
 				component: () => import('views/admin/config/main')
 			},
 			{
-				path: 'event/config/token-generator',
-				name: 'admin:config:token-generator',
-				component: () => import('views/admin/config/token-generator')
-			},
-			{
-				path: 'event/config/privacy',
-				name: 'admin:config:privacy',
-				component: () => import('views/admin/config/privacy')
-			},
-			{
-				path: 'event/config/audit-log',
-				name: 'admin:config:audit-log',
-				component: () => import('views/admin/config/audit-log')
-			},
-			{
-				path: 'event/config/reports',
-				name: 'admin:config:reports',
+				path: 'event/reports',
+				alias: 'event/config/reports',
+				name: 'admin:reports',
 				component: () => import('views/admin/config/reports')
+			},
+			{
+				path: 'event/logs',
+				alias: 'event/config/audit-log',
+				name: 'admin:logs',
+				component: () => import('views/admin/config/audit-log')
 			}
 		]
 	}
@@ -243,9 +245,12 @@ const router = createRouter({
 })
 
 router.beforeEach((to, from, next) => {
-	const isOrganizerRoute = (typeof to.name === 'string' && (to.name.startsWith('admin') || to.name === 'room:manage')) ||
+	const isOrganizerRoute = (typeof to.name === 'string' && (to.name.startsWith('admin') || to.name === 'organizer' || to.name === 'room:manage')) ||
 		(typeof to.path === 'string' && (to.path.startsWith('/event') || to.path.includes('/manage')))
 	if (isOrganizerRoute) {
+		if (window.eventyay?.isOrganizerArea) {
+			return next()
+		}
 		const token = store.state.token || localStorage.getItem('token')
 		let tokenTraits = []
 		if (token) {

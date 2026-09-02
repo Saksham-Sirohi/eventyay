@@ -1,0 +1,99 @@
+from unittest.mock import MagicMock
+from django.core.exceptions import PermissionDenied
+from django.test import RequestFactory
+import pytest
+
+from eventyay.multidomain.views import VideoAdminRedirectView, VideoSPAView
+
+
+def test_video_admin_redirect_view():
+    factory = RequestFactory()
+    request = factory.get('/video/admin/rooms?tab=all')
+    view = VideoAdminRedirectView.as_view()
+    response = view(request, organizer='demo-org', event='demo-event', subpath='rooms')
+    assert response.status_code == 302
+    assert response['Location'] == '/video/event/demo-org/demo-event/rooms?tab=all'
+
+
+def test_video_admin_redirect_view_root():
+    factory = RequestFactory()
+    request = factory.get('/video/admin/')
+    view = VideoAdminRedirectView.as_view()
+    response = view(request, organizer='demo-org', event='demo-event')
+    assert response.status_code == 302
+    assert response['Location'] == '/video/event/demo-org/demo-event/'
+
+
+def test_video_spa_view_unauthenticated_organizer_redirects_to_login(monkeypatch):
+    factory = RequestFactory()
+    request = factory.get('/video/event/demo-org/demo-event/')
+    request.user = MagicMock()
+    request.user.is_authenticated = False
+
+    fake_event = MagicMock()
+    fake_event.slug = 'demo-event'
+    fake_event.organizer.slug = 'demo-org'
+
+    monkeypatch.setattr(
+        'eventyay.multidomain.views.Event.objects.select_related',
+        lambda *args: MagicMock(get=lambda **kwargs: fake_event),
+    )
+
+    view = VideoSPAView.as_view(is_organizer=True)
+    response = view(request, organizer='demo-org', event='demo-event')
+    assert response.status_code == 302
+    assert '/login' in response['Location'] or 'login' in response['Location']
+
+
+def test_video_spa_view_unauthorized_organizer_raises_permission_denied(monkeypatch):
+    factory = RequestFactory()
+    request = factory.get('/video/event/demo-org/demo-event/')
+    request.user = MagicMock()
+    request.user.is_authenticated = True
+    request.user.is_staff = False
+    request.user.is_superuser = False
+    request.user.has_event_permission.return_value = False
+    request.user.has_organizer_permission.return_value = False
+
+    fake_event = MagicMock()
+    fake_event.slug = 'demo-event'
+    fake_event.organizer.slug = 'demo-org'
+
+    monkeypatch.setattr(
+        'eventyay.multidomain.views.Event.objects.select_related',
+        lambda *args: MagicMock(get=lambda **kwargs: fake_event),
+    )
+
+    view = VideoSPAView.as_view(is_organizer=True)
+    with pytest.raises(PermissionDenied):
+        view(request, organizer='demo-org', event='demo-event')
+
+
+def test_get_user_with_platform_user(monkeypatch):
+    from eventyay.base.services.user import get_user
+
+    fake_event = MagicMock()
+    fake_event.id = 1
+    fake_event.slug = 'demo-event'
+    fake_event.organizer = MagicMock()
+    fake_event.organizer.slug = 'demo-org'
+
+    fake_platform_user = MagicMock()
+    fake_platform_user.email = 'organizer@example.com'
+    fake_platform_user.fullname = 'Demo Organizer'
+    fake_platform_user.is_staff = True
+    fake_platform_user.get_event_permission_set.return_value = {'can_change_event_settings'}
+
+    fake_video_user = MagicMock()
+    fake_video_user.id = 'user-123'
+    fake_video_user.traits = ['admin']
+
+    monkeypatch.setattr('eventyay.eventyay_common.video.traits_sync.apply_live_team_video_traits', lambda event, token_id, traits: traits)
+    monkeypatch.setattr('eventyay.base.services.user.get_user_by_token_id', lambda event_id, token_id: fake_video_user)
+    monkeypatch.setattr('eventyay.base.services.user.get_user_by_id', lambda event_id, user_id: fake_video_user)
+    monkeypatch.setattr('eventyay.base.services.user.update_user', lambda event_id, id, **kwargs: fake_video_user)
+    monkeypatch.setattr('eventyay.base.services.user.apply_video_jwt_contact_to_profile', lambda user, event_id, token_id: None)
+
+    user = get_user(fake_event, with_platform_user=fake_platform_user)
+    assert user == fake_video_user
+

@@ -8,12 +8,9 @@
 			:aria-label="toggleNavigationLabel"
 		)
 			i.fa.fa-bars.fa-lg(aria-hidden="true")
-		router-link.navbar-brand(:to="{name: 'about'}", :class="{anonymous: isAnonymous}")
+		a.navbar-brand(:href="platformHomeUrl", :class="{anonymous: isAnonymous}")
 			img(src="/eventyay-logo.svg", alt="eventyay")
 			span.brand-text eventyay
-		a.nav-view-event(:href="publicEventUrl", v-if="isAdminRoute")
-			i.fa.fa-eye(aria-hidden="true")
-			span {{ $t('View event') }}
 	.nav-actions
 		.admin-session-actions(v-if="showAdminModeStart || showAdminModeEnd")
 			button.admin-mode-btn(
@@ -147,18 +144,32 @@ function decodeTokenPayload(rawToken) {
 const tokenPayload = computed(() => decodeTokenPayload(token.value || localStorage.getItem('token')))
 
 const isAdminMode = computed(() => {
+	if (typeof window !== 'undefined' && window.eventyay?.hasStaffSession != null) {
+		return Boolean(window.eventyay.hasStaffSession)
+	}
 	const decoded = tokenPayload.value
 	return Array.isArray(decoded?.traits) && decoded.traits.includes('admin')
 })
 
 const canStartStaffSession = computed(() => {
+	if (typeof window !== 'undefined' && window.eventyay?.isStaff != null) {
+		return Boolean(window.eventyay.isStaff)
+	}
 	const p = tokenPayload.value
 	return p?.is_staff === true || p?.is_superuser === true
 })
 
+const isStaffSessionActive = computed(() => {
+	if (typeof window !== 'undefined' && window.eventyay?.hasStaffSession != null) {
+		return Boolean(window.eventyay.hasStaffSession)
+	}
+	const decoded = tokenPayload.value
+	return Array.isArray(decoded?.traits) && decoded.traits.includes('admin')
+})
+
 const isAdminRoute = computed(() => {
 	const name = router.currentRoute.value?.name
-	return typeof name === 'string' && name.startsWith('admin')
+	return typeof name === 'string' && (name.startsWith('admin') || name === 'organizer' || name === 'room:manage')
 })
 
 const hasOrganiserPermissions = computed(() => {
@@ -174,6 +185,16 @@ const hasOrganiserPermissions = computed(() => {
 
 const eventRouting = computed(() => store.getters.eventRouting)
 
+const isOrganizerNavVisible = computed(() => {
+	return isAdminRoute.value || Boolean(window.eventyay?.isOrganizerArea)
+})
+
+const platformHomeUrl = computed(() => window.eventyay?.platformHomeUrl || '/')
+const homeUrl = computed(() => window.eventyay?.homeUrl || null)
+const ticketUrl = computed(() => window.eventyay?.ticketUrl || null)
+const talkUrl = computed(() => window.eventyay?.talkUrl || null)
+const videoUrl = computed(() => window.eventyay?.videoUrl || router.resolve({ name: 'organizer' }).href)
+
 const publicEventUrl = computed(() => {
 	if (window.eventyay?.eventUrl) {
 		return window.eventyay.eventUrl
@@ -187,13 +208,12 @@ const publicEventUrl = computed(() => {
 })
 
 const showAdminModeStart = computed(() => {
-	if (!canStartStaffSession.value || isAdminMode.value) return false
-	const { organizer, event } = eventRouting.value
-	return Boolean(organizer && event)
+	return canStartStaffSession.value && !isStaffSessionActive.value
 })
 
-// End session is shown whenever the token carries admin traits (staff session / issued claims).
-const showAdminModeEnd = computed(() => isAdminMode.value)
+const showAdminModeEnd = computed(() => {
+	return isStaffSessionActive.value
+})
 
 const isAnonymous = computed(() => Object.keys(user.value.profile || {}).length === 0)
 
@@ -254,7 +274,8 @@ const currentLanguageCode = computed(() => (currentLanguage.value || 'en').slice
 const currentLanguageLabel = computed(() => currentLanguageMeta.value?.nativeLabel || currentLanguage.value)
 
 function getCsrfToken() {
-	const match = document.cookie.match(/(?:eventyay_csrftoken|csrftoken)=([^;]+)/)
+	if (typeof document === 'undefined') return null
+	const match = document.cookie.match(/(?:eventyay_csrftoken|pretix_csrftoken|csrftoken)=([^;]+)/)
 	return match ? decodeURIComponent(match[1]) : null
 }
 
@@ -273,7 +294,7 @@ function getVideoResumeParam() {
 }
 
 function videoAccessRefreshPath() {
-	const { organizer, event } = eventRouting.value
+	const { organizer, event } = eventRouting.value || {}
 	if (!organizer || !event) return null
 	const base = `/common/event/${encodeURIComponent(organizer)}/${encodeURIComponent(event)}/video-access/`
 	const resume = getVideoResumeParam()
@@ -288,38 +309,35 @@ function videoAccessRefreshPath() {
 	return qs ? `${base}?${qs}` : base
 }
 
-function startAdminSession() {
-	const nextUrl = videoAccessRefreshPath()
-	if (!nextUrl) {
-		if (process.env.NODE_ENV === 'development') {
-			console.warn('Cannot start admin session: missing next URL.')
-		}
-		return
+function getNextUrl() {
+	if (window.eventyay?.isOrganizerArea) {
+		return window.location.pathname + window.location.search + window.location.hash
 	}
-	const action = new URL('control/sudo/', buildBaseSansVideo())
-	action.searchParams.set('next', nextUrl)
+	return videoAccessRefreshPath() || (window.location.pathname + window.location.search + window.location.hash)
+}
+
+function startAdminSession() {
+	const nextUrl = getNextUrl()
+	const action = '/control/sudo/'
+	const form = document.createElement('form')
+	form.method = 'POST'
+	form.action = `${action}?next=${encodeURIComponent(nextUrl)}`
 	const csrf = getCsrfToken()
 	if (csrf) {
-		const form = document.createElement('form')
-		form.method = 'POST'
-		form.action = action.toString()
 		const input = document.createElement('input')
 		input.type = 'hidden'
 		input.name = 'csrfmiddlewaretoken'
 		input.value = csrf
 		form.appendChild(input)
-		document.body.appendChild(form)
-		form.submit()
-	} else {
-		window.location.href = action.toString()
 	}
+	document.body.appendChild(form)
+	form.submit()
 }
 
 function endAdminSession() {
-	const action = new URL('control/sudo/stop/', buildBaseSansVideo())
-	const nextUrl = videoAccessRefreshPath()
-	if (nextUrl) action.searchParams.set('next', nextUrl)
-	window.location.href = action.toString()
+	const nextUrl = getNextUrl()
+	const action = '/control/sudo/stop/'
+	window.location.href = `${action}?next=${encodeURIComponent(nextUrl)}`
 }
 
 function buildBaseSansVideo() {
@@ -927,7 +945,6 @@ onBeforeUnmount(() => {
 				padding: 0
 				img
 					height: 28px
-					margin-right: 4px
 		.nav-actions
 			gap: 2px
 		.language-toggle

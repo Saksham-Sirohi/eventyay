@@ -708,6 +708,7 @@ def get_user(
     with_token=None,
     with_client_id=None,
     with_invite_token=None,
+    with_platform_user=None,
 ):
     if with_id:
         user = get_user_by_id(event.id, with_id)
@@ -716,7 +717,38 @@ def get_user(
     token_id = None
     anonymous_invite = None
     token_traits = None
-    if with_token:
+    if with_platform_user:
+        from eventyay.eventyay_common.video.traits_sync import apply_live_team_video_traits
+        from eventyay.eventyay_common.video.permissions import video_attendee_trait
+        from eventyay.eventyay_common.utils import encode_email
+
+        token_id = encode_email(with_platform_user.email)
+        permission_set = with_platform_user.get_event_permission_set(event.organizer, event)
+        is_event_admin = (
+            with_platform_user.is_staff
+            or getattr(with_platform_user, 'is_superuser', False)
+            or bool({'can_change_event_settings', 'can_change_teams', 'can_change_organizer_settings'}.intersection(permission_set))
+        )
+        base_traits = ['attendee', video_attendee_trait(event.slug)]
+        if is_event_admin:
+            base_traits.extend(['admin', f'eventyay-video-event-{event.slug}-organizer'])
+        elif permission_set:
+            base_traits.append(f'eventyay-video-event-{event.slug}-organizer')
+
+        token_traits = apply_live_team_video_traits(event, token_id, base_traits)
+        user = get_user_by_token_id(event.id, token_id)
+        if not user:
+            user = create_user(
+                event_id=event.id,
+                token_id=token_id,
+                traits=token_traits,
+                profile={
+                    'display_name': with_platform_user.fullname or with_platform_user.email.split('@')[0],
+                    'contact_email': with_platform_user.email,
+                },
+            )
+            return user
+    elif with_token:
         from eventyay.eventyay_common.video.traits_sync import apply_live_team_video_traits
 
         token_id = with_token["uid"]
@@ -738,11 +770,11 @@ def get_user(
                 return None
     else:
         raise Exception(
-            "get_user was called without valid with_token, with_id or with_client_id"
+            "get_user was called without valid with_token, with_id, with_platform_user or with_client_id"
         )
 
     if user:
-        if with_token:
+        if with_token or with_platform_user:
             if list(user.traits or []) != list(token_traits or []):
                 update_user(event.id, id=user.id, traits=token_traits, serialize=False)
                 user = get_user_by_id(event.id, user.id)
@@ -955,6 +987,7 @@ def login(
     token=None,
     client_id=None,
     invite_token=None,
+    platform_user=None,
 ) -> LoginResult:
     from .chat import ChatService
     from .event import get_event_config_for_user
@@ -964,6 +997,7 @@ def login(
         with_client_id=client_id,
         with_token=token,
         with_invite_token=invite_token,
+        with_platform_user=platform_user,
     )
 
     if user and user.is_banned:

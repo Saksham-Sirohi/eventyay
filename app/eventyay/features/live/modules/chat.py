@@ -809,6 +809,10 @@ class ChatModule(BaseModule):
     @command("direct.create")
     @require_event_permission(Permission.EVENT_CHAT_DIRECT)
     async def direct_create(self, body):
+        live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+        if not live_features.get("direct_messaging", False):
+            raise ConsumerException("chat.direct_disabled")
+
         user_ids = set(body.get("users", []))
         user_ids.add(self.consumer.user.id)
 

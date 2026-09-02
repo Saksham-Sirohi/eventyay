@@ -74,17 +74,18 @@ async function init({ token, inviteToken }) {
   // Handle base path for routing early so RouterLink can resolve named routes
   const basePath = config.basePath || ''
   let relativePath = location.pathname.replace(basePath, '')
+  const isOrganizerArea = Boolean(window.eventyay?.isOrganizerArea)
   let tokenTraits = []
   if (token) {
     try {
       tokenTraits = jwtDecode(token)?.traits || []
     } catch (e) { /* ignore */ }
-  } else if (localStorage.token) {
+  } else if (localStorage.token && !isOrganizerArea) {
     try {
       tokenTraits = jwtDecode(localStorage.token)?.traits || []
     } catch (e) { /* ignore */ }
   }
-  const isOrganizer = hasOrganizerTraits(tokenTraits)
+  const isOrganizer = isOrganizerArea || hasOrganizerTraits(tokenTraits)
 
   if (!relativePath || relativePath === '/') {
     if (isOrganizer) {
@@ -121,6 +122,9 @@ async function init({ token, inviteToken }) {
     localStorage.token = token
     router.replace(relativePath)
     store.dispatch('login', { token })
+  } else if (isOrganizerArea || window.eventyay?.hasOrganiserPermissions) {
+    router.replace(relativePath)
+    store.dispatch('login', {})
   } else if (localStorage.token) {
     store.dispatch('login', { token: localStorage.token })
   } else if (inviteToken && anonymousRoomId) {

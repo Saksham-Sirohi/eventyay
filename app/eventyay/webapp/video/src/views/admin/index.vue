@@ -5,6 +5,19 @@
 			h1 {{ $t('Video Management') }}
 			.event-subtitle(v-if="world && world.title")
 				span.event-name(v-html="$emojify(world.title)")
+		.navigation-button(v-if="hasModuleNav")
+			a.header-nav.btn.btn-outline-success(:href="homeUrl", v-if="homeUrl")
+				i.fa.fa-home
+				| {{ $t('Home') }}
+			a.header-nav.btn.btn-outline-success(:href="ticketUrl", v-if="ticketUrl")
+				i.fa.fa-ticket
+				| {{ $t('Tickets') }}
+			a.header-nav.btn.btn-outline-success(:href="talkUrl", v-if="talkUrl")
+				i.fa.fa-group
+				| {{ $t('Talks') }}
+			a.header-nav.btn.btn-outline-success.active(:href="videoUrl")
+				i.fa.fa-video-camera
+				| {{ $t('Videos') }}
 
 	.stats-grid
 		.stat-card
@@ -54,11 +67,17 @@
 				.card-details
 					.card-title {{ $t('User Management') }}
 					.card-desc {{ $t('View attendees, grant roles, and moderate') }}
-			router-link.action-card(:to="{name: 'admin:chat:index'}", v-if="hasPermission('room:update')")
+			router-link.action-card(:to="{name: 'admin:config'}", v-if="hasPermission('world:update')")
+				.card-icon
+					i.mdi.mdi-cog-outline
+				.card-details
+					.card-title {{ $t('Video settings') }}
+					.card-desc {{ $t('Manage live features, statistics and integrations') }}
+			router-link.action-card(:to="{name: 'admin:chat:index'}", v-if="hasPermission('room:update') && liveFeatures.chat_rooms")
 				.card-icon
 					i.mdi.mdi-chat-processing
 				.card-details
-					.card-title {{ $t('Chat Rooms') }}
+					.card-title {{ $t('Chat rooms') }}
 					.card-desc {{ $t('Configure public and private chat channels') }}
 
 	.section-block
@@ -79,13 +98,15 @@
 					tbody
 						tr(v-for="room in allRooms.slice(0, 8)", :key="room.id")
 							td.room-name-cell
-								i.mdi(:class="getRoomIcon(room)")
-								span(v-html="$emojify(room.name)")
+								.room-title-wrapper
+									i.mdi(:class="getRoomIcon(room)")
+									span(v-html="$emojify(room.name)")
 							td
 								span.type-badge {{ getRoomTypeLabel(room) }}
 							td.viewers-cell
-								i.mdi.mdi-account-outline
-								span {{ getRoomViewerCount(room) }}
+								.viewers-wrapper
+									i.mdi.mdi-account-outline
+									span {{ getRoomViewerCount(room) }}
 							td.actions-col
 								router-link.btn-table-action(:to="{name: 'admin:rooms:item', params: {roomId: room.id}}", v-if="hasPermission('room:update')")
 									i.mdi.mdi-pencil(aria-hidden="true")
@@ -122,6 +143,13 @@ export default {
 	computed: {
 		...mapState(['world', 'connected', 'rooms', 'roomViewers']),
 		...mapGetters(['hasPermission']),
+		liveFeatures() {
+			return Object.assign({
+				chat_rooms: false,
+				kiosks: false,
+				direct_messaging: false
+			}, this.world?.live_features || window.eventyay?.liveFeatures || {})
+		},
 		allRooms() {
 			return this.rooms || []
 		},
@@ -142,6 +170,21 @@ export default {
 		},
 		announcementsList() {
 			return this.$store.getters['announcement/announcements'] || []
+		},
+		homeUrl() {
+			return window.eventyay?.homeUrl || null
+		},
+		ticketUrl() {
+			return window.eventyay?.ticketUrl || null
+		},
+		talkUrl() {
+			return window.eventyay?.talkUrl || null
+		},
+		videoUrl() {
+			return window.eventyay?.videoUrl || '/video/event/'
+		},
+		hasModuleNav() {
+			return Boolean(window.eventyay?.isOrganizerArea || this.homeUrl)
 		}
 	},
 	methods: {
@@ -212,6 +255,36 @@ export default {
 
 				.event-name
 					font-weight: 500
+
+		.navigation-button
+			display: flex
+			flex-wrap: wrap
+			align-items: center
+			gap: 8px
+			a.header-nav.btn
+				display: inline-flex
+				align-items: center
+				gap: 6px
+				border: 1px solid var(--color-primary, #2185d0)
+				background-color: #ffffff
+				color: var(--color-primary, #2185d0)
+				font-size: 15px
+				font-weight: normal
+				border-radius: 0
+				padding: 7px 10px
+				box-shadow: none
+				text-decoration: none
+				transition: all 0.15s ease
+				i
+					font-size: 14px
+				&:hover, &:focus
+					background-color: var(--color-primary, #2185d0)
+					border-color: var(--color-primary-hover, #1a69a4)
+					color: #ffffff
+				&.active
+					background-color: var(--color-primary, #2185d0)
+					border-color: var(--color-primary-hover, #1a69a4)
+					color: #ffffff
 
 	.stats-grid
 		display: grid
@@ -367,7 +440,7 @@ export default {
 		text-align: left
 
 		th
-			padding: 11px 16px
+			padding: 12px 16px
 			font-size: 11.5px
 			font-weight: 700
 			text-transform: uppercase
@@ -380,13 +453,17 @@ export default {
 			padding: 12px 16px
 			font-size: 13.5px
 			color: #334155
-			border-bottom: 1px solid #f1f5f9
+			border-bottom: 1px solid #e7e7e7
+			vertical-align: middle
 
 		tr:last-child td
 			border-bottom: none
 
-		.room-name-cell
-			display: flex
+		tr:hover td
+			background-color: #fbfcfd
+
+		.room-title-wrapper
+			display: inline-flex
 			align-items: center
 			gap: 8px
 			font-weight: 500
@@ -405,7 +482,7 @@ export default {
 			background-color: #f1f5f9
 			color: #475569
 
-		.viewers-cell
+		.viewers-wrapper
 			display: inline-flex
 			align-items: center
 			gap: 5px
@@ -417,12 +494,13 @@ export default {
 
 		.actions-col
 			text-align: right
+			white-space: nowrap
 
 		.btn-table-action
 			display: inline-flex
 			align-items: center
 			gap: 4px
-			padding: 3px 8px
+			padding: 4px 10px
 			margin-left: 6px
 			border-radius: 4px
 			font-size: 12px
