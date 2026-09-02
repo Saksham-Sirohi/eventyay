@@ -32,11 +32,16 @@ def is_organizer_token_traits(event_slug: str, traits: Iterable[str] | None) -> 
     return bool(traits_set.intersection(managed))
 
 
-def apply_live_team_video_traits(event, token_id, traits):
+def apply_live_team_video_traits(
+    event: Event,
+    token_id: str,
+    traits: Iterable[str] | None,
+    platform_user=None,
+) -> list[str]:
     """
-    Replace team-managed Video traits using live Organizer → Teams grants.
+    Refresh video traits from the database for the platform user associated with this token.
 
-    Cached JWTs (localStorage) can outlive team permission changes. When the JWT
+    Staff video traits are managed only in the team dashboard. If the token
     was issued for an organizer session and maps to a platform account, recompute
     managed traits from current teams.
     Attendee tokens (e.g. ticket purchase) are not upgraded to organizer sessions.
@@ -48,30 +53,31 @@ def apply_live_team_video_traits(event, token_id, traits):
     if not is_organizer_token_traits(event.slug, traits):
         return traits
 
-    from eventyay.base.services.user import (
-        _ticket_lookup,
-        resolve_account_fields_by_token_ids,
-    )
-
-    account = _ticket_lookup(
-        resolve_account_fields_by_token_ids([token_id]),
-        token_id,
-    )
-    if not account:
-        return traits
-
-    email = (account.get('email') or '').strip()
-    if not email:
-        return traits
-
-    with scopes_disabled():
-        platform_user = (
-            User.objects.filter(event__isnull=True, email__iexact=email)
-            .order_by('id')
-            .first()
-        )
     if not platform_user:
-        return traits
+        from eventyay.base.services.user import (
+            _ticket_lookup,
+            resolve_account_fields_by_token_ids,
+        )
+
+        account = _ticket_lookup(
+            resolve_account_fields_by_token_ids([token_id]),
+            token_id,
+        )
+        if not account:
+            return traits
+
+        email = (account.get('email') or '').strip()
+        if not email:
+            return traits
+
+        with scopes_disabled():
+            platform_user = (
+                User.objects.filter(event__isnull=True, email__iexact=email)
+                .order_by('id')
+                .first()
+            )
+        if not platform_user:
+            return traits
 
     # Check if this platform user has an active staff session
     has_active_staff = False

@@ -8,10 +8,10 @@
 		.error(v-if="error") {{ $t('We could not fetch the current configuration.') }}
 		.ui-form-body(v-if="loaded")
 			.config-tabs(role="tablist")
-				button.tab-btn(type="button", role="tab", :class="{active: activeTab === 'general'}", @click="activeTab = 'general'") {{ $t('General & Live Features') }}
+				button.tab-btn(type="button", role="tab", v-if="hasGeneral", :class="{active: activeTab === 'general'}", @click="activeTab = 'general'") {{ $t('General & Live Features') }}
 				button.tab-btn(type="button", role="tab", v-if="hasBBB", :class="{active: activeTab === 'bbb'}", @click="activeTab = 'bbb'") {{ $t('BigBlueButton') }}
-				button.tab-btn(type="button", role="tab", :class="{active: activeTab === 'stages'}", @click="activeTab = 'stages'") {{ $t('Stages & Streams') }}
-			.tab-content(v-show="activeTab === 'general'")
+				button.tab-btn(type="button", role="tab", v-if="hasStage", :class="{active: activeTab === 'stages'}", @click="activeTab = 'stages'") {{ $t('Stages & Streams') }}
+			.tab-content(v-if="hasGeneral", v-show="activeTab === 'general'")
 				h2 {{ $t('Live platform features') }}
 				bunt-checkbox(v-model="config.live_features.chat_rooms", :label="$t('Enable Chat Rooms')", name="enable_chat_rooms")
 				bunt-checkbox(v-model="config.live_features.kiosks", :label="$t('Enable Kiosks')", name="enable_kiosks")
@@ -32,7 +32,7 @@
 				bunt-checkbox(v-model="config.bbb_defaults.bbb_mute_on_start", :label="$t('Auto-mute users')", name="bbb_mute_on_start")
 				bunt-checkbox(v-model="config.bbb_defaults.bbb_disable_cam", :label="$t('Disable camera for non-moderators')", name="bbb_disable_cam")
 				bunt-checkbox(v-model="config.bbb_defaults.bbb_disable_chat", :label="$t('Disable public chat for non-moderators')", name="bbb_disable_chat")
-			.tab-content(v-show="activeTab === 'stages'")
+			.tab-content(v-if="hasStage", v-show="activeTab === 'stages'")
 				h2 {{ $t('Settings for stages') }}
 				bunt-input-outline-container(:label="$t('hls.js config')", :class="{error: v$.hlsConfig.$invalid}")
 					template(#default="{focus, blur}")
@@ -43,7 +43,7 @@
 		.errors {{ validationErrors.join(', ') }}
 </template>
 <script setup>
-import { ref, computed, onMounted, getCurrentInstance } from 'vue'
+import { ref, computed, watch, onMounted, getCurrentInstance } from 'vue'
 import { useStore } from 'vuex'
 import { useVuelidate } from '@vuelidate/core'
 import api from 'lib/api'
@@ -52,8 +52,23 @@ import { required, integer, isJson, url } from 'lib/validators'
 
 const store = useStore()
 const loaded = ref(false)
-const activeTab = ref('general')
-const hasBBB = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.bbb') || store.state.world?.roles?.includes('admin')))
+
+const hasGeneral = computed(() => Boolean(store.getters['hasPermission']?.('world:update') || store.getters['isAdminMode']))
+const hasBBB = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.bbb') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
+const hasStage = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
+
+const activeTab = ref(hasGeneral.value ? 'general' : (hasStage.value ? 'stages' : (hasBBB.value ? 'bbb' : 'general')))
+
+watch([hasGeneral, hasStage, hasBBB], () => {
+	if (activeTab.value === 'general' && !hasGeneral.value) {
+		activeTab.value = hasStage.value ? 'stages' : (hasBBB.value ? 'bbb' : 'general')
+	} else if (activeTab.value === 'stages' && !hasStage.value) {
+		activeTab.value = hasGeneral.value ? 'general' : (hasBBB.value ? 'bbb' : 'stages')
+	} else if (activeTab.value === 'bbb' && !hasBBB.value) {
+		activeTab.value = hasGeneral.value ? 'general' : (hasStage.value ? 'stages' : 'bbb')
+	}
+})
+
 const config = ref({
 	connection_limit: 0,
 	conftool_url: '',
@@ -154,30 +169,35 @@ async function save() {
 	if (!config.value) return
 	saving.value = true
 	try {
-		const patch = {
-			connection_limit: parseInt(config.value.connection_limit, 10) || 0,
-			bbb_defaults: config.value.bbb_defaults,
-			track_room_views: Boolean(config.value.track_room_views),
-			track_event_views: Boolean(config.value.track_video_event_views),
-			track_video_event_views: Boolean(config.value.track_video_event_views),
-			live_features: {
+		const patch = {}
+		if (hasGeneral.value) {
+			patch.connection_limit = parseInt(config.value.connection_limit, 10) || 0
+			patch.track_room_views = Boolean(config.value.track_room_views)
+			patch.track_event_views = Boolean(config.value.track_video_event_views)
+			patch.track_video_event_views = Boolean(config.value.track_video_event_views)
+			patch.live_features = {
 				chat_rooms: Boolean(config.value.live_features?.chat_rooms),
 				kiosks: Boolean(config.value.live_features?.kiosks),
 				direct_messaging: Boolean(config.value.live_features?.direct_messaging),
 				announcements: config.value.live_features?.announcements !== false
 			}
+			if (features?.enabled('conftool')) {
+				patch.conftool_url = config.value.conftool_url || ''
+				patch.conftool_password = config.value.conftool_password || ''
+			}
 		}
-		if (features?.enabled('conftool')) {
-			patch.conftool_url = config.value.conftool_url || ''
-			patch.conftool_password = config.value.conftool_password || ''
+		if (hasBBB.value) {
+			patch.bbb_defaults = config.value.bbb_defaults
 		}
-		if (hlsConfig.value && hlsConfig.value.trim()) {
-			patch.video_player = { 'hls.js': JSON.parse(hlsConfig.value.trim()) }
-		} else {
-			patch.video_player = null
+		if (hasStage.value) {
+			if (hlsConfig.value && hlsConfig.value.trim()) {
+				patch.video_player = { 'hls.js': JSON.parse(hlsConfig.value.trim()) }
+			} else {
+				patch.video_player = null
+			}
 		}
 		const updated = await api.call('world.config.patch', patch)
-		if (store.state.world) {
+		if (store.state.world && patch.live_features) {
 			store.state.world.live_features = patch.live_features
 		}
 	} catch (e) {

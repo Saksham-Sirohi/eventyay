@@ -74,12 +74,12 @@ class EventModule(BaseModule):
         )
 
     @command("config.get")
-    @require_event_permission(Permission.EVENT_UPDATE)
+    @require_event_permission([Permission.EVENT_UPDATE, Permission.EVENT_ROOMS_CREATE_STAGE])
     async def config_get(self, body):
         await self.consumer.send_success(_config_serializer(self.consumer.event).data)
 
     @command("config.patch")
-    @require_event_permission(Permission.EVENT_UPDATE)
+    @require_event_permission([Permission.EVENT_UPDATE, Permission.EVENT_ROOMS_CREATE_STAGE])
     async def config_patch(self, body):
         # Staff Video permissions are assigned only via Organizer → Teams.
         # Reject in-video role/trait editing so the Teams dashboard stays authoritative.
@@ -96,6 +96,14 @@ class EventModule(BaseModule):
                 },
             )
             return
+
+        has_general_update = await self.consumer.event.has_permission_async(
+            user=self.consumer.user, permission=Permission.EVENT_UPDATE
+        )
+        if not has_general_update:
+            # Users with only stage trait can only update video player and bbb defaults
+            stage_allowed = {"bbb_defaults", "video_player", "videoPlayer"}
+            body = {k: v for k, v in body.items() if k in stage_allowed}
 
         if "track_video_event_views" in body and "track_event_views" not in body:
             body["track_event_views"] = body["track_video_event_views"]

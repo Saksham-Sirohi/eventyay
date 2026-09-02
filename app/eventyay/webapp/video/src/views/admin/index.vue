@@ -67,7 +67,7 @@
 				.card-details
 					.card-title {{ $t('User Management') }}
 					.card-desc {{ $t('View attendees, grant roles, and moderate') }}
-			router-link.action-card(:to="{name: 'admin:config'}", v-if="hasPermission('world:update') || isAdminMode")
+			router-link.action-card(:to="{name: 'admin:config'}", v-if="hasPermission('world:update') || hasPermission('world:rooms.create.stage') || hasPermission('world:rooms.create.bbb') || isAdminMode")
 				.card-icon
 					i.mdi.mdi-cog-outline
 				.card-details

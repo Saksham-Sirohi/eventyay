@@ -88,7 +88,7 @@ def test_get_user_with_platform_user(monkeypatch):
     fake_video_user.id = 'user-123'
     fake_video_user.traits = ['admin']
 
-    monkeypatch.setattr('eventyay.eventyay_common.video.traits_sync.apply_live_team_video_traits', lambda event, token_id, traits: traits)
+    monkeypatch.setattr('eventyay.eventyay_common.video.traits_sync.apply_live_team_video_traits', lambda event, token_id, traits, **kwargs: traits)
     monkeypatch.setattr('eventyay.base.services.user.get_user_by_token_id', lambda event_id, token_id: fake_video_user)
     monkeypatch.setattr('eventyay.base.services.user.get_user_by_id', lambda event_id, user_id: fake_video_user)
     monkeypatch.setattr('eventyay.base.services.user.update_user', lambda event_id, id, **kwargs: fake_video_user)
@@ -232,4 +232,28 @@ def test_apply_live_team_video_traits_with_active_staff_session(monkeypatch):
     result = apply_live_team_video_traits(fake_event, 'token123', initial_traits)
 
     assert 'admin' in result
+
+
+def test_apply_live_team_video_traits_with_direct_platform_user():
+    from eventyay.eventyay_common.video.traits_sync import apply_live_team_video_traits
+
+    fake_event = MagicMock()
+    fake_event.slug = 'demo-event'
+    fake_event.organizer = MagicMock()
+
+    fake_platform_user = MagicMock()
+    fake_platform_user.is_staff = False
+    fake_platform_user.is_superuser = False
+    fake_platform_user.get_event_permission_set.return_value = {'can_video_manage_content', 'can_change_event_settings'}
+
+    initial_traits = ['attendee', 'eventyay-video-event-demo-event', 'eventyay-video-event-demo-event-organizer']
+    result = apply_live_team_video_traits(
+        fake_event,
+        'token123',
+        initial_traits,
+        platform_user=fake_platform_user,
+    )
+
+    assert 'eventyay-video-event-demo-event-video-content-manager' in result
+    assert 'eventyay-video-event-demo-event-video-config-manager' in result
 

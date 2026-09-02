@@ -256,7 +256,10 @@ export function checkRoutePermission(to) {
 		announcements: true
 	}, store.state.world?.live_features || window.eventyay?.liveFeatures || {})
 
-	if (name === 'admin:config' || name === 'admin:logs') {
+	if (name === 'admin:config') {
+		return hasPerm('world:update') || hasPerm('world:rooms.create.stage') || hasPerm('world:rooms.create.bbb')
+	}
+	if (name === 'admin:logs') {
 		return hasPerm('world:update')
 	}
 	if (name === 'admin:reports') {

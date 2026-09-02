@@ -170,7 +170,7 @@ aside.c-organiser-sidebar(
 						span.sidebar-text {{ $t('Logs') }}
 
 				//- 10. Settings (formerly Video settings, now below Logs)
-				li(v-if="hasPermission('world:update') || isAdminMode")
+				li(v-if="hasPermission('world:update') || hasPermission('world:rooms.create.stage') || hasPermission('world:rooms.create.bbb') || isAdminMode")
 					router-link.nav-link(:to="{name: 'admin:config'}", :class="{active: isConfigActive}", @click="onNavClick")
 						span.fa.mdi.mdi-cog-outline(aria-hidden="true")
 						span.sidebar-text {{ $t('Settings') }}

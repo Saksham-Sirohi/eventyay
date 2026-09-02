@@ -750,7 +750,7 @@ def get_user(
         elif permission_set:
             base_traits.append(f'eventyay-video-event-{event.slug}-organizer')
 
-        token_traits = apply_live_team_video_traits(event, token_id, base_traits)
+        token_traits = apply_live_team_video_traits(event, token_id, base_traits, platform_user=with_platform_user)
         user = get_user_by_token_id(event.id, token_id)
         if not user:
             user = create_user(
