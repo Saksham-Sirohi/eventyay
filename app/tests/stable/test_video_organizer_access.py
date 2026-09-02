@@ -379,3 +379,58 @@ def test_get_event_config_for_user_aliases_world_and_event_update():
         assert 'world:view' in perms
 
 
+@pytest.mark.asyncio
+async def test_announcements_disabled_guard():
+    from unittest.mock import AsyncMock, MagicMock
+    from eventyay.features.live.modules.announcement import AnnouncementModule
+
+    consumer = MagicMock()
+    consumer.user = MagicMock()
+    consumer.event = MagicMock()
+    consumer.event.id = 1
+    consumer.event.config = {'live_features': {'announcements': False}}
+    consumer.event.has_permission_async = AsyncMock(return_value=True)
+    consumer.send_error = AsyncMock()
+    consumer.send_success = AsyncMock()
+
+    module = AnnouncementModule(consumer)
+    await module.list_announcements({})
+    consumer.send_error.assert_awaited_once_with(code='announcements.disabled')
+    consumer.send_success.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_config_get_and_patch_granular_permissions():
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from eventyay.core.permissions import Permission
+    from eventyay.features.live.modules.event import EventModule
+
+    consumer = MagicMock()
+    consumer.event = MagicMock()
+    consumer.event.id = 1
+    consumer.event.config = {'video_player': {'auto_play': True}, 'conftool_password': 'secret_password'}
+    consumer.user = MagicMock()
+    consumer.send_success = AsyncMock()
+    consumer.send_error = AsyncMock()
+
+    # When user only has EVENT_ROOMS_CREATE_STAGE, config.get strips conftool_password
+    async def fake_has_perm(user, permission):
+        if isinstance(permission, (list, tuple, set)):
+            return Permission.EVENT_ROOMS_CREATE_STAGE in permission
+        return permission == Permission.EVENT_ROOMS_CREATE_STAGE
+
+    consumer.event.has_permission_async = fake_has_perm
+
+    with patch('eventyay.features.live.modules.event._config_serializer') as mock_serializer:
+        mock_serializer.return_value.data = {
+            'video_player': {'auto_play': True},
+            'conftool_password': 'secret_password',
+        }
+        module = EventModule(consumer)
+        await module.config_get({})
+        sent_data = consumer.send_success.call_args[0][0]
+        assert 'conftool_password' not in sent_data
+        assert sent_data['video_player'] == {'auto_play': True}
+
+
+

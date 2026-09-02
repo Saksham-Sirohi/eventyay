@@ -82,7 +82,13 @@ class EventModule(BaseModule):
         ]
     )
     async def config_get(self, body):
-        await self.consumer.send_success(_config_serializer(self.consumer.event).data)
+        data = _config_serializer(self.consumer.event).data
+        has_general_update = await self.consumer.event.has_permission_async(
+            user=self.consumer.user, permission=Permission.EVENT_UPDATE
+        )
+        if not has_general_update:
+            data.pop("conftool_password", None)
+        await self.consumer.send_success(data)
 
     @command("config.patch")
     @require_event_permission(
@@ -113,9 +119,16 @@ class EventModule(BaseModule):
             user=self.consumer.user, permission=Permission.EVENT_UPDATE
         )
         if not has_general_update:
-            # Users with only stage trait can only update video player and bbb defaults
-            stage_allowed = {"bbb_defaults", "video_player", "videoPlayer"}
-            body = {k: v for k, v in body.items() if k in stage_allowed}
+            allowed_keys = set()
+            if await self.consumer.event.has_permission_async(
+                user=self.consumer.user, permission=Permission.EVENT_ROOMS_CREATE_STAGE
+            ):
+                allowed_keys.update({"video_player", "videoPlayer"})
+            if await self.consumer.event.has_permission_async(
+                user=self.consumer.user, permission=Permission.EVENT_ROOMS_CREATE_BBB
+            ):
+                allowed_keys.add("bbb_defaults")
+            body = {k: v for k, v in body.items() if k in allowed_keys}
 
         if "track_video_event_views" in body and "track_event_views" not in body:
             body["track_event_views"] = body["track_video_event_views"]

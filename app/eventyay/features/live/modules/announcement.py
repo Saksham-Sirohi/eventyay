@@ -71,6 +71,11 @@ class AnnouncementModule(BaseModule):
     @command("list")
     @require_event_permission(Permission.EVENT_ANNOUNCE)
     async def list_announcements(self, body):
+        live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+        if not live_features.get("announcements", True):
+            await self.consumer.send_error(code="announcements.disabled")
+            return
+
         announcements = []
         is_moderator = await self.consumer.event.has_permission_async(
             user=self.consumer.user,

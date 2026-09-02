@@ -118,7 +118,7 @@ aside.c-rooms-sidebar(
 								span.viewer-count-badge(:title="getOccupancyTitle(chat)", :aria-label="getOccupancyTitle(chat)")
 									i.mdi.mdi-account-outline(aria-hidden="true")
 									span {{ getOccupancyCount(chat) }}
-							a.nav-sub-link.nav-sub-link--action(v-if="worldHasTextChannels", @click.prevent="showChannelBrowser = true; onNavClick()")
+							button.nav-sub-link.nav-sub-link--action(type="button", v-if="worldHasTextChannels", @click.prevent="showChannelBrowser = true; onNavClick()")
 								span.mdi.mdi-compass-outline(aria-hidden="true")
 								span {{ $t('Browse Channels') }}
 
@@ -141,7 +141,7 @@ aside.c-rooms-sidebar(
 							)
 								span.mdi(aria-hidden="true", :class="call && call.channel === channel.id ? 'mdi-phone' : 'mdi-account-outline'")
 								span {{ getDMChannelName(channel) }}
-							a.nav-sub-link.nav-sub-link--add(@click.prevent="showDMCreationPrompt = true; onNavClick()")
+							button.nav-sub-link.nav-sub-link--add(type="button", @click.prevent="showDMCreationPrompt = true; onNavClick()")
 								span.mdi.mdi-plus(aria-hidden="true")
 								span {{ $t('New Message') }}
 
@@ -250,12 +250,10 @@ export default {
 			return this.$router.resolve({ name: 'organizer' }).href
 		},
 		hasOrganiserPermissions() {
-			const hasToken = Boolean(this.$store.state.token)
-			if (hasToken) {
-				const tokenPayload = this.$store.getters.tokenPayload
-				return Array.isArray(tokenPayload?.traits) && tokenPayload.traits.includes('admin')
-			}
+			const tokenPayload = this.$store.state.token ? this.$store.getters.tokenPayload : null
+			const hasAdminTrait = Array.isArray(tokenPayload?.traits) && tokenPayload.traits.includes('admin')
 			return Boolean(
+				hasAdminTrait ||
 				window.eventyay?.hasOrganiserPermissions ||
 				window.eventyay?.isOrganizerArea ||
 				this.isAdminMode ||
@@ -264,6 +262,8 @@ export default {
 				this.hasPermission('world:users.list') ||
 				this.hasPermission('world:announce') ||
 				this.hasPermission('room:update') ||
+				this.hasPermission('world:rooms.create.stage') ||
+				this.hasPermission('world:rooms.create.bbb') ||
 				this.hasPermission('world:kiosks.manage')
 			)
 		},
@@ -674,7 +674,11 @@ export default {
 					padding: 10px 15px
 					text-decoration: none
 					border: none
+					background: none
 					cursor: pointer
+					font-family: inherit
+					text-align: left
+					width: 100%
 					transition: background-color 0.15s ease, color 0.15s ease
 
 					> .room-name, > span:first-child

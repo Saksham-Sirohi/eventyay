@@ -118,13 +118,13 @@ async function init({ token, inviteToken }) {
   store.commit('setUserLocale', i18n.resolvedLanguage)
   store.dispatch('updateUserTimezone', localStorage.userTimezone || moment.tz.guess())
 
-  if (token) {
+  if (isOrganizerArea || window.eventyay?.hasOrganiserPermissions) {
+    router.replace(relativePath)
+    store.dispatch('login', {})
+  } else if (token) {
     localStorage.token = token
     router.replace(relativePath)
     store.dispatch('login', { token })
-  } else if (isOrganizerArea || window.eventyay?.hasOrganiserPermissions) {
-    router.replace(relativePath)
-    store.dispatch('login', {})
   } else if (localStorage.token) {
     store.dispatch('login', { token: localStorage.token })
   } else if (inviteToken && anonymousRoomId) {

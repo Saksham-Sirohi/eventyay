@@ -191,14 +191,12 @@ def sync_video_traits_for_platform_users(
         if not is_organizer_token_traits(video_user.event.slug, video_user.traits):
             continue
 
-        has_active_staff = StaffSession.objects.filter(
-            user=platform_user,
-            date_end__isnull=True,
-        ).exists()
-
+        is_event_admin = is_platform_event_admin(platform_user)
         current_traits = list(video_user.traits or [])
-        if not has_active_staff and 'admin' in current_traits:
+        if not is_event_admin and 'admin' in current_traits:
             current_traits = [t for t in current_traits if t != 'admin']
+        elif is_event_admin and 'admin' not in current_traits:
+            current_traits.append('admin')
 
         platform_user._teamcache = {}
         permission_set = platform_user.get_event_permission_set(

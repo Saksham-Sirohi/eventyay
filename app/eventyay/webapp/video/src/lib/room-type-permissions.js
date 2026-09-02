@@ -1,6 +1,6 @@
 export function isRoomTypeAvailable(typeId, hasPermission, isAdminMode = false) {
 	if (typeId === 'stage') {
-		return hasPermission('world:rooms.create.stage') || hasPermission('room:update') || isAdminMode
+		return hasPermission('world:rooms.create.stage') || isAdminMode
 	}
 	if (typeId === 'channel-bbb' || typeId === 'channel-janus' || typeId === 'channel-zoom') {
 		return hasPermission('world:rooms.create.bbb') || isAdminMode

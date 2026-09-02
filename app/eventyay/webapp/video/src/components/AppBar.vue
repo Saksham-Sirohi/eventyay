@@ -312,7 +312,7 @@ function getNextUrl() {
 
 function startAdminSession() {
 	const nextUrl = getNextUrl()
-	const action = '/control/sudo/'
+	const action = new URL('control/sudo/', buildBaseSansVideo()).href
 	const form = document.createElement('form')
 	form.method = 'POST'
 	form.action = `${action}?next=${encodeURIComponent(nextUrl)}`
@@ -330,7 +330,7 @@ function startAdminSession() {
 
 function endAdminSession() {
 	const nextUrl = getNextUrl()
-	const action = '/control/sudo/stop/'
+	const action = new URL('control/sudo/stop/', buildBaseSansVideo()).href
 	window.location.href = `${action}?next=${encodeURIComponent(nextUrl)}`
 }
 

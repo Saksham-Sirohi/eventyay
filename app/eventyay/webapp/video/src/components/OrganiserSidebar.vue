@@ -123,7 +123,7 @@ aside.c-organiser-sidebar(
 								span {{ $t('New Kiosk') }}
 
 				//- 5. Direct Messages (collapsible, hidden if direct_messaging is disabled)
-				li.nav-fold(v-if="hasPermission('world:chat.direct') && liveFeatures.direct_messaging")
+				li.nav-fold(v-if="(hasPermission('world:chat.direct') || isAdminMode) && liveFeatures.direct_messaging")
 					.has-children
 						span.nav-link.nav-link-inner(@click="toggleFold('dms')")
 							span.fa.mdi.mdi-account-multiple-outline(aria-hidden="true")
@@ -141,7 +141,7 @@ aside.c-organiser-sidebar(
 							)
 								span.mdi(aria-hidden="true", :class="call && call.channel === channel.id ? 'mdi-phone' : 'mdi-account-outline'")
 								span {{ getDMChannelName(channel) }}
-							a.nav-sub-link.nav-sub-link--add(@click.prevent="showDMCreationPrompt = true; onNavClick()")
+							button.nav-sub-link.nav-sub-link--add(type="button", @click.prevent="showDMCreationPrompt = true; onNavClick()")
 								span.mdi.mdi-plus(aria-hidden="true")
 								span {{ $t('New Message') }}
 
@@ -184,7 +184,7 @@ aside.c-organiser-sidebar(
 
 		teleport(to="body")
 			transition(name="prompt")
-				create-dm-prompt(v-if="showDMCreationPrompt && hasPermission('world:chat.direct')", @close="showDMCreationPrompt = false")
+				create-dm-prompt(v-if="showDMCreationPrompt && (hasPermission('world:chat.direct') || isAdminMode) && liveFeatures.direct_messaging", @close="showDMCreationPrompt = false")
 </template>
 <script>
 import { mapState, mapGetters } from 'vuex'
@@ -293,7 +293,7 @@ export default {
 			return this.$store.state.chat?.call
 		},
 		directMessageChannels() {
-			if (!this.hasPermission('world:chat.direct')) {
+			if (!this.hasPermission('world:chat.direct') && !this.isAdminMode) {
 				return []
 			}
 			return this.$store.getters['chat/directMessageChannels'] || []
@@ -359,7 +359,7 @@ export default {
 			return `${count} ${count === 1 ? this.$t('active viewer') : this.$t('active viewers')}`
 		},
 		async fetchKiosks() {
-			if (!this.hasPermission('world:kiosks.manage')) return
+			if (!this.hasPermission('world:kiosks.manage') && !this.isAdminMode) return
 			try {
 				const res = await api.call('user.list', {type: 'kiosk'})
 				this.kiosks = res?.results || []
@@ -687,6 +687,11 @@ export default {
 					padding: 10px 15px
 					text-decoration: none
 					border: none
+					background: none
+					cursor: pointer
+					font-family: inherit
+					text-align: left
+					width: 100%
 					transition: background-color 0.15s ease, color 0.15s ease
 
 					> .room-name, > span:first-child
