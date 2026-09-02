@@ -159,13 +159,7 @@ const canStartStaffSession = computed(() => {
 	return p?.is_staff === true || p?.is_superuser === true
 })
 
-const isStaffSessionActive = computed(() => {
-	if (typeof window !== 'undefined' && window.eventyay?.hasStaffSession != null) {
-		return Boolean(window.eventyay.hasStaffSession)
-	}
-	const decoded = tokenPayload.value
-	return Array.isArray(decoded?.traits) && decoded.traits.includes('admin')
-})
+const isStaffSessionActive = isAdminMode
 
 const isAdminRoute = computed(() => {
 	const name = router.currentRoute.value?.name

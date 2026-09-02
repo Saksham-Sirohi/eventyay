@@ -60,9 +60,6 @@ VIDEO_PERMISSION_DEFINITIONS: dict[str, VideoPermissionDefinition] = {
     'can_change_config': VideoPermissionDefinition(
         'can_change_config', 'video_config_manager'
     ),
-    'can_change_event_settings': VideoPermissionDefinition(
-        'can_change_event_settings', 'video_config_manager'
-    ),
 }
 
 VIDEO_PERMISSION_BY_FIELD: dict[str, VideoPermissionDefinition] = VIDEO_PERMISSION_DEFINITIONS
@@ -133,7 +130,10 @@ def collect_user_video_traits(event_slug: str, team_permission_set: Iterable[str
     video trait values that should be embedded into the JWT token.
     """
     traits = []
-    for perm_name in team_permission_set:
+    perms = set(team_permission_set or [])
+    if 'can_change_event_settings' in perms:
+        perms.add('can_change_config')
+    for perm_name in perms:
         if definition := VIDEO_PERMISSION_BY_FIELD.get(perm_name):
             traits.append(definition.trait_value(event_slug))
     return traits

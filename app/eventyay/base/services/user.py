@@ -718,32 +718,16 @@ def get_user(
     anonymous_invite = None
     token_traits = None
     if with_platform_user:
-        from eventyay.eventyay_common.video.traits_sync import apply_live_team_video_traits
+        from eventyay.eventyay_common.video.traits_sync import (
+            apply_live_team_video_traits,
+            is_platform_event_admin,
+        )
         from eventyay.eventyay_common.video.permissions import video_attendee_trait
         from eventyay.eventyay_common.utils import encode_email
 
         token_id = encode_email(with_platform_user.email)
         permission_set = with_platform_user.get_event_permission_set(event.organizer, event)
-        has_active_staff = False
-        if hasattr(with_platform_user, 'has_active_staff_session'):
-            try:
-                has_active_staff = bool(with_platform_user.has_active_staff_session())
-            except Exception:
-                pass
-        elif getattr(with_platform_user, 'is_staff', False) and getattr(with_platform_user, 'pk', None):
-            try:
-                with scopes_disabled():
-                    from eventyay.base.models.auth import StaffSession
-                    has_active_staff = StaffSession.objects.filter(
-                        user=with_platform_user,
-                        date_end__isnull=True,
-                    ).exists()
-            except Exception:
-                pass
-        is_event_admin = (
-            getattr(with_platform_user, 'is_superuser', False)
-            or has_active_staff
-        )
+        is_event_admin = is_platform_event_admin(with_platform_user)
         base_traits = ['attendee', video_attendee_trait(event.slug)]
         if is_event_admin:
             base_traits.extend(['admin', f'eventyay-video-event-{event.slug}-organizer'])

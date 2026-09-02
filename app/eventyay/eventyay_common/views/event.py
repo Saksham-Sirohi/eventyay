@@ -60,7 +60,6 @@ from eventyay.base.settings import (
     is_event_series_creation_enabled,
     is_meetup_creation_enabled,
 )
-from eventyay.eventyay_common.video.permissions import video_attendee_trait
 from eventyay.presale.style import regenerate_css
 from eventyay.common.text.path import resolve_media_path
 from eventyay.base.services.quotas import QuotaAvailability
@@ -79,12 +78,9 @@ from eventyay.eventyay_common.forms.event import EventCommonSettingsForm
 from eventyay.eventyay_common.utils import (
     EventCreatedFor,
     check_create_permission,
-    encode_email,
-    generate_token,
 )
 from eventyay.orga.forms.email import CentralMailSettingsForm
 from eventyay.orga.forms.event import EventFooterLinkFormset, EventHeaderLinkFormset
-from eventyay.eventyay_common.video.permissions import collect_user_video_traits
 from eventyay.helpers.plugin_enable import is_video_enabled
 from eventyay.multidomain.urlreverse import build_absolute_uri
 from ..forms.event import EventCloneForm, EventUpdateForm

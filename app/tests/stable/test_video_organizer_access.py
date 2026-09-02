@@ -257,3 +257,42 @@ def test_apply_live_team_video_traits_with_direct_platform_user():
     assert 'eventyay-video-event-demo-event-video-content-manager' in result
     assert 'eventyay-video-event-demo-event-video-config-manager' in result
 
+
+def test_check_has_active_staff_session_and_is_platform_event_admin():
+    from eventyay.eventyay_common.video.traits_sync import (
+        check_has_active_staff_session,
+        is_platform_event_admin,
+    )
+
+    # Anonymous / None user
+    assert check_has_active_staff_session(None) is False
+    assert is_platform_event_admin(None) is False
+
+    # Regular attendee
+    attendee = MagicMock()
+    attendee.is_authenticated = True
+    attendee.is_staff = False
+    attendee.is_superuser = False
+    attendee.has_active_staff_session.return_value = False
+    assert check_has_active_staff_session(attendee) is False
+    assert is_platform_event_admin(attendee) is False
+
+    # Superuser
+    superuser = MagicMock()
+    superuser.is_authenticated = True
+    superuser.is_staff = True
+    superuser.is_superuser = True
+    superuser.has_active_staff_session.return_value = False
+    assert check_has_active_staff_session(superuser) is False
+    assert is_platform_event_admin(superuser) is True
+
+    # Staff with active session
+    staff_active = MagicMock()
+    staff_active.is_authenticated = True
+    staff_active.is_staff = True
+    staff_active.is_superuser = False
+    staff_active.has_active_staff_session.return_value = True
+    assert check_has_active_staff_session(staff_active) is True
+    assert is_platform_event_admin(staff_active) is True
+
+

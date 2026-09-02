@@ -32,6 +32,43 @@ def is_organizer_token_traits(event_slug: str, traits: Iterable[str] | None) -> 
     return bool(traits_set.intersection(managed))
 
 
+def check_has_active_staff_session(user, session_key: str | None = None) -> bool:
+    """Check if the platform user has an active StaffSession."""
+    if not user or not getattr(user, 'is_authenticated', True):
+        return False
+    if hasattr(user, 'has_active_staff_session'):
+        try:
+            if session_key:
+                return bool(user.has_active_staff_session(session_key))
+            return bool(user.has_active_staff_session())
+        except Exception:
+            pass
+    if getattr(user, 'is_staff', False) and getattr(user, 'pk', None):
+        try:
+            with scopes_disabled():
+                from eventyay.base.models.auth import StaffSession
+                qs = StaffSession.objects.filter(
+                    user=user,
+                    date_end__isnull=True,
+                )
+                if session_key:
+                    qs = qs.filter(session_key=session_key)
+                return qs.exists()
+        except Exception:
+            pass
+    return False
+
+
+def is_platform_event_admin(user, session_key: str | None = None) -> bool:
+    """Return True if the user is a superuser or has an active staff session."""
+    if not user:
+        return False
+    return bool(
+        getattr(user, 'is_superuser', False)
+        or check_has_active_staff_session(user, session_key=session_key)
+    )
+
+
 def apply_live_team_video_traits(
     event: Event,
     token_id: str,
@@ -79,31 +116,10 @@ def apply_live_team_video_traits(
         if not platform_user:
             return traits
 
-    # Check if this platform user has an active staff session
-    has_active_staff = False
-    if hasattr(platform_user, 'has_active_staff_session'):
-        try:
-            has_active_staff = bool(platform_user.has_active_staff_session())
-        except Exception:
-            pass
-    elif getattr(platform_user, 'is_staff', False) and getattr(platform_user, 'pk', None):
-        try:
-            with scopes_disabled():
-                from eventyay.base.models.auth import StaffSession
-                has_active_staff = StaffSession.objects.filter(
-                    user=platform_user,
-                    date_end__isnull=True,
-                ).exists()
-        except Exception:
-            pass
-
     # Fresh team membership after permission edits (avoid request-scoped cache).
     platform_user._teamcache = {}
     permission_set = platform_user.get_event_permission_set(event.organizer, event)
-    is_event_admin = (
-        getattr(platform_user, 'is_superuser', False)
-        or has_active_staff
-    )
+    is_event_admin = is_platform_event_admin(platform_user)
 
     if not is_event_admin and 'admin' in traits:
         traits = [t for t in traits if t != 'admin']

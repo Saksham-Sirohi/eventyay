@@ -30,6 +30,7 @@ from eventyay.base.services.video_theme import build_video_theme_for_event
 from eventyay.common.language import get_ui_language_options
 from eventyay.common.templatetags.vite import fetch_vite_html, VIDEO_DIST_DIR, VIDEO_DEV_SERVER
 from eventyay.consts import SizeKey
+from eventyay.eventyay_common.video.traits_sync import check_has_active_staff_session
 
 logger = logging.getLogger(__name__)
 
@@ -193,11 +194,7 @@ class VideoSPAView(View):
                 'eventUrl': str(event.urls.base),
                 'showPublicly': bool(request.user.is_authenticated and request.user.show_publicly),
                 'isStaff': bool(request.user.is_authenticated and (request.user.is_staff or request.user.is_superuser)),
-                'hasStaffSession': bool(
-                    request.user.is_authenticated
-                    and hasattr(request.user, 'has_active_staff_session')
-                    and request.user.has_active_staff_session(request.session.session_key)
-                ),
+                'hasStaffSession': check_has_active_staff_session(request.user, request.session.session_key),
                 'eventSlug': event.slug,
                 'organizerSlug': event.organizer.slug if event.organizer else None,
                 'eventDates': {
