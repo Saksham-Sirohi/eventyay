@@ -156,10 +156,10 @@ def test_video_permission_definitions_mapping():
     assert traits == [f'eventyay-video-event-{slug}-video-config-manager']
 
     traits = collect_user_video_traits(slug, ['can_change_event_settings'])
-    assert traits == [f'eventyay-video-event-{slug}-video-config-manager']
+    assert traits == []
 
     # Non-video permissions yield no video traits
-    traits = collect_user_video_traits(slug, ['can_change_submissions', 'can_view_orders'])
+    traits = collect_user_video_traits(slug, ['can_change_submissions', 'can_view_orders', 'can_change_event_settings'])
     assert traits == []
 
 
@@ -244,7 +244,7 @@ def test_apply_live_team_video_traits_with_direct_platform_user():
     fake_platform_user = MagicMock()
     fake_platform_user.is_staff = False
     fake_platform_user.is_superuser = False
-    fake_platform_user.get_event_permission_set.return_value = {'can_video_manage_content', 'can_change_event_settings'}
+    fake_platform_user.get_event_permission_set.return_value = {'can_video_manage_content', 'can_change_config'}
 
     initial_traits = ['attendee', 'eventyay-video-event-demo-event', 'eventyay-video-event-demo-event-organizer']
     result = apply_live_team_video_traits(
@@ -256,6 +256,16 @@ def test_apply_live_team_video_traits_with_direct_platform_user():
 
     assert 'eventyay-video-event-demo-event-video-content-manager' in result
     assert 'eventyay-video-event-demo-event-video-config-manager' in result
+
+    # Verify can_change_event_settings alone does NOT grant video-config-manager
+    fake_platform_user.get_event_permission_set.return_value = {'can_change_event_settings'}
+    result_settings_only = apply_live_team_video_traits(
+        fake_event,
+        'token123',
+        initial_traits,
+        platform_user=fake_platform_user,
+    )
+    assert 'eventyay-video-event-demo-event-video-config-manager' not in result_settings_only
 
 
 def test_check_has_active_staff_session_and_is_platform_event_admin():

@@ -131,8 +131,6 @@ def collect_user_video_traits(event_slug: str, team_permission_set: Iterable[str
     """
     traits = []
     perms = set(team_permission_set or [])
-    if 'can_change_event_settings' in perms:
-        perms.add('can_change_config')
     for perm_name in perms:
         if definition := VIDEO_PERMISSION_BY_FIELD.get(perm_name):
             traits.append(definition.trait_value(event_slug))

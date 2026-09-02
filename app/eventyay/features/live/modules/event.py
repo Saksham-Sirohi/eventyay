@@ -74,12 +74,24 @@ class EventModule(BaseModule):
         )
 
     @command("config.get")
-    @require_event_permission([Permission.EVENT_UPDATE, Permission.EVENT_ROOMS_CREATE_STAGE])
+    @require_event_permission(
+        [
+            Permission.EVENT_UPDATE,
+            Permission.EVENT_ROOMS_CREATE_STAGE,
+            Permission.EVENT_ROOMS_CREATE_BBB,
+        ]
+    )
     async def config_get(self, body):
         await self.consumer.send_success(_config_serializer(self.consumer.event).data)
 
     @command("config.patch")
-    @require_event_permission([Permission.EVENT_UPDATE, Permission.EVENT_ROOMS_CREATE_STAGE])
+    @require_event_permission(
+        [
+            Permission.EVENT_UPDATE,
+            Permission.EVENT_ROOMS_CREATE_STAGE,
+            Permission.EVENT_ROOMS_CREATE_BBB,
+        ]
+    )
     async def config_patch(self, body):
         # Staff Video permissions are assigned only via Organizer → Teams.
         # Reject in-video role/trait editing so the Teams dashboard stays authoritative.

@@ -54,8 +54,8 @@ const store = useStore()
 const loaded = ref(false)
 
 const hasGeneral = computed(() => Boolean(store.getters['hasPermission']?.('world:update') || store.getters['isAdminMode']))
-const hasBBB = computed(() => Boolean(hasGeneral.value || store.getters['hasPermission']?.('world:rooms.create.bbb') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
-const hasStage = computed(() => Boolean(hasGeneral.value || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
+const hasBBB = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.bbb') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
+const hasStage = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
 
 const activeTab = ref(hasGeneral.value ? 'general' : (hasStage.value ? 'stages' : (hasBBB.value ? 'bbb' : 'general')))
 
