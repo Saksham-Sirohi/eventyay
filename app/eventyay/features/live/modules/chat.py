@@ -129,6 +129,11 @@ def channel_action(
             if not self.channel:
                 raise ConsumerException("room.unknown", "Unknown room ID")
 
+            if not self.channel.room:
+                live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+                if not live_features.get("direct_messaging", False):
+                    raise ConsumerException("chat.direct_disabled")
+
             if self.channel.room and room_module_required is not None:
                 module_config = [
                     m.get("config", {})

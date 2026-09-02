@@ -286,7 +286,8 @@ export function checkRoutePermission(to) {
 	if (name === 'room' && to.params?.roomId) {
 		const room = store.state.rooms?.find(r => r.id === to.params.roomId)
 		if (room && !liveFeatures.chat_rooms) {
-			const isChatRoom = room.modules?.length === 1 && room.modules[0].type === 'chat.native'
+			const isChatRoom = (room.modules?.length === 1 && room.modules[0].type === 'chat.native') ||
+				room.modules?.some(module => ['channel.janus', 'channel.zoom', 'channel.jitsi'].includes(module.type))
 			if (isChatRoom) return false
 		}
 	}

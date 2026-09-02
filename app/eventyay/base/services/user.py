@@ -709,6 +709,7 @@ def get_user(
     with_client_id=None,
     with_invite_token=None,
     with_platform_user=None,
+    with_session_key=None,
 ):
     if with_id:
         user = get_user_by_id(event.id, with_id)
@@ -727,14 +728,16 @@ def get_user(
 
         token_id = encode_email(with_platform_user.email)
         permission_set = with_platform_user.get_event_permission_set(event.organizer, event)
-        is_event_admin = is_platform_event_admin(with_platform_user)
+        is_event_admin = is_platform_event_admin(with_platform_user, session_key=with_session_key)
         base_traits = ['attendee', video_attendee_trait(event.slug)]
         if is_event_admin:
             base_traits.extend(['admin', f'eventyay-video-event-{event.slug}-organizer'])
         elif permission_set:
             base_traits.append(f'eventyay-video-event-{event.slug}-organizer')
 
-        token_traits = apply_live_team_video_traits(event, token_id, base_traits, platform_user=with_platform_user)
+        token_traits = apply_live_team_video_traits(
+            event, token_id, base_traits, platform_user=with_platform_user, session_key=with_session_key
+        )
         user = get_user_by_token_id(event.id, token_id)
         if not user:
             user = create_user(
@@ -987,6 +990,7 @@ def login(
     client_id=None,
     invite_token=None,
     platform_user=None,
+    session_key=None,
 ) -> LoginResult:
     from .chat import ChatService
     from .event import get_event_config_for_user
@@ -997,6 +1001,7 @@ def login(
         with_token=token,
         with_invite_token=invite_token,
         with_platform_user=platform_user,
+        with_session_key=session_key,
     )
 
     if user and user.is_banned:
@@ -1008,14 +1013,14 @@ def login(
         if token:
             raise AuthError("auth.denied")
         else:
-            raise AuthError("auth.missing_token")
+            raise AuthError("auth.missing_id_or_token")
+
+    event_config_obj = getattr(event, "config", None) or {}
+    track_event_views = bool(event_config_obj.get("track_event_views", True))
 
     user.last_login = now()
     user.save(update_fields=["last_login"])
 
-    # Safely handle missing event.config (can be None for newly created events or misconfigured instances)
-    event_config_obj = getattr(event, "config", None) or {}
-    track_event_views = bool(event_config_obj.get("track_event_views", False))
     if track_event_views:
         view = start_view(user)
     else:

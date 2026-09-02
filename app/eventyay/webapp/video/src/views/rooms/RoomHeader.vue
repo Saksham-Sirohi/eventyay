@@ -123,9 +123,9 @@ export default {
 			if (window.history.state && window.history.state.back) {
 				this.$router.back()
 			} else if (window.eventyay?.isOrganizerArea) {
-				this.$router.push({ name: 'organizer' })
+				this.$router.replace({ name: 'organizer' })
 			} else {
-				this.$router.push({ name: 'about' })
+				this.$router.replace({ name: 'about' })
 			}
 		}
 	},

@@ -433,4 +433,105 @@ async def test_config_get_and_patch_granular_permissions():
         assert sent_data['video_player'] == {'auto_play': True}
 
 
+def test_ensure_video_configuration_preserves_existing_config():
+    from eventyay.eventyay_common.views.event import VideoAccessAuthenticator
+
+    view = VideoAccessAuthenticator()
+    fake_request = MagicMock()
+    fake_event = MagicMock()
+    fake_event.config = {'live_features': {'kiosks': True}, 'track_event_views': False}
+    fake_event.settings = MagicMock()
+    fake_request.event = fake_event
+    view.request = fake_request
+
+    view._ensure_video_configuration()
+
+    assert fake_event.config['live_features'] == {'kiosks': True}
+    assert fake_event.config['track_event_views'] is False
+    assert 'JWT_secrets' in fake_event.config
+    assert len(fake_event.config['JWT_secrets']) == 1
+
+
+def test_is_announcements_enabled_helper():
+    from eventyay.features.live.modules.announcement import is_announcements_enabled
+
+    event_default = MagicMock(config={})
+    assert is_announcements_enabled(event_default) is True
+
+    event_enabled = MagicMock(config={'live_features': {'announcements': True}})
+    assert is_announcements_enabled(event_enabled) is True
+
+    event_disabled = MagicMock(config={'live_features': {'announcements': False}})
+    assert is_announcements_enabled(event_disabled) is False
+
+    event_none_config = MagicMock(config=None)
+    assert is_announcements_enabled(event_none_config) is True
+
+
+@pytest.mark.asyncio
+async def test_channel_permission_required_blocks_direct_channel_when_disabled():
+    from eventyay.features.live.modules.chat import channel_action
+    from eventyay.features.live.exceptions import ConsumerException
+
+    consumer = MagicMock()
+    consumer.event = MagicMock()
+    consumer.event.config = {'live_features': {'direct_messaging': False}}
+    consumer.channel_cache = {}
+
+    class FakeChatModule:
+        def __init__(self, consumer):
+            self.consumer = consumer
+            self.channel = None
+
+        @channel_action()
+        async def fake_action(self, body):
+            return "ok"
+
+    module = FakeChatModule(consumer)
+    direct_channel = MagicMock()
+    direct_channel.room = None
+    consumer.channel_cache['dm_channel_1'] = direct_channel
+
+    with pytest.raises(ConsumerException) as exc_info:
+        await module.fake_action({'channel': 'dm_channel_1'})
+    assert exc_info.value.code == 'chat.direct_disabled'
+
+
+def test_apply_live_team_video_traits_passes_session_key(monkeypatch):
+    from eventyay.eventyay_common.video.traits_sync import apply_live_team_video_traits
+
+    fake_event = MagicMock()
+    fake_event.slug = 'demo-event'
+    fake_event.organizer = MagicMock()
+
+    fake_platform_user = MagicMock()
+    fake_platform_user.is_staff = True
+    fake_platform_user.is_superuser = False
+    fake_platform_user.has_active_staff_session.side_effect = lambda sk: sk == 'valid_session'
+    fake_platform_user.get_event_permission_set.return_value = set()
+
+    monkeypatch.setattr(
+        'eventyay.base.services.user.resolve_account_fields_by_token_ids',
+        lambda ids: {'token123': {'email': 'user@example.com'}},
+    )
+    monkeypatch.setattr(
+        'eventyay.base.services.user._ticket_lookup',
+        lambda accounts, tid: {'email': 'user@example.com'},
+    )
+    monkeypatch.setattr(
+        'eventyay.eventyay_common.video.traits_sync.User.objects.filter',
+        lambda **kwargs: MagicMock(order_by=lambda *args: MagicMock(first=lambda: fake_platform_user)),
+    )
+
+    initial_traits = ['attendee', 'eventyay-video-event-demo-event', 'eventyay-video-event-demo-event-organizer']
+    # With wrong session key: admin should NOT be present
+    result_wrong = apply_live_team_video_traits(fake_event, 'token123', initial_traits, session_key='wrong_session')
+    assert 'admin' not in result_wrong
+
+    # With matching session key: admin should be present
+    result_valid = apply_live_team_video_traits(fake_event, 'token123', initial_traits, session_key='valid_session')
+    assert 'admin' in result_valid
+
+
+
 

@@ -74,6 +74,7 @@ def apply_live_team_video_traits(
     token_id: str,
     traits: Iterable[str] | None,
     platform_user=None,
+    session_key: str | None = None,
 ) -> list[str]:
     """
     Refresh video traits from the database for the platform user associated with this token.
@@ -119,7 +120,7 @@ def apply_live_team_video_traits(
     # Fresh team membership after permission edits (avoid request-scoped cache).
     platform_user._teamcache = {}
     permission_set = platform_user.get_event_permission_set(event.organizer, event)
-    is_event_admin = is_platform_event_admin(platform_user)
+    is_event_admin = is_platform_event_admin(platform_user, session_key=session_key)
 
     if not is_event_admin and 'admin' in traits:
         traits = [t for t in traits if t != 'admin']

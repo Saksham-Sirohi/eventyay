@@ -1326,16 +1326,16 @@ class VideoAccessAuthenticator(View):
             from django.utils.crypto import get_random_string
 
             secret = get_random_string(length=64)
-            event.config = {
-                "JWT_secrets": [
-                    {
-                        "issuer": "any",
-                        "audience": "eventyay",
-                        "secret": secret,
-                    }
-                ]
-            }
-            event.save()
+            config = dict(event.config or {})
+            config["JWT_secrets"] = [
+                {
+                    "issuer": "any",
+                    "audience": "eventyay",
+                    "secret": secret,
+                }
+            ]
+            event.config = config
+            event.save(update_fields=["config"])
 
         # Get or use existing JWT secret
         jwt_config = event.config["JWT_secrets"][0]
