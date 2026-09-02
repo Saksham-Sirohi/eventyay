@@ -178,7 +178,7 @@ aside.c-organiser-sidebar(
 			.buffer
 
 			.sidebar-footer-action
-				a.btn-public-view(:href="publicVideoUrl", target="_blank", rel="noopener noreferrer", @click="onNavClick")
+				a.btn-public-view(:href="publicVideoUrl", @click="onNavClick")
 					i.fa.fa-eye(aria-hidden="true")
 					span {{ $t('View Public Video') }}
 
