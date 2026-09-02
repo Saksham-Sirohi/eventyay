@@ -1013,7 +1013,7 @@ def login(
         if token:
             raise AuthError("auth.denied")
         else:
-            raise AuthError("auth.missing_id_or_token")
+            raise AuthError("auth.missing_token")
 
     event_config_obj = getattr(event, "config", None) or {}
     track_event_views = bool(event_config_obj.get("track_event_views", True))
