@@ -20,6 +20,11 @@ class AnnouncementModule(BaseModule):
     @command("create")
     @require_event_permission(Permission.EVENT_ANNOUNCE)
     async def create_announcement(self, body):
+        live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+        if live_features.get("announcements") is False:
+            await self.consumer.send_error(code="announcements.disabled")
+            return
+
         announcement = await create_announcement(
             event=self.consumer.event,
             text=body.get("text"),
@@ -40,6 +45,11 @@ class AnnouncementModule(BaseModule):
     @command("update")
     @require_event_permission(Permission.EVENT_ANNOUNCE)
     async def update_announcement(self, body):
+        live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+        if live_features.get("announcements") is False:
+            await self.consumer.send_error(code="announcements.disabled")
+            return
+
         old_announcement = await get_announcement(
             body.get("id"), event=self.consumer.event.id
         )

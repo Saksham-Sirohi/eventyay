@@ -33,7 +33,7 @@ aside.c-organiser-sidebar(
 						span.sidebar-text {{ $t('Overview') }}
 
 				//- 2. Rooms & Stages (collapsible)
-				li.nav-fold(v-if="hasPermission('room:update')")
+				li.nav-fold(v-if="hasPermission('room:update') || hasPermission('world:rooms.create.stage') || hasPermission('world:update')")
 					.has-children
 						router-link.nav-link.nav-link-inner(:to="{name: 'admin:rooms:index'}", :class="{active: isRoomsActive}", @click="onNavClick")
 							span.fa.mdi.mdi-door-open(aria-hidden="true")
@@ -64,7 +64,7 @@ aside.c-organiser-sidebar(
 								span {{ $t('New Room') }}
 
 				//- 3. Chat rooms (collapsible, hidden if chat_rooms is disabled)
-				li.nav-fold(v-if="hasPermission('room:update') && liveFeatures.chat_rooms")
+				li.nav-fold(v-if="(hasPermission('room:update') || hasPermission('world:rooms.create.chat') || hasPermission('world:update')) && liveFeatures.chat_rooms")
 					.has-children
 						router-link.nav-link.nav-link-inner(:to="{name: 'admin:chat:index'}", :class="{active: isChatActive}", @click="onNavClick")
 							span.fa.mdi.mdi-chat-processing-outline(aria-hidden="true")
@@ -95,7 +95,7 @@ aside.c-organiser-sidebar(
 								span {{ $t('New Channel') }}
 
 				//- 4. Kiosks (collapsible, hidden if kiosks is disabled)
-				li.nav-fold(v-if="hasPermission('world:kiosks.manage') && liveFeatures.kiosks")
+				li.nav-fold(v-if="(hasPermission('world:kiosks.manage') || hasPermission('world:update')) && liveFeatures.kiosks")
 					.has-children
 						router-link.nav-link.nav-link-inner(:to="{name: 'admin:kiosks:index'}", :class="{active: isKiosksActive}", @click="onNavClick")
 							span.fa.mdi.mdi-monitor-dashboard(aria-hidden="true")
@@ -146,19 +146,19 @@ aside.c-organiser-sidebar(
 								span {{ $t('New Message') }}
 
 				//- 6. Users
-				li(v-if="hasPermission('world:users.list')")
+				li(v-if="hasPermission('world:users.list') || hasPermission('world:update')")
 					router-link.nav-link(:to="{name: 'admin:users'}", @click="onNavClick")
 						span.fa.mdi.mdi-account-multiple-outline(aria-hidden="true")
 						span.sidebar-text {{ $t('Users') }}
 
 				//- 7. Announcements
-				li(v-if="hasPermission('world:announce')")
+				li(v-if="(hasPermission('world:announce') || hasPermission('world:update')) && liveFeatures.announcements !== false")
 					router-link.nav-link(:to="{name: 'admin:announcements'}", @click="onNavClick")
 						span.fa.mdi.mdi-bullhorn-outline(aria-hidden="true")
 						span.sidebar-text {{ $t('Announcements') }}
 
 				//- 8. Reports
-				li(v-if="hasPermission('world:update')")
+				li(v-if="hasPermission('world:graphs') || hasPermission('world:update')")
 					router-link.nav-link(:to="{name: 'admin:reports'}", :class="{active: isReportsActive}", @click="onNavClick")
 						span.fa.mdi.mdi-file-chart-outline(aria-hidden="true")
 						span.sidebar-text {{ $t('Reports') }}
@@ -239,7 +239,8 @@ export default {
 			return Object.assign({
 				chat_rooms: false,
 				kiosks: false,
-				direct_messaging: false
+				direct_messaging: false,
+				announcements: true
 			}, this.world?.live_features || window.eventyay?.liveFeatures || {})
 		},
 		eventDateSubtitle() {

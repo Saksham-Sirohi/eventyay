@@ -323,14 +323,13 @@ def get_event_config_for_user(event, user):
         "pretalx": pretalx_public,
         "track_event_views": cfg.get("track_event_views", True),
         "track_video_event_views": cfg.get("track_event_views", True),
-        "live_features": cfg.get(
-            "live_features",
-            {
-                "chat_rooms": False,
-                "kiosks": False,
-                "direct_messaging": False,
-            },
-        ),
+        "live_features": {
+            "chat_rooms": False,
+            "kiosks": False,
+            "direct_messaging": False,
+            "announcements": True,
+            **(cfg.get("live_features") or {}),
+        },
         "onsite_traits": cfg.get("onsite_traits", []),
     }
     # Build permission strings and include world:* aliases for event:* permissions for frontend compatibility
@@ -630,14 +629,13 @@ def _config_serializer(event, *args, **kwargs):
             "bbb_defaults": bbb_defaults,
             "track_room_views": cfg.get("track_room_views", True),
             "track_event_views": cfg.get("track_event_views", True),
-            "live_features": cfg.get(
-                "live_features",
-                {
-                    "chat_rooms": False,
-                    "kiosks": False,
-                    "direct_messaging": False,
-                },
-            ),
+            "live_features": {
+                "chat_rooms": False,
+                "kiosks": False,
+                "direct_messaging": False,
+                "announcements": True,
+                **(cfg.get("live_features") or {}),
+            },
             "pretalx": cfg.get("pretalx", {}),
             "video_player": cfg.get("video_player"),
             "timezone": event.timezone,

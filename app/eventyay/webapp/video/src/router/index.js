@@ -244,13 +244,49 @@ const router = createRouter({
 	routes
 })
 
+export function checkRoutePermission(to) {
+	if (!store.state.permissions) return true
+	const name = typeof to.name === 'string' ? to.name : ''
+	const hasPerm = store.getters.hasPermission
+	const liveFeatures = Object.assign({
+		chat_rooms: false,
+		kiosks: false,
+		direct_messaging: false,
+		announcements: true
+	}, store.state.world?.live_features || window.eventyay?.liveFeatures || {})
+
+	if (name === 'admin:config' || name === 'admin:logs') {
+		return hasPerm('world:update')
+	}
+	if (name === 'admin:reports') {
+		return hasPerm('world:graphs') || hasPerm('world:update')
+	}
+	if (name.startsWith('admin:users') || name === 'admin:user') {
+		return hasPerm('world:users.list') || hasPerm('world:update')
+	}
+	if (name.startsWith('admin:announcements')) {
+		return liveFeatures.announcements !== false && (hasPerm('world:announce') || hasPerm('world:update'))
+	}
+	if (name.startsWith('admin:kiosks')) {
+		return liveFeatures.kiosks && (hasPerm('world:kiosks.manage') || hasPerm('world:update'))
+	}
+	if (name.startsWith('admin:chat')) {
+		return liveFeatures.chat_rooms && (hasPerm('room:update') || hasPerm('world:rooms.create.chat') || hasPerm('world:update'))
+	}
+	if (name.startsWith('admin:rooms') || name === 'room:manage') {
+		return hasPerm('room:update') || hasPerm('world:rooms.create.stage') || hasPerm('world:rooms.create.bbb') || hasPerm('world:rooms.create.jitsi') || hasPerm('world:update')
+	}
+	return true
+}
+
 router.beforeEach((to, from, next) => {
 	const isOrganizerRoute = (typeof to.name === 'string' && (to.name.startsWith('admin') || to.name === 'organizer' || to.name === 'room:manage')) ||
 		(typeof to.path === 'string' && (to.path.startsWith('/event') || to.path.includes('/manage')))
 	if (isOrganizerRoute) {
-		if (window.eventyay?.isOrganizerArea) {
-			return next()
-		}
+		const isPermittedInOrganizerArea = Boolean(
+			window.eventyay?.isOrganizerArea ||
+			window.eventyay?.hasOrganiserPermissions
+		)
 		const token = store.state.token || localStorage.getItem('token')
 		let tokenTraits = []
 		if (token) {
@@ -266,15 +302,30 @@ router.beforeEach((to, from, next) => {
 			store.getters.hasPermission('room:chat.moderate') ||
 			store.getters.hasPermission('room:poll.manage') ||
 			store.getters.hasPermission('room:question.moderate') ||
-			store.getters.hasPermission('world:kiosks.manage')
-		if (!hasManager && !hasStorePerm) {
+			store.getters.hasPermission('world:kiosks.manage') ||
+			store.getters.hasPermission('world:graphs')
+		if (!isPermittedInOrganizerArea && !hasManager && !hasStorePerm) {
 			if (to.params?.roomId) {
 				return next({ name: 'room', params: { roomId: to.params.roomId } })
 			}
 			return next({ name: 'about' })
 		}
+		if (!checkRoutePermission(to)) {
+			return next({ name: 'organizer' })
+		}
 	}
 	next()
 })
+
+store.watch(
+	state => state.permissions,
+	(permissions) => {
+		if (permissions && router.currentRoute.value) {
+			if (!checkRoutePermission(router.currentRoute.value)) {
+				router.replace({ name: 'organizer' })
+			}
+		}
+	}
+)
 
 export default router

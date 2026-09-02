@@ -16,6 +16,7 @@
 				bunt-checkbox(v-model="config.live_features.chat_rooms", :label="$t('Enable Chat Rooms')", name="enable_chat_rooms")
 				bunt-checkbox(v-model="config.live_features.kiosks", :label="$t('Enable Kiosks')", name="enable_kiosks")
 				bunt-checkbox(v-model="config.live_features.direct_messaging", :label="$t('Enable Direct messaging')", name="enable_direct_messaging")
+				bunt-checkbox(v-model="config.live_features.announcements", :label="$t('Allow Announcements')", name="allow_announcements")
 				h2 {{ $t('Tracking and statistics') }}
 				bunt-checkbox(v-model="config.track_room_views", :label="$t('Track room views')", name="track_room_views")
 				bunt-checkbox(v-model="config.track_video_event_views", :label="$t('Track video event views')", name="track_video_event_views")
@@ -62,7 +63,8 @@ const config = ref({
 	live_features: {
 		chat_rooms: false,
 		kiosks: false,
-		direct_messaging: false
+		direct_messaging: false,
+		announcements: true
 	},
 	bbb_defaults: {
 		record: false,
@@ -118,7 +120,8 @@ async function fetchConfig() {
 			live_features: Object.assign({
 				chat_rooms: false,
 				kiosks: false,
-				direct_messaging: false
+				direct_messaging: false,
+				announcements: true
 			}, data.live_features || {})
 		}
 		hlsConfig.value = data.video_player?.['hls.js'] ? JSON.stringify(data.video_player['hls.js'], null, 2) : ''
@@ -160,7 +163,8 @@ async function save() {
 			live_features: {
 				chat_rooms: Boolean(config.value.live_features?.chat_rooms),
 				kiosks: Boolean(config.value.live_features?.kiosks),
-				direct_messaging: Boolean(config.value.live_features?.direct_messaging)
+				direct_messaging: Boolean(config.value.live_features?.direct_messaging),
+				announcements: config.value.live_features?.announcements !== false
 			}
 		}
 		if (features?.enabled('conftool')) {

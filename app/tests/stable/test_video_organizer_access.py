@@ -97,3 +97,61 @@ def test_get_user_with_platform_user(monkeypatch):
     user = get_user(fake_event, with_platform_user=fake_platform_user)
     assert user == fake_video_user
 
+
+def test_video_announcements_live_feature_default():
+    from eventyay.base.services.event import _config_serializer
+
+    fake_event = MagicMock()
+    fake_event.id = 1
+    fake_event.slug = 'demo-event'
+    fake_event.config = {'live_features': {'chat_rooms': True}}
+    fake_event.locale = 'en'
+    fake_event.roles = {}
+    fake_event.trait_grants = {}
+    fake_event.timezone = 'UTC'
+
+    data = _config_serializer(fake_event).data
+    assert data['live_features']['announcements'] is True
+    assert data['live_features']['chat_rooms'] is True
+
+
+@pytest.mark.asyncio
+async def test_announcement_module_disabled_check():
+    from unittest.mock import AsyncMock
+    from eventyay.features.live.modules.announcement import AnnouncementModule
+
+    fake_consumer = MagicMock()
+    fake_consumer.user = MagicMock()
+    fake_consumer.event = MagicMock()
+    fake_consumer.event.has_permission_async = AsyncMock(return_value=True)
+    fake_consumer.event.config = {'live_features': {'announcements': False}}
+    fake_consumer.send_error = AsyncMock()
+
+    module = AnnouncementModule(fake_consumer)
+    await module.create_announcement({'text': 'Hello'})
+    fake_consumer.send_error.assert_called_once_with(code='announcements.disabled')
+
+
+def test_video_permission_definitions_mapping():
+    from eventyay.eventyay_common.video.permissions import (
+        collect_user_video_traits,
+        VIDEO_PERMISSION_DEFINITIONS,
+    )
+
+    slug = 'test-conf'
+    # Test individual permissions
+    traits = collect_user_video_traits(slug, ['can_video_manage_content'])
+    assert traits == [f'eventyay-video-event-{slug}-video-content-manager']
+
+    traits = collect_user_video_traits(slug, ['can_video_moderate'])
+    assert traits == [f'eventyay-video-event-{slug}-video-moderator']
+
+    traits = collect_user_video_traits(slug, ['can_video_manage_kiosks'])
+    assert traits == [f'eventyay-video-event-{slug}-video-kiosk-manager']
+
+    traits = collect_user_video_traits(slug, ['can_video_view_analytics'])
+    assert traits == [f'eventyay-video-event-{slug}-video-analyst']
+
+    traits = collect_user_video_traits(slug, ['can_change_config'])
+    assert traits == [f'eventyay-video-event-{slug}-video-config-manager']
+

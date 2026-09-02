@@ -158,11 +158,13 @@ class VideoSPAView(View):
                     'systemlog': safe_reverse('live:systemlog') or '',
                 },
                 'features': getattr(event, 'feature_flags', {}) or {},
-                'liveFeatures': cfg.get('live_features', {
+                'liveFeatures': {
                     'chat_rooms': False,
                     'kiosks': False,
                     'direct_messaging': False,
-                }),
+                    'announcements': True,
+                    **(cfg.get('live_features') or {}),
+                },
                 'externalAuthUrl': getattr(event, 'external_auth_url', None),
                 'locale': event.locale,
                 'date_locale': cfg.get('date_locale', 'en-ie'),

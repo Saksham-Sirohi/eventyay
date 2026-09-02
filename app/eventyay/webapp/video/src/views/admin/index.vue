@@ -38,7 +38,7 @@
 			.stat-content
 				.stat-value {{ totalViewersCount }}
 				.stat-label {{ $t('Active Viewers') }}
-		.stat-card
+		.stat-card(v-if="(hasPermission('world:announce') || hasPermission('world:update')) && liveFeatures.announcements !== false")
 			.stat-icon.announcements
 				i.mdi.mdi-bullhorn
 			.stat-content
@@ -49,19 +49,19 @@
 		.section-header
 			h2 {{ $t('Quick Actions') }}
 		.quick-actions-grid
-			router-link.action-card(:to="{name: 'admin:rooms:index'}", v-if="hasPermission('room:update')")
+			router-link.action-card(:to="{name: 'admin:rooms:index'}", v-if="hasPermission('room:update') || hasPermission('world:rooms.create.stage') || hasPermission('world:update')")
 				.card-icon
 					i.mdi.mdi-door-open
 				.card-details
 					.card-title {{ $t('Rooms & Stages') }}
 					.card-desc {{ $t('Create, configure and manage video rooms') }}
-			router-link.action-card(:to="{name: 'admin:announcements'}", v-if="hasPermission('world:announce')")
+			router-link.action-card(:to="{name: 'admin:announcements'}", v-if="(hasPermission('world:announce') || hasPermission('world:update')) && liveFeatures.announcements !== false")
 				.card-icon
 					i.mdi.mdi-bullhorn
 				.card-details
 					.card-title {{ $t('Announcements') }}
 					.card-desc {{ $t('Broadcast announcements to all attendees') }}
-			router-link.action-card(:to="{name: 'admin:users'}", v-if="hasPermission('world:users.list')")
+			router-link.action-card(:to="{name: 'admin:users'}", v-if="hasPermission('world:users.list') || hasPermission('world:update')")
 				.card-icon
 					i.mdi.mdi-account-multiple
 				.card-details
@@ -73,17 +73,29 @@
 				.card-details
 					.card-title {{ $t('Video settings') }}
 					.card-desc {{ $t('Manage live features, statistics and integrations') }}
-			router-link.action-card(:to="{name: 'admin:chat:index'}", v-if="hasPermission('room:update') && liveFeatures.chat_rooms")
+			router-link.action-card(:to="{name: 'admin:chat:index'}", v-if="(hasPermission('room:update') || hasPermission('world:rooms.create.chat') || hasPermission('world:update')) && liveFeatures.chat_rooms")
 				.card-icon
 					i.mdi.mdi-chat-processing
 				.card-details
 					.card-title {{ $t('Chat rooms') }}
 					.card-desc {{ $t('Configure public and private chat channels') }}
+			router-link.action-card(:to="{name: 'admin:kiosks:index'}", v-if="(hasPermission('world:kiosks.manage') || hasPermission('world:update')) && liveFeatures.kiosks")
+				.card-icon
+					i.mdi.mdi-monitor-dashboard
+				.card-details
+					.card-title {{ $t('Kiosks') }}
+					.card-desc {{ $t('Manage display kiosks and terminals') }}
+			router-link.action-card(:to="{name: 'admin:reports'}", v-if="hasPermission('world:graphs') || hasPermission('world:update')")
+				.card-icon
+					i.mdi.mdi-file-chart-outline
+				.card-details
+					.card-title {{ $t('Reports') }}
+					.card-desc {{ $t('Download analytics, session and attendee data') }}
 
 	.section-block
 		.section-header
 			h2 {{ $t('Live Rooms & Streams') }}
-			router-link.section-link(:to="{name: 'admin:rooms:index'}", v-if="hasPermission('room:update')")
+			router-link.section-link(:to="{name: 'admin:rooms:index'}", v-if="hasPermission('room:update') || hasPermission('world:rooms.create.stage') || hasPermission('world:update')")
 				span {{ $t('View all rooms') }}
 				i.mdi.mdi-chevron-right(aria-hidden="true")
 		.rooms-table-card
@@ -108,7 +120,7 @@
 									i.mdi.mdi-account-outline
 									span {{ getRoomViewerCount(room) }}
 							td.actions-col
-								router-link.btn-table-action(:to="{name: 'admin:rooms:item', params: {roomId: room.id}}", v-if="hasPermission('room:update')")
+								router-link.btn-table-action(:to="{name: 'admin:rooms:item', params: {roomId: room.id}}", v-if="hasPermission('room:update') || hasPermission('world:update')")
 									i.mdi.mdi-pencil(aria-hidden="true")
 									span {{ $t('Edit') }}
 								router-link.btn-table-action.secondary(:to="{name: 'room', params: {roomId: room.id}}")
@@ -116,12 +128,12 @@
 									span {{ $t('Preview') }}
 			.empty-state(v-if="!allRooms.length")
 				p {{ $t('No rooms created yet.') }}
-				router-link.btn-primary(:to="{name: 'admin:rooms:index'}", v-if="hasPermission('room:update')") {{ $t('Create First Room') }}
+				router-link.btn-primary(:to="{name: 'admin:rooms:index'}", v-if="hasPermission('room:update') || hasPermission('world:rooms.create.stage') || hasPermission('world:update')") {{ $t('Create First Room') }}
 
-	.section-block(v-if="announcementsList.length")
+	.section-block(v-if="announcementsList.length && (hasPermission('world:announce') || hasPermission('world:update')) && liveFeatures.announcements !== false")
 		.section-header
 			h2 {{ $t('Recent Announcements') }}
-			router-link.section-link(:to="{name: 'admin:announcements'}", v-if="hasPermission('world:announce')")
+			router-link.section-link(:to="{name: 'admin:announcements'}", v-if="(hasPermission('world:announce') || hasPermission('world:update')) && liveFeatures.announcements !== false")
 				span {{ $t('Manage announcements') }}
 				i.mdi.mdi-chevron-right(aria-hidden="true")
 		.announcements-card
@@ -147,7 +159,8 @@ export default {
 			return Object.assign({
 				chat_rooms: false,
 				kiosks: false,
-				direct_messaging: false
+				direct_messaging: false,
+				announcements: true
 			}, this.world?.live_features || window.eventyay?.liveFeatures || {})
 		},
 		allRooms() {
