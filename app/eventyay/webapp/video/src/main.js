@@ -73,6 +73,7 @@ async function init({ token, inviteToken }) {
 
   // Handle base path for routing early so RouterLink can resolve named routes
   const basePath = config.basePath || ''
+  let relativePath = location.pathname.replace(basePath, '')
   const isOrganizerArea = Boolean(window.eventyay?.isOrganizerArea)
   if (isOrganizerArea) {
     try {
