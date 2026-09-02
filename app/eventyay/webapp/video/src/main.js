@@ -73,20 +73,37 @@ async function init({ token, inviteToken }) {
 
   // Handle base path for routing early so RouterLink can resolve named routes
   const basePath = config.basePath || ''
-  let relativePath = location.pathname.replace(basePath, '')
   const isOrganizerArea = Boolean(window.eventyay?.isOrganizerArea)
+  if (isOrganizerArea) {
+    try {
+      sessionStorage.setItem('video_auth_mode', 'organizer')
+      localStorage.removeItem('token')
+    } catch (e) {}
+  } else if (token) {
+    try {
+      sessionStorage.setItem('video_auth_mode', 'jwt')
+      localStorage.token = token
+    } catch (e) {}
+  }
+
+  const isJwtAuthMode = sessionStorage.getItem('video_auth_mode') === 'jwt'
+  const isOrganizerAuthMode = sessionStorage.getItem('video_auth_mode') === 'organizer'
+
+  const activeToken = token || (
+    !isOrganizerArea && !isOrganizerAuthMode && (isJwtAuthMode || !window.eventyay?.hasOrganiserPermissions) && localStorage.token
+      ? localStorage.token
+      : null
+  )
+
   let tokenTraits = []
-  if (token) {
+  if (activeToken) {
     try {
-      tokenTraits = jwtDecode(token)?.traits || []
-    } catch (e) { /* ignore */ }
-  } else if (localStorage.token && !isOrganizerArea && !window.eventyay?.hasOrganiserPermissions) {
-    try {
-      tokenTraits = jwtDecode(localStorage.token)?.traits || []
+      tokenTraits = jwtDecode(activeToken)?.traits || []
     } catch (e) { /* ignore */ }
   }
-  const hasToken = Boolean(token || (!window.eventyay?.hasOrganiserPermissions && localStorage.token && !isOrganizerArea))
-  const isOrganizer = isOrganizerArea || (token ? hasOrganizerTraits(tokenTraits) : Boolean(window.eventyay?.hasOrganiserPermissions))
+
+  const hasToken = Boolean(activeToken)
+  const isOrganizer = isOrganizerArea || (hasToken ? hasOrganizerTraits(tokenTraits) : Boolean(window.eventyay?.hasOrganiserPermissions))
 
   if (!relativePath || relativePath === '/') {
     if (isOrganizerArea) {
@@ -119,22 +136,16 @@ async function init({ token, inviteToken }) {
   store.commit('setUserLocale', i18n.resolvedLanguage)
   store.dispatch('updateUserTimezone', localStorage.userTimezone || moment.tz.guess())
 
-  if (isOrganizerArea || window.eventyay?.hasOrganiserPermissions) {
+  if (activeToken) {
+    localStorage.token = activeToken
     if (token) {
-      localStorage.token = token
       router.replace(relativePath)
-      store.dispatch('login', { token })
-    } else {
-      localStorage.removeItem('token')
-      router.replace(relativePath)
-      store.dispatch('login', {})
     }
-  } else if (token) {
-    localStorage.token = token
+    store.dispatch('login', { token: activeToken })
+  } else if (isOrganizerArea || window.eventyay?.hasOrganiserPermissions) {
+    localStorage.removeItem('token')
     router.replace(relativePath)
-    store.dispatch('login', { token })
-  } else if (localStorage.token) {
-    store.dispatch('login', { token: localStorage.token })
+    store.dispatch('login', {})
   } else if (inviteToken && anonymousRoomId) {
     const clientId = uuid()
     localStorage[`clientId:room:${anonymousRoomId}`] = clientId

@@ -381,7 +381,10 @@ export default {
 			this.showMobileSidebar = false
 		},
 		clearTokenAndReload() {
-			localStorage.removeItem('token')
+			try {
+				localStorage.removeItem('token')
+				sessionStorage.removeItem('video_auth_mode')
+			} catch (e) {}
 			location.reload()
 		},
 		reload() {

@@ -178,7 +178,7 @@ aside.c-organiser-sidebar(
 			.buffer
 
 			.sidebar-footer-action
-				a.btn-public-view(:href="publicVideoUrl", @click="onNavClick")
+				a.btn-public-view(:href="publicVideoUrl", @click="onViewPublicVideo")
 					i.fa.fa-eye(aria-hidden="true")
 					span {{ $t('View Public Video') }}
 
@@ -377,6 +377,13 @@ export default {
 			if (this.$mq?.below?.m) {
 				this.$emit('close')
 			}
+		},
+		onViewPublicVideo() {
+			try {
+				sessionStorage.setItem('video_auth_mode', 'organizer')
+				localStorage.removeItem('token')
+			} catch (e) {}
+			this.onNavClick()
 		},
 		hasUnreadMessages(channelId) {
 			return this.notificationCount ? this.notificationCount(channelId) > 0 : false

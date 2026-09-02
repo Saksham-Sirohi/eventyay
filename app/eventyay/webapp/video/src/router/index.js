@@ -297,10 +297,6 @@ router.beforeEach((to, from, next) => {
 	const isOrganizerRoute = (typeof to.name === 'string' && (to.name.startsWith('admin') || to.name === 'organizer' || to.name === 'room:manage')) ||
 		(typeof to.path === 'string' && (to.path.startsWith('/event') || to.path.includes('/manage')))
 	if (isOrganizerRoute) {
-		const isPermittedInOrganizerArea = Boolean(
-			window.eventyay?.isOrganizerArea ||
-			window.eventyay?.hasOrganiserPermissions
-		)
 		const token = store.state.token || localStorage.getItem('token')
 		let tokenTraits = []
 		if (token) {
@@ -318,7 +314,11 @@ router.beforeEach((to, from, next) => {
 			store.getters.hasPermission('room:question.moderate') ||
 			store.getters.hasPermission('world:kiosks.manage') ||
 			store.getters.hasPermission('world:graphs')
-		if (!isPermittedInOrganizerArea && !hasManager && !hasStorePerm) {
+		const isPermittedWithoutToken = !token && Boolean(
+			window.eventyay?.isOrganizerArea ||
+			window.eventyay?.hasOrganiserPermissions
+		)
+		if (!isPermittedWithoutToken && !hasManager && !hasStorePerm) {
 			if (to.params?.roomId) {
 				return next({ name: 'room', params: { roomId: to.params.roomId } })
 			}
