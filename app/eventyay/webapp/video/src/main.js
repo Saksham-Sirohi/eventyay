@@ -85,10 +85,10 @@ async function init({ token, inviteToken }) {
       tokenTraits = jwtDecode(localStorage.token)?.traits || []
     } catch (e) { /* ignore */ }
   }
-  const isOrganizer = isOrganizerArea || hasOrganizerTraits(tokenTraits)
+  const isOrganizer = isOrganizerArea || hasOrganizerTraits(tokenTraits) || Boolean(window.eventyay?.hasOrganiserPermissions)
 
   if (!relativePath || relativePath === '/') {
-    if (isOrganizer) {
+    if (isOrganizerArea) {
       relativePath = '/event'
     } else {
       relativePath = '/'
