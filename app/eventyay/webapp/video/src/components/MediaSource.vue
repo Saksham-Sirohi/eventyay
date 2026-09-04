@@ -98,6 +98,7 @@ const module = computed(() => {
 			'call.janus',
 			'call.zoom',
 			'call.jitsi',
+			'call.loungemesh',
 		].includes(m.type)
 	);
 });
@@ -493,7 +494,19 @@ function onWindowMessage(event) {
 	}
 	if (!data || typeof data !== 'object') return;
 
-	if (data.event === 'zoom:leave' || data.action === 'leave' || data.event === 'hangup' || data.type === 'hangup') {
+	if (!iframeEl.value?.contentWindow || event.source !== iframeEl.value.contentWindow) return;
+
+	if (
+		data.event === 'zoom:leave' ||
+		data.action === 'leave' ||
+		data.event === 'hangup' ||
+		data.type === 'hangup' ||
+		data.type === 'loungemesh:leave' ||
+		data.action === 'loungemesh:leave' ||
+		data.event === 'loungemesh:leave' ||
+		data.type === 'leave' ||
+		data.event === 'leave'
+	) {
 		emit('leave', props.room);
 		destroyIframe();
 		if (route.name === 'room' || route.name === 'room:manage' || route.params?.roomId) {
@@ -503,8 +516,6 @@ function onWindowMessage(event) {
 		}
 		return;
 	}
-
-	if (!iframeEl.value?.contentWindow || event.source !== iframeEl.value.contentWindow) return;
 
 	let playerState = null;
 	if (data.event === 'onStateChange' && typeof data.info === 'number') {
@@ -566,6 +577,13 @@ async function initializeIframe(mute, skipConsentCheck = false) {
 		switch (effectiveModuleType) {
 			case 'call.zoom': {
 				({ url: iframeUrl } = await api.call('zoom.room_url', {
+					room: props.room.id,
+				}));
+				hideIfBackground = true;
+				break;
+			}
+			case 'call.loungemesh': {
+				({ url: iframeUrl } = await api.call('loungemesh.room_url', {
 					room: props.room.id,
 				}));
 				hideIfBackground = true;

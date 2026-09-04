@@ -87,6 +87,10 @@ export default {
 				background-color: #eff6ff
 				color: #2563eb
 
+			&.loungemesh
+				background-color: #f5f3ff
+				color: #7c3aed
+
 		.provider-info
 			.provider-title
 				font-size: 16px

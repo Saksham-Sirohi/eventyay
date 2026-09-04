@@ -35,6 +35,7 @@ from eventyay.base.models import (
     SystemLog,
     JanusServer,
     JitsiServer,
+    LoungeMeshServer,
     TurnServer,
     Event,
 )
@@ -46,6 +47,7 @@ from eventyay.control.forms.server_management import (
     BBBServerForm,
     JanusServerForm,
     JitsiServerForm,
+    LoungeMeshServerForm,
     PlannedUsageFormSet,
     ProfileForm,
     SignupForm,
@@ -134,6 +136,7 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
         ctx["janus_servers"] = JanusServer.objects.select_related("event_exclusive").order_by("url")
         ctx["jitsi_servers"] = JitsiServer.objects.select_related("event_exclusive").order_by("url")
         ctx["turn_servers"] = TurnServer.objects.select_related("event_exclusive").order_by("hostname")
+        ctx["loungemesh_servers"] = LoungeMeshServer.objects.select_related("event_exclusive").order_by("url")
         # Define the tabs logic, active tab defaults to bbb
         ctx["active_tab"] = kwargs.get("active_tab") or self.request.GET.get("tab", "bbb")
         return ctx
@@ -712,6 +715,69 @@ class TurnServerDelete(AdministratorPermissionRequiredMixin, DeleteView):
             content_object=self.object,
             user=self.request.user,
             action_type="turnserver.deleted",
+            data={},
+        )
+        success_url = self.get_success_url()
+        self.object.delete()
+        messages.success(self.request, _("Ok!"))
+        return HttpResponseRedirect(success_url)
+
+
+def _redact_loungemesh_server_log_data(data):
+    return {
+        key: "*****" if key in ("api_secret", "jitsi_app_secret") and value else str(value)
+        for key, value in data.items()
+    }
+
+
+class LoungeMeshServerCreate(AdministratorPermissionRequiredMixin, CreateView):
+    template_name = "control/loungemesh_form.html"
+    form_class = LoungeMeshServerForm
+    success_url = "/admin/video/loungemesh/"
+
+    @transaction.atomic()
+    def form_valid(self, form):
+        self.object = form.save()
+        LogEntry.objects.create(
+            content_object=form.instance,
+            user=self.request.user,
+            action_type="loungemeshserver.created",
+            data=_redact_loungemesh_server_log_data(form.cleaned_data),
+        )
+        messages.success(self.request, _("Ok!"))
+        return super().form_valid(form)
+
+
+class LoungeMeshServerUpdate(AdministratorPermissionRequiredMixin, UpdateView):
+    template_name = "control/loungemesh_form.html"
+    form_class = LoungeMeshServerForm
+    queryset = LoungeMeshServer.objects.all()
+    success_url = "/admin/video/loungemesh/"
+
+    def form_valid(self, form):
+        self.object = form.save()
+        LogEntry.objects.create(
+            content_object=form.instance,
+            user=self.request.user,
+            action_type="loungemeshserver.updated",
+            data=_redact_loungemesh_server_log_data(form.cleaned_data),
+        )
+        messages.success(self.request, _("Ok!"))
+        return super().form_valid(form)
+
+
+class LoungeMeshServerDelete(AdministratorPermissionRequiredMixin, DeleteView):
+    template_name = "control/loungemesh_delete.html"
+    queryset = LoungeMeshServer.objects.all()
+    success_url = "/admin/video/loungemesh/"
+    context_object_name = "server"
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        LogEntry.objects.create(
+            content_object=self.object,
+            user=self.request.user,
+            action_type="loungemeshserver.deleted",
             data={},
         )
         success_url = self.get_success_url()

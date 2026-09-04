@@ -627,6 +627,7 @@ def get_admin_navigation(request):
                     url.url_name.startswith('bbbserver.') or
                     url.url_name.startswith('janusserver.') or
                     url.url_name.startswith('jitsiserver.') or
+                    url.url_name.startswith('loungemeshserver.') or
                     url.url_name.startswith('turnserver.') or
                     url.url_name == 'server.toggle-active'
                 ),

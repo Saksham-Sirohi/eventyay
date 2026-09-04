@@ -54,6 +54,11 @@ urlpatterns = [
     path("turns/<uuid:pk>/delete", views.TurnServerDelete.as_view(), name="turnserver.delete"),
     path("turns/<uuid:pk>/", views.TurnServerUpdate.as_view(), name="turnserver.update"),
     path("turnservers/<uuid:pk>/", views.TurnServerUpdate.as_view(), name="turnserver.update.legacy"),
+    # LoungeMesh Server Management URLs
+    path("loungemesh/", SettingsTabRedirectView.as_view(tab="loungemesh"), name="loungemeshserver.list"),
+    path("loungemesh/new/", views.LoungeMeshServerCreate.as_view(), name="loungemeshserver.create"),
+    path("loungemesh/<uuid:pk>/delete", views.LoungeMeshServerDelete.as_view(), name="loungemeshserver.delete"),
+    path("loungemesh/<uuid:pk>/", views.LoungeMeshServerUpdate.as_view(), name="loungemeshserver.update"),
     # Event Management URLs
     path("events/", views.EventList.as_view(), name="event.list"),
     path("events/new/", views.EventCreate.as_view(), name="event.create"),
