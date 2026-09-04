@@ -628,7 +628,6 @@ def get_admin_navigation(request):
                     url.url_name.startswith('janusserver.') or
                     url.url_name.startswith('jitsiserver.') or
                     url.url_name.startswith('turnserver.') or
-                    url.url_name.startswith('streamingserver.') or
                     url.url_name == 'server.toggle-active'
                 ),
             },

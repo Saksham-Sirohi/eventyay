@@ -10,7 +10,6 @@ from eventyay.base.models import (
     JanusServer,
     JitsiServer,
     Room,
-    StreamingServer,
     TurnServer,
 )
 from eventyay.base.models.event import (
@@ -217,7 +216,6 @@ class BBBServerForm(HasSecretsMixin, forms.ModelForm):
             "url",
             "active",
             "event_exclusive",
-            "rooms_only",
             "secret",
         )
         field_classes = {"secret": SecretKeyField}
@@ -265,20 +263,6 @@ class TurnServerForm(HasSecretsMixin, forms.ModelForm):
             "event_exclusive",
         )
         field_classes = {"auth_secret": SecretKeyField}
-
-
-class StreamingServerForm(HasSecretsMixin, forms.ModelForm):
-    class Meta:
-        model = StreamingServer
-        fields = (
-            "active",
-            "name",
-            "token_secret",
-            "url_input",
-            "url_output",
-        )
-        field_classes = {"token_secret": SecretKeyField}
-
 
 
 

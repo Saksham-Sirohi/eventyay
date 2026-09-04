@@ -12,6 +12,7 @@ from operator import attrgetter
 from urllib.parse import urljoin, urlparse
 from zoneinfo import ZoneInfo
 
+from asgiref.sync import sync_to_async
 import icalendar
 import jwt
 from dateutil.relativedelta import relativedelta
@@ -1722,6 +1723,25 @@ class Event(
         if user.is_silenced and not any(p in MAX_PERMISSIONS_IF_SILENCED for p in permission):
             return False
 
+        # Staff, superusers, administrators, or users holding Eventyay team permissions
+        if (
+            getattr(user, "is_administrator", False)
+            or getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+        ):
+            return True
+
+        if hasattr(user, "has_event_permission"):
+            try:
+                if user.has_event_permission(
+                    self.organizer,
+                    self,
+                    ["can_change_event_settings", "can_change_items", "can_change_submissions"],
+                ):
+                    return True
+            except Exception:
+                pass
+
         if self.has_permission_implicit(
             traits=user.traits or [],
             permissions=permission,
@@ -1753,6 +1773,26 @@ class Event(
 
         if user.is_silenced and not any(p in MAX_PERMISSIONS_IF_SILENCED for p in permission):
             return False
+
+        # Staff, superusers, administrators, or users holding Eventyay team permissions
+        if (
+            getattr(user, "is_administrator", False)
+            or getattr(user, "is_superuser", False)
+            or getattr(user, "is_staff", False)
+        ):
+            return True
+
+        if hasattr(user, "has_event_permission"):
+            try:
+                has_team_perm = await sync_to_async(user.has_event_permission)(
+                    self.organizer,
+                    self,
+                    ["can_change_event_settings", "can_change_items", "can_change_submissions"],
+                )
+                if has_team_perm:
+                    return True
+            except Exception:
+                pass
 
         if self.has_permission_implicit(
             traits=user.traits or [],
