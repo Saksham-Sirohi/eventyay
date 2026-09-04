@@ -50,6 +50,16 @@ export const VIDEO_CREATE_PROVIDERS = [
 		icon: 'webcam',
 		description: 'Connect attendees in real time for workshops or panels powered by Janus.',
 		featureFlag: 'janus'
+	},
+	{
+		id: 'loungemesh',
+		roomTypeId: 'channel-loungemesh',
+		label: 'LoungeMesh',
+		roomKind: 'Video Channel',
+		shortLabel: 'LoungeMesh',
+		icon: 'webcam',
+		description: 'Spatial proximity networking and workshop lounge powered by LoungeMesh.',
+		featureFlag: null
 	}
 ]
 
@@ -82,6 +92,7 @@ export function getConfiguredRoomLabel(type) {
 	const provider = getVideoProviderByRoomTypeId(type.id)
 	if (provider) return `${provider.roomKind}: ${provider.shortLabel}`
 	if (type.id === 'channel-zoom') return 'Video Channel: Zoom'
+	if (type.id === 'channel-loungemesh') return 'Video Channel: LoungeMesh'
 	return type.name
 }
 
@@ -129,6 +140,14 @@ export function getVideoProviderStartingConfig(type) {
 			waiting_room: false,
 			disable_cam: false,
 			disable_chat: false
+		}
+	}
+	if (type?.id === 'channel-loungemesh') {
+		return {
+			prefer_server: '',
+			enable_notes: true,
+			enable_whiteboard: true,
+			enable_spatial_chat: true
 		}
 	}
 	return {}

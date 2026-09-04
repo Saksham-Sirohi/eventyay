@@ -49,7 +49,7 @@
 								bunt-switch(name="force_join", v-model="config.force_join")
 
 			component.stage-settings(ref="settings", v-if="inferredType && typeComponents[inferredType.id]", :is="typeComponents[inferredType.id]", :config="config", :modules="modules", :creating="creating")
-			sidebar-addons(v-if="inferredType && (inferredType.id === 'stage' || inferredType.id === 'channel-janus' || inferredType.id === 'channel-zoom')", :config="config", :modules="modules", :creating="creating")
+			sidebar-addons(v-if="inferredType && (inferredType.id === 'stage' || inferredType.id === 'channel-janus' || inferredType.id === 'channel-zoom' || inferredType.id === 'channel-loungemesh')", :config="config", :modules="modules", :creating="creating")
 	.ui-form-actions
 		bunt-button.btn-save(@click="save", :loading="saving", :error="!!error") {{ creating ? $t('Create') : $t('Save') }}
 		bunt-button.btn-sync(v-if="!creating && interpretationAdmin.usePluginStreams", @click="syncServices", :loading="syncing", :error="!!syncError", style="margin-left: 10px") {{ $t('Sync Services') }}
@@ -69,6 +69,7 @@ import ChannelBBB from './types-edit/channel-bbb'
 import ChannelJanus from './types-edit/channel-janus'
 import ChannelJitsi from './types-edit/channel-jitsi'
 import ChannelZoom from './types-edit/channel-zoom'
+import ChannelLoungeMesh from './types-edit/channel-loungemesh'
 import ChannelRoulette from './types-edit/channel-roulette'
 import PageLanding from './types-edit/page-landing'
 import SidebarAddons from './types-edit/SidebarAddons'
@@ -109,6 +110,7 @@ export default {
 				'channel-janus': ChannelJanus,
 				'channel-jitsi': ChannelJitsi,
 				'channel-zoom': ChannelZoom,
+				'channel-loungemesh': ChannelLoungeMesh,
 			}),
 			saving: false,
 			syncing: false,

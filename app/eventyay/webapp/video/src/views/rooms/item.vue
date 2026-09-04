@@ -17,7 +17,7 @@
 					i.mdi.mdi-translate
 					AudioTranslationDropdown(:key="`${room.id}-cc`", :languages="pluginLanguages", :selected-language="selectedCcLanguage", :label="$t('Caption Language')", @languageChanged="handleCcLanguageChange")
 			reactions-bar(:expanded="true", @expand="activeStageTool = 'reaction'")
-	.stage(v-else-if="modules['call.janus'] || modules['call.bigbluebutton'] || modules['call.zoom'] || modules['call.jitsi']")
+	.stage(v-else-if="modules['call.janus'] || modules['call.bigbluebutton'] || modules['call.zoom'] || modules['call.jitsi'] || modules['call.loungemesh']")
 		media-source-placeholder
 	roulette(v-else-if="modules['networking.roulette'] && $features.enabled('roulette')", :module="modules['networking.roulette']", :room="room")
 	landing-page(v-else-if="modules['page.landing']", :module="modules['page.landing']")

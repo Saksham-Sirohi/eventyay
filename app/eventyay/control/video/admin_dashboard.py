@@ -7,6 +7,7 @@ from eventyay.base.models import (
     BBBServer,
     JanusServer,
     JitsiServer,
+    LoungeMeshServer,
     TurnServer,
 )
 
@@ -58,6 +59,15 @@ VIDEO_SERVER_CONFIGS = {
         order_by="hostname",
         display_attr="hostname",
         action_prefix="turnserver",
+    ),
+    "loungemesh": VideoServerConfig(
+        model=LoungeMeshServer,
+        label=_("LoungeMesh"),
+        list_url_name="eventyay_admin:video_admin:settings",
+        update_url_name="eventyay_admin:video_admin:loungemeshserver.update",
+        order_by="url",
+        display_attr="url",
+        action_prefix="loungemeshserver",
     ),
 }
 

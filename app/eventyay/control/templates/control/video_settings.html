@@ -30,6 +30,12 @@
                 <span class="video-tab-badge">{{ janus_servers|length }}</span>
             </a>
         </li>
+        <li role="presentation" class="{% if active_tab == 'loungemesh' %}active{% endif %}">
+            <a href="#loungemesh" aria-controls="loungemesh" role="tab" data-toggle="tab">
+                <span class="fa fa-cubes"></span> {% trans "LoungeMesh" %}
+                <span class="video-tab-badge">{{ loungemesh_servers|length }}</span>
+            </a>
+        </li>
     </ul>
 
     <div class="tab-content">
@@ -316,6 +322,79 @@
                                     </div>
                                 </td>
                             </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- LoungeMesh Tab -->
+        <div role="tabpanel" class="tab-pane {% if active_tab == 'loungemesh' %}active{% endif %}" id="loungemesh">
+            <div class="video-admin-card">
+                <div class="video-tab-header">
+                    <div>
+                        <h3 class="video-tab-title">{% trans "LoungeMesh Spatial Lounges" %}</h3>
+                        <p class="video-section-subtitle">{% trans "Spatial 2D video networking lounges with shared notes, whiteboard, and WebRTC audio/video." %}</p>
+                    </div>
+                    <div>
+                        <a href="{% url 'eventyay_admin:video_admin:loungemeshserver.create' %}" class="btn btn-primary">
+                            <span class="fa fa-plus" aria-hidden="true"></span> {% trans "Add server" %}
+                        </a>
+                    </div>
+                </div>
+                <div class="table-responsive" data-video-server-table data-csrf-token="{{ csrf_token }}">
+                    <table class="table table-hover">
+                        <thead>
+                        <tr>
+                            <th>{% trans "URL" %}</th>
+                            <th>{% trans "Status" %}</th>
+                            <th class="text-right">{% trans "Actions" %}</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for s in loungemesh_servers %}
+                        <tr class="{% if not s.active %}deleted{% endif %}" data-video-server-row>
+                            <td>
+                                <strong>{{ s.url }}</strong>
+                                {% if s.event_exclusive %}
+                                    <span class="label label-info">{{ s.event_exclusive }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <label class="video-server-toggle" title="{% if s.active %}{% trans 'Active' %}{% else %}{% trans 'Inactive' %}{% endif %}">
+                                    <span class="sr-only">{% blocktrans with name=s.url %}Toggle active state for {{ name }}{% endblocktrans %}</span>
+                                    <input
+                                        type="checkbox"
+                                        class="video-server-toggle-input"
+                                        data-video-server-toggle
+                                        data-toggle-url="{% url 'eventyay_admin:video_admin:server.toggle-active' server_type='loungemesh' pk=s.pk %}"
+                                        {% if s.active %}checked{% endif %}
+                                    >
+                                    <span class="video-server-toggle-slider" aria-hidden="true"></span>
+                                </label>
+                            </td>
+                            <td class="text-right video-admin-actions">
+                                <a href="{% url 'eventyay_admin:video_admin:loungemeshserver.update' pk=s.pk %}" class="btn btn-default btn-xs" title="{% trans 'Edit server' %}">
+                                    <span class="fa fa-pencil" aria-hidden="true"></span> {% trans "Edit" %}
+                                </a>
+                                <a href="{% url 'eventyay_admin:video_admin:loungemeshserver.delete' pk=s.pk %}" class="btn btn-danger btn-xs" title="{% trans 'Delete server' %}">
+                                    <span class="fa fa-trash" aria-hidden="true"></span> {% trans "Delete" %}
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3">
+                                <div class="video-empty-state">
+                                    <div class="empty-icon"><span class="fa fa-cubes"></span></div>
+                                    <p>{% trans "No LoungeMesh servers configured yet." %}</p>
+                                    <a href="{% url 'eventyay_admin:video_admin:loungemeshserver.create' %}" class="btn btn-primary btn-sm">
+                                        <span class="fa fa-plus" aria-hidden="true"></span> {% trans "Add your first LoungeMesh server" %}
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
                         {% endfor %}
                         </tbody>
                     </table>

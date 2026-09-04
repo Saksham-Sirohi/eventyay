@@ -37,7 +37,9 @@ export default {
 			error: null,
 			errorMsg: null,
 			jitsiApi: null,
-			isDestroyed: false
+			isDestroyed: false,
+			hasJoinedConference: false,
+			userLeftConference: false
 		}
 	},
 	async mounted() {
@@ -131,21 +133,19 @@ export default {
 
 				this.jitsiApi.addListener('videoConferenceJoined', () => {
 					this.loading = false
+					this.hasJoinedConference = true
 					this.$emit('connected')
 					if (config.roomDisplayName) {
 						try {
-							this.jitsiApi.executeCommands({
-								subject: [config.roomDisplayName],
-								localSubject: [config.roomDisplayName]
-							})
+							this.jitsiApi.executeCommand('subject', config.roomDisplayName)
 						} catch (e) {}
 					}
-					if (config.userInfo?.displayName) {
+					if (!config.jwt && config.userInfo?.displayName) {
 						try {
 							this.jitsiApi.executeCommand('displayName', config.userInfo.displayName)
 						} catch (e) {}
 					}
-					if (config.userInfo?.email) {
+					if (!config.jwt && config.userInfo?.email) {
 						try {
 							this.jitsiApi.executeCommand('email', config.userInfo.email)
 						} catch (e) {}
@@ -158,11 +158,18 @@ export default {
 				})
 
 				this.jitsiApi.addListener('videoConferenceLeft', () => {
-					this.$emit('hangup')
+					this.userLeftConference = true
 				})
 
 				this.jitsiApi.addListener('readyToClose', () => {
-					this.$emit('hangup')
+					if (this.userLeftConference || this.hasJoinedConference) {
+						this.hangup()
+					} else {
+						this.loading = false
+						this.error = new Error('Meeting closed unexpectedly')
+						this.errorMsg = this.$t('Connection to the meeting was interrupted.')
+						this.$emit('error', this.error)
+					}
 				})
 
 				this.jitsiApi.addListener('participantJoined', (p) => {
@@ -207,6 +214,7 @@ export default {
 			}
 		},
 		hangup() {
+			this.userLeftConference = true
 			if (this.jitsiApi) {
 				try {
 					this.jitsiApi.executeCommand('hangup')
