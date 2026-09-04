@@ -1,6 +1,6 @@
 <template lang="pug">
 .c-room(v-if="room", :class="{'standalone-chat': modules['chat.native'] && room.modules.length === 1}")
-	.stage(v-if="modules['livestream.native'] || modules['livestream.youtube'] || modules['call.janus']")
+	.stage(v-if="modules['livestream.native'] || modules['livestream.youtube']")
 		media-source-placeholder
 		LiveCaptions(v-if="ccEnabled", :ws-url="selectedCcWsUrl")
 		reactions-overlay(v-if="hasLivestream")
@@ -17,12 +17,13 @@
 					i.mdi.mdi-translate
 					AudioTranslationDropdown(:key="`${room.id}-cc`", :languages="pluginLanguages", :selected-language="selectedCcLanguage", :label="$t('Caption Language')", @languageChanged="handleCcLanguageChange")
 			reactions-bar(:expanded="true", @expand="activeStageTool = 'reaction'")
-	media-source-placeholder(v-else-if="modules['call.bigbluebutton'] || modules['call.zoom'] || modules['call.jitsi']")
+	.stage(v-else-if="modules['call.janus'] || modules['call.bigbluebutton'] || modules['call.zoom'] || modules['call.jitsi']")
+		media-source-placeholder
 	roulette(v-else-if="modules['networking.roulette'] && $features.enabled('roulette')", :module="modules['networking.roulette']", :room="room")
 	landing-page(v-else-if="modules['page.landing']", :module="modules['page.landing']")
 	markdown-page(v-else-if="modules['page.markdown']", :module="modules['page.markdown']")
-	chat(v-if="room.modules.length === 1 && modules['chat.native']", :room="room", :module="modules['chat.native']", mode="standalone", :key="room.id")
-	.room-sidebar(v-else-if="modules['chat.native'] || modules['question'] || modules['poll']", :class="unreadTabsClasses", role="complementary")
+	chat(v-else-if="room.modules.length === 1 && modules['chat.native']", :room="room", :module="modules['chat.native']", mode="standalone", :key="room.id")
+	.room-sidebar(v-if="hasSidebar", :class="unreadTabsClasses", role="complementary")
 		bunt-tabs(v-if="(!!modules['question'] + !!modules['poll'] + !!modules['chat.native']) > 1 && activeSidebarTab", :active-tab="activeSidebarTab")
 			bunt-tab(v-if="modules['chat.native']", id="chat", :header="$t('Chat')", @selected="activeSidebarTab = 'chat'")
 			bunt-tab(v-if="modules['question']", id="questions", :header="$t('Questions')", @selected="activeSidebarTab = 'questions'")
@@ -50,6 +51,7 @@ import UpcomingStreamCountdown from 'components/UpcomingStreamCountdown'
 import { normalizeAudioTranslationSource } from 'lib/validators'
 import { pluginLanguageStreams, roomUsesPluginLanguageStreams } from '../../interpretation-streams'
 import { interpretationApiUrl, interpretationAuthHeaders } from 'lib/interpretation-api'
+import { hasEmbeddedSuite } from 'lib/video-providers'
 
 export default {
 	name: 'Room',
@@ -73,7 +75,7 @@ export default {
 	},
 	data() {
 		return {
-			activeSidebarTab: null, // chat, questions, polls
+			localActiveSidebarTab: null,
 			unreadTabs: {
 				chat: false,
 				questions: false,
@@ -89,6 +91,31 @@ export default {
 		}
 	},
 	computed: {
+		activeSidebarTab: {
+			get() {
+				return this.$store.state.activeRoomSidebarTab || this.localActiveSidebarTab || (this.modules['chat.native'] ? 'chat' : this.modules.question ? 'questions' : this.modules.poll ? 'polls' : null)
+			},
+			set(tab) {
+				this.localActiveSidebarTab = tab
+				this.$store.commit('setActiveRoomSidebarTab', tab)
+			}
+		},
+		hasEmbeddedCallSuite() {
+			return hasEmbeddedSuite(this.modules)
+		},
+		hasSidebar() {
+			// Video conference suites (BigBlueButton, Jitsi, Zoom) have their own native in-frame
+			// options for chats, polls, questions, etc.; do not show platform native sidebar for them.
+			// Janus WebRTC uses native platform chat and displays the sidebar when chat.native is attached.
+			if (this.hasEmbeddedCallSuite) return false
+			if (this.room?.modules?.length === 1 && this.modules['chat.native']) return false
+			if (this.$store.state.roomSidebarCollapsedByRoom?.[this.room?.id]) return false
+			return Boolean(
+				this.modules['chat.native'] ||
+				this.modules['question'] ||
+				this.modules['poll']
+			)
+		},
 		currentInterpretation() {
 			if (!this.room?.id) return null
 			return this.$store.state.interpretationStreamsByRoom?.[this.room.id] || this.$store.state.youtubeTranslationsByRoom?.[this.room.id] || null

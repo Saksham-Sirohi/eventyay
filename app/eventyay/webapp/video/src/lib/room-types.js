@@ -28,8 +28,7 @@ const ROOM_TYPES = [{
 	name: 'Video Channel (Zoom)',
 	description: 'This room type allows you to embed a Zoom meeting or webinar directly into eventyay.',
 	startingModule: 'call.zoom',
-	videoChannel: true,
-	behindFeatureFlag: 'zoom'
+	videoChannel: true
 }, {
 	id: 'channel-jitsi',
 	icon: 'webcam',

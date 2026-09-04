@@ -49,7 +49,7 @@
 								bunt-switch(name="force_join", v-model="config.force_join")
 
 			component.stage-settings(ref="settings", v-if="inferredType && typeComponents[inferredType.id]", :is="typeComponents[inferredType.id]", :config="config", :modules="modules", :creating="creating")
-			sidebar-addons(v-if="inferredType && inferredType.id === 'stage'", :config="config", :modules="modules", :creating="creating")
+			sidebar-addons(v-if="inferredType && (inferredType.id === 'stage' || inferredType.id === 'channel-janus' || inferredType.id === 'channel-zoom')", :config="config", :modules="modules", :creating="creating")
 	.ui-form-actions
 		bunt-button.btn-save(@click="save", :loading="saving", :error="!!error") {{ creating ? $t('Create') : $t('Save') }}
 		bunt-button.btn-sync(v-if="!creating && interpretationAdmin.usePluginStreams", @click="syncServices", :loading="syncing", :error="!!syncError", style="margin-left: 10px") {{ $t('Sync Services') }}
@@ -222,6 +222,12 @@ export default {
 						modules: []
 					}))
 				}
+				let moduleConfig = this.config.module_config || []
+				if (this.inferredType?.videoChannel) {
+					moduleConfig = moduleConfig.filter(
+						m => !['chat.native', 'question', 'poll'].includes(m.type)
+					)
+				}
 				const updated = await api.call('room.config.patch', {
 					room: roomId,
 					name: this.config.name,
@@ -229,7 +235,7 @@ export default {
 					picture: this.config.picture,
 					force_join: this.config.force_join,
 					is_unscheduled: this.config.is_unscheduled,
-					module_config: this.config.module_config,
+					module_config: moduleConfig,
 				})
 				Object.assign(this.config, updated)
 

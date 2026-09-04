@@ -14,6 +14,7 @@ from django.db import transaction
 from django.db.models import Count, F, Max, OuterRef, Subquery
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.shortcuts import redirect
+from django.urls import reverse
 from django.utils.crypto import get_random_string
 from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
@@ -34,7 +35,6 @@ from eventyay.base.models import (
     SystemLog,
     JanusServer,
     JitsiServer,
-    StreamingServer,
     TurnServer,
     Event,
 )
@@ -49,7 +49,6 @@ from eventyay.control.forms.server_management import (
     PlannedUsageFormSet,
     ProfileForm,
     SignupForm,
-    StreamingServerForm,
     TurnServerForm,
     UserForm,
     EventForm,
@@ -135,9 +134,8 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
         ctx["janus_servers"] = JanusServer.objects.select_related("event_exclusive").order_by("url")
         ctx["jitsi_servers"] = JitsiServer.objects.select_related("event_exclusive").order_by("url")
         ctx["turn_servers"] = TurnServer.objects.select_related("event_exclusive").order_by("hostname")
-        ctx["streaming_servers"] = StreamingServer.objects.order_by("name")
-        # Define the tabs logic, active tab can default to bbb
-        ctx["active_tab"] = self.request.GET.get("tab", "bbb")
+        # Define the tabs logic, active tab defaults to bbb
+        ctx["active_tab"] = kwargs.get("active_tab") or self.request.GET.get("tab", "bbb")
         return ctx
 
 
@@ -753,66 +751,6 @@ class EventCalendar(AdministratorPermissionRequiredMixin, View):
             headers={"Content-Disposition": 'attachment; filename="eventyay.ics"'},
         )
 
-
-
-
-
-class StreamingServerCreate(AdministratorPermissionRequiredMixin, CreateView):
-    template_name = "control/streaming_form.html"
-    form_class = StreamingServerForm
-    success_url = "/admin/video/streamingservers/"
-
-    @transaction.atomic()
-    def form_valid(self, form):
-        self.object = form.save()
-
-        LogEntry.objects.create(
-            content_object=form.instance,
-            user=self.request.user,
-            action_type="streamingserver.created",
-            data={k: str(v) for k, v in form.cleaned_data.items()},
-        )
-        messages.success(self.request, _("Ok!"))
-        return super().form_valid(form)
-
-
-class StreamingServerUpdate(AdministratorPermissionRequiredMixin, UpdateView):
-    template_name = "control/streaming_form.html"
-    form_class = StreamingServerForm
-    queryset = StreamingServer.objects.all()
-    success_url = "/admin/video/streamingservers/"
-
-    def form_valid(self, form):
-        self.object = form.save()
-
-        LogEntry.objects.create(
-            content_object=form.instance,
-            user=self.request.user,
-            action_type="streamingserver.updated",
-            data={k: str(v) for k, v in form.cleaned_data.items()},
-        )
-        messages.success(self.request, _("Ok!"))
-        return super().form_valid(form)
-
-
-class StreamingServerDelete(AdministratorPermissionRequiredMixin, DeleteView):
-    template_name = "control/streaming_delete.html"
-    queryset = StreamingServer.objects.all()
-    success_url = "/admin/video/streamingservers/"
-    context_object_name = "server"
-
-    def delete(self, request, *args, **kwargs):
-        self.object = self.get_object()
-        LogEntry.objects.create(
-            content_object=self.object,
-            user=self.request.user,
-            action_type="streamingserver.deleted",
-            data={},
-        )
-        success_url = self.get_success_url()
-        self.object.delete()
-        messages.success(self.request, _("Ok!"))
-        return HttpResponseRedirect(success_url)
 
 
 

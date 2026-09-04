@@ -100,7 +100,6 @@ from .seating import Seat, SeatCategoryMapping, SeatingPlan
 from .settings import GlobalSettings
 from .slot import TalkSlot
 from .stream_schedule import StreamSchedule
-from .streaming import StreamingServer
 from .submission import Submission, SubmissionFavourite, SubmissionStates
 from .systemlog import SystemLog
 from .tag import Tag
@@ -217,7 +216,6 @@ __all__ = [
     'SeatingPlan',
     'SpeakerProfile',
     'SpeakerSocialLink',
-    'StreamingServer',
     'SubEvent',
     'SubEventProduct',
     'SubEventProductVariation',
