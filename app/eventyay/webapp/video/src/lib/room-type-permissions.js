@@ -1,4 +1,19 @@
-export function isRoomTypeAvailable(typeId, hasPermission, isAdminMode = false) {
+const TYPE_TO_PROVIDER = {
+	'channel-bbb': 'bbb',
+	'channel-jitsi': 'jitsi',
+	'channel-janus': 'janus',
+	'channel-zoom': 'zoom',
+	'channel-loungemesh': 'loungemesh',
+}
+
+export function isRoomTypeAvailable(typeId, hasPermission, isAdminMode = false, videoProvidersConfig = null) {
+	if (videoProvidersConfig && TYPE_TO_PROVIDER[typeId]) {
+		const provider = TYPE_TO_PROVIDER[typeId]
+		const conf = videoProvidersConfig[provider]
+		if (conf === false || (conf && typeof conf === 'object' && conf.organizer === false)) {
+			return false
+		}
+	}
 	if (typeId === 'stage') {
 		return hasPermission('world:rooms.create.stage') || isAdminMode
 	}
@@ -23,6 +38,6 @@ export function isRoomTypeAvailable(typeId, hasPermission, isAdminMode = false) 
 	return true
 }
 
-export function filterRoomTypesByPermission(roomTypes, hasPermission, isAdminMode = false) {
-	return roomTypes.filter(type => isRoomTypeAvailable(type.id, hasPermission, isAdminMode))
+export function filterRoomTypesByPermission(roomTypes, hasPermission, isAdminMode = false, videoProvidersConfig = null) {
+	return roomTypes.filter(type => isRoomTypeAvailable(type.id, hasPermission, isAdminMode, videoProvidersConfig))
 }

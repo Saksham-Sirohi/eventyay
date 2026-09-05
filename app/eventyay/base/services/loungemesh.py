@@ -1,4 +1,5 @@
 import logging
+import secrets
 from datetime import timedelta
 import time
 from urllib.parse import urlparse
@@ -9,6 +10,7 @@ from django.utils.timezone import now
 import jwt
 
 from eventyay.base.models import LoungeMeshAccessToken, LoungeMeshServer, Room
+from .video_server_routing import filter_servers_for_event, is_server_available_for_event
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +37,17 @@ def get_loungemesh_server(event=None, prefer_server=None) -> LoungeMeshServer | 
 
     if prefer_server:
         preferred = normalize_server_url(prefer_server)
-        matching = servers.filter(
-            Q(event_exclusive=event) | Q(event_exclusive__isnull=True)
-        )
-        for s in matching:
-            if normalize_server_url(s.url) == preferred:
+        for s in servers:
+            if normalize_server_url(s.url) == preferred and is_server_available_for_event(s, event):
                 return s
 
-    if event:
-        exclusive = servers.filter(event_exclusive=event).first()
-        if exclusive:
-            return exclusive
+    search_order = filter_servers_for_event(servers, event)
+    for qs in search_order:
+        s = qs.first()
+        if s:
+            return s
 
-    return servers.filter(event_exclusive__isnull=True).first() or servers.first()
+    return servers.first()
 
 
 def loungemesh_is_available(event=None) -> bool:
@@ -75,6 +75,15 @@ def verify_loungemesh_token(token_str: str) -> LoungeMeshAccessToken | None:
         expires__gt=now(),
     ).select_related("event", "room", "user").first()
     return token
+
+
+def verify_server_api_secret(server: LoungeMeshServer | None, secret_candidate: str | None) -> bool:
+    """Verify an API secret provided by the LoungeMesh server using constant-time comparison."""
+    if not server or not server.api_secret:
+        return True
+    if not secret_candidate:
+        return False
+    return secrets.compare_digest(server.api_secret.strip(), secret_candidate.strip())
 
 
 def issue_jitsi_jwt(

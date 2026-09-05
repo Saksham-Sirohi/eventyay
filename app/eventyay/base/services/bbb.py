@@ -18,6 +18,7 @@ from lxml import etree
 from yarl import URL
 
 from eventyay.base.models import BBBCall, BBBServer
+from .video_server_routing import filter_servers_for_event, is_server_available_for_event
 
 
 logger = logging.getLogger(__name__)
@@ -93,13 +94,16 @@ def choose_server(event, room=None, prefer_server=None):
             )
         ).order_by("relevant_cost")
 
-    search_order = [
-        servers.filter(url=prefer_server).filter(
-            Q(event_exclusive=event) | Q(event_exclusive__isnull=True)
-        ),
-        servers.filter(event_exclusive=event),
-        servers.filter(event_exclusive__isnull=True),
-    ]
+    search_order = []
+    if prefer_server:
+        matching_preferred = [
+            s for s in servers.filter(url=prefer_server)
+            if is_server_available_for_event(s, event)
+        ]
+        if matching_preferred:
+            return random.choice(matching_preferred)
+
+    search_order = filter_servers_for_event(servers, event)
     for qs in search_order:
         servers = list(qs)
         if not servers:

@@ -293,9 +293,6 @@ class JanusCallModule(BaseModule):
             user=target_user,
             permission=[
                 Permission.ROOM_JANUSCALL_MODERATE,
-                Permission.ROOM_BBB_MODERATE,
-                Permission.ROOM_JITSI_MODERATE,
-                Permission.ROOM_CHAT_MODERATE,
                 Permission.ROOM_UPDATE,
                 Permission.EVENT_UPDATE,
             ],
@@ -897,9 +894,6 @@ class JanusCallModule(BaseModule):
             user=self.consumer.user,
             permission=[
                 Permission.ROOM_JANUSCALL_MODERATE,
-                Permission.ROOM_BBB_MODERATE,
-                Permission.ROOM_JITSI_MODERATE,
-                Permission.ROOM_CHAT_MODERATE,
                 Permission.ROOM_UPDATE,
                 Permission.EVENT_UPDATE,
             ],

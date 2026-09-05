@@ -37,7 +37,8 @@
                         <span class="fa fa-sliders"></span> {% trans "Availability & Scope" %}
                     </h3>
                     {% bootstrap_field form.active layout="control" %}
-                    {% bootstrap_field form.event_exclusive layout="control" help_text="Optional: Restrict usage of this server exclusively to a specific event." %}
+                    {% bootstrap_field form.organizers layout="control" %}
+                    {% bootstrap_field form.events layout="control" %}
                 </div>
             </div>
 

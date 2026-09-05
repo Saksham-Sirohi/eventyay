@@ -12,6 +12,7 @@ import {
 	hasEmbeddedSuite,
 	isVideoProviderEnabled,
 	isVideoProviderPermitted,
+	isRoomVisibleToAttendee,
 	supportsPlatformSidebar,
 } from './video-providers.js'
 
@@ -194,4 +195,36 @@ test('supportsPlatformSidebar allows chat/polls for Janus, stage, Zoom, and Loun
 	assert.equal(supportsPlatformSidebar({ 'livestream.native': {}, 'chat.native': {} }), true)
 	// Standalone chat only
 	assert.equal(supportsPlatformSidebar({ 'chat.native': {} }), false)
+})
+
+test('videoProvidersConfig hides disabled providers from organizer creation', () => {
+	const config = {
+		jitsi: { organizer: false, attendee: true },
+		bbb: { organizer: true, attendee: true },
+		loungemesh: { organizer: false, attendee: false }
+	}
+	const providers = getAvailableVideoProviders(
+		allow(['world:rooms.create.bbb', 'world:rooms.create.jitsi']),
+		true,
+		features(['jitsi', 'janus']),
+		config
+	)
+	// Jitsi and LoungeMesh should be excluded because organizer === false
+	assert.deepEqual(
+		providers.map(p => p.id),
+		['stream', 'bbb', 'zoom', 'janus']
+	)
+})
+
+test('isRoomVisibleToAttendee checks provider attendee visibility', () => {
+	const config = {
+		jitsi: { organizer: true, attendee: false },
+		bbb: { organizer: true, attendee: true },
+		loungemesh: { organizer: true, attendee: false }
+	}
+	assert.equal(isRoomVisibleToAttendee({ modules: [{ type: 'call.jitsi' }] }, config), false)
+	assert.equal(isRoomVisibleToAttendee({ modules: [{ type: 'call.bigbluebutton' }] }, config), true)
+	assert.equal(isRoomVisibleToAttendee({ modules: [{ type: 'call.loungemesh' }] }, config), false)
+	assert.equal(isRoomVisibleToAttendee({ modules: [{ type: 'chat.native' }] }, config), true)
+	assert.equal(isRoomVisibleToAttendee({ modules: [{ type: 'call.jitsi' }] }, null), true)
 })

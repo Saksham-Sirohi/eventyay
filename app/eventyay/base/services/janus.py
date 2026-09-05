@@ -10,6 +10,7 @@ from django.utils.crypto import get_random_string
 from websockets.exceptions import WebSocketException
 
 from eventyay.base.models import JanusServer
+from .video_server_routing import filter_servers_for_event
 
 logger = logging.getLogger(__name__)
 
@@ -31,16 +32,13 @@ class JanusPluginError(JanusError):
 
 def choose_server(event):
     servers = JanusServer.objects.filter(active=True)
-    search_order = [
-        servers.filter(event_exclusive=event),
-        servers.filter(event_exclusive__isnull=True),
-    ]
+    search_order = filter_servers_for_event(servers, event)
     for qs in search_order:
-        servers = list(qs)
-        if not servers:
+        servers_list = list(qs)
+        if not servers_list:
             continue
 
-        server = random.choice(servers)
+        server = random.choice(servers_list)
         return server
 
 

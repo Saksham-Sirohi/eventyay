@@ -23,71 +23,211 @@
 			button(v-if="canModerateParticipants", type="button", :title="$t('Clear spotlight')", :disabled="spotlightPending", @click="clearSpotlight")
 				.mdi.mdi-close
 		.gallery(ref="container", :class="galleryClasses", :style="gridStyle", v-resize-observer="onResize")
-			.video-tile(
-				v-for="tile in paginatedDisplayTiles",
-				:key="tile.key",
-				:class="{ 'is-local': tile.local && !tile.screen, 'is-screen': tile.screen, 'is-speaking': tile.speaking, 'is-pinned': pinnedTileKey === tile.key, 'is-spotlighted': spotlightTile && spotlightTile.key === tile.key }"
-			)
-				.media-frame(:id="`janus_${tile.key}`")
-					video(
-						v-if="tile.local && !tile.screen",
-						ref="localVideo",
-						:class="{ 'is-hidden': !tile.hasVideo }",
-						autoplay,
-						playsinline,
-						muted
+			template(v-if="isStageMode")
+				.stage-container
+					.video-tile(
+						v-if="stageTile",
+						:key="stageTile.key",
+						:class="{ 'is-local': stageTile.local && !stageTile.screen, 'is-screen': stageTile.screen, 'is-speaking': stageTile.speaking, 'is-pinned': pinnedTileKey === stageTile.key, 'is-spotlighted': spotlightTile && spotlightTile.key === stageTile.key }"
 					)
-					.local-screen-placeholder(v-else-if="tile.local && tile.screen")
-						.mdi.mdi-monitor-share
-						span {{ $t('You are sharing your screen') }}
-					video(
-						v-else,
-						class="remote-media",
-						:class="{ 'is-hidden': !tile.hasVideo }",
-						:data-feed-id="tile.videoFeedId || tile.id",
-						:muted="remoteVideoShouldBeMuted(tile)",
-						autoplay,
-						playsinline
+						.media-frame(:id="`janus_${stageTile.key}`")
+							video(
+								v-if="stageTile.local && !stageTile.screen",
+								ref="localVideo",
+								:class="{ 'is-hidden': !stageTile.hasVideo }",
+								autoplay,
+								playsinline,
+								muted
+							)
+							.local-screen-placeholder(v-else-if="stageTile.local && stageTile.screen")
+								.mdi.mdi-monitor-share
+								span {{ $t('You are sharing your screen') }}
+								button.btn-stop-share(type="button", @click="stopScreenShare")
+									.mdi.mdi-monitor-off
+									span {{ $t('Stop presenting') }}
+							video(
+								v-else,
+								class="remote-media",
+								:class="{ 'is-hidden': !stageTile.hasVideo }",
+								:data-feed-id="stageTile.videoFeedId || stageTile.id",
+								:muted="remoteVideoShouldBeMuted(stageTile)",
+								autoplay,
+								playsinline
+							)
+							audio(
+								v-if="!stageTile.local && stageTile.audioFeedId",
+								class="remote-audio",
+								:data-audio-feed-id="stageTile.audioFeedId",
+								autoplay
+							)
+							.avatar-wrap(v-if="!stageTile.hasVideo && !stageTile.screen")
+								avatar(v-if="stageTile.user", :user="stageTile.user", :size="size === 'tiny' ? 40 : 96")
+								.mdi.mdi-account-circle(v-else)
+							.tile-gradient
+							.tile-top
+								.audio-meter(:class="{ active: stageTile.audioLevel > 0.01 }")
+									.audio-meter-fill(:style="audioMeterStyle(stageTile)")
+								.tile-state-pill.hand-pill(v-if="isTileHandRaised(stageTile)", :title="$t('Hand raised')")
+									.mdi.mdi-hand-back-right
+								.tile-state-pill(v-else-if="spotlightTile && spotlightTile.key === stageTile.key")
+									.mdi.mdi-star
+							.avatar-placeholder(v-if="!stageTile.hasVideo")
+								avatar(:user="stageTile.user", :size="72")
+								span.user-name {{ stageTile.label }}
+							.tile-overlay
+								.tile-status
+									.mdi.mdi-pin(v-if="pinnedTileKey === stageTile.key", :title="$t('Pinned')")
+									.mdi.mdi-star(v-if="spotlightTile && spotlightTile.key === stageTile.key", :title="$t('Spotlighted')")
+									.mdi.mdi-hand-back-right(v-if="stageTile.handRaised", :title="$t('Hand raised')")
+									.mdi(:class="stageTile.cameraOn ? 'mdi-video' : 'mdi-video-off off'", :title="stageTile.cameraOn ? $t('Camera on') : $t('Camera off')")
+									.mdi(:class="stageTile.micOn ? 'mdi-microphone' : 'mdi-microphone-off muted'", :title="stageTile.micOn ? $t('Microphone on') : $t('Muted')")
+									span.tile-label {{ stageTile.label }}
+								.tile-actions(v-if="size !== 'tiny'")
+									button.tile-action(type="button", :title="pinnedTileKey === stageTile.key ? $t('Unpin') : $t('Pin')", @click="togglePin(stageTile)")
+										.mdi(:class="pinnedTileKey === stageTile.key ? 'mdi-pin-off' : 'mdi-pin'")
+									button.tile-action(type="button", v-if="canModerateParticipants && stageTile.user", :title="spotlightTile && spotlightTile.key === stageTile.key ? $t('Clear spotlight') : $t('Spotlight for everyone')", :disabled="spotlightPending", @click="toggleSpotlight(stageTile)")
+										.mdi(:class="spotlightTile && spotlightTile.key === stageTile.key ? 'mdi-star-off' : 'mdi-star'")
+									button.tile-action(type="button", v-if="!(stageTile.local && stageTile.screen)", :title="$t('Picture in picture')", :disabled="!stageTile.hasVideo", @click="togglePictureInPicture($event)")
+										.mdi.mdi-picture-in-picture-bottom-right
+									button.tile-action(type="button", :title="$t('Fullscreen')", @click="toggleFullscreen($event)")
+										.mdi.mdi-fullscreen
+									button.tile-action(type="button", v-if="stageTile.local && stageTile.screen", :title="$t('Stop screen sharing')", @click="stopScreenShare")
+										.mdi.mdi-monitor-off
+				.filmstrip-container(v-if="filmstripTiles.length")
+					.video-tile(
+						v-for="tile in filmstripTiles",
+						:key="tile.key",
+						:class="{ 'is-local': tile.local && !tile.screen, 'is-screen': tile.screen, 'is-speaking': tile.speaking, 'is-pinned': pinnedTileKey === tile.key, 'is-spotlighted': spotlightTile && spotlightTile.key === tile.key }"
 					)
-					audio(
-						v-if="!tile.local && tile.audioFeedId",
-						class="remote-audio",
-						:data-audio-feed-id="tile.audioFeedId",
-						autoplay
-					)
-					.avatar-wrap(v-if="!tile.hasVideo && !tile.screen")
-						avatar(v-if="tile.user", :user="tile.user", :size="size === 'tiny' ? 40 : 96")
-						.mdi.mdi-account-circle(v-else)
-					.tile-gradient
-					.tile-top
-						.audio-meter(:class="{ active: tile.audioLevel > 0.01 }")
-							.audio-meter-fill(:style="audioMeterStyle(tile)")
-						.tile-state-pill.hand-pill(v-if="isTileHandRaised(tile)", :title="$t('Hand raised')")
-							.mdi.mdi-hand-back-right
-						.tile-state-pill(v-else-if="spotlightTile && spotlightTile.key === tile.key")
-							.mdi.mdi-star
-					.avatar-placeholder(v-if="!tile.hasVideo")
-						avatar(:user="tile.user", :size="72")
-						span.user-name {{ tile.label }}
-					.tile-overlay
-						.tile-status
-							.mdi.mdi-pin(v-if="pinnedTileKey === tile.key", :title="$t('Pinned')")
-							.mdi.mdi-star(v-if="spotlightTile && spotlightTile.key === tile.key", :title="$t('Spotlighted')")
-							.mdi.mdi-hand-back-right(v-if="tile.handRaised", :title="$t('Hand raised')")
-							.mdi(:class="tile.cameraOn ? 'mdi-video' : 'mdi-video-off off'", :title="tile.cameraOn ? $t('Camera on') : $t('Camera off')")
-							.mdi(:class="tile.micOn ? 'mdi-microphone' : 'mdi-microphone-off muted'", :title="tile.micOn ? $t('Microphone on') : $t('Muted')")
-							span.tile-label {{ tile.label }}
-						.tile-actions(v-if="size !== 'tiny'")
-							button.tile-action(type="button", :title="pinnedTileKey === tile.key ? $t('Unpin') : $t('Pin')", @click="togglePin(tile)")
-								.mdi(:class="pinnedTileKey === tile.key ? 'mdi-pin-off' : 'mdi-pin'")
-							button.tile-action(type="button", v-if="canModerateParticipants && tile.user", :title="spotlightTile && spotlightTile.key === tile.key ? $t('Clear spotlight') : $t('Spotlight for everyone')", :disabled="spotlightPending", @click="toggleSpotlight(tile)")
-								.mdi(:class="spotlightTile && spotlightTile.key === tile.key ? 'mdi-star-off' : 'mdi-star'")
-							button.tile-action(type="button", v-if="!(tile.local && tile.screen)", :title="$t('Picture in picture')", :disabled="!tile.hasVideo", @click="togglePictureInPicture($event)")
-								.mdi.mdi-picture-in-picture-bottom-right
-							button.tile-action(type="button", :title="$t('Fullscreen')", @click="toggleFullscreen($event)")
-								.mdi.mdi-fullscreen
-							button.tile-action(type="button", v-if="tile.local && tile.screen", :title="$t('Stop screen sharing')", @click="stopScreenShare")
+						.media-frame(:id="`janus_${tile.key}`")
+							video(
+								v-if="tile.local && !tile.screen",
+								ref="localVideo",
+								:class="{ 'is-hidden': !tile.hasVideo }",
+								autoplay,
+								playsinline,
+								muted
+							)
+							.local-screen-placeholder(v-else-if="tile.local && tile.screen")
+								.mdi.mdi-monitor-share
+								span {{ $t('You are sharing your screen') }}
+							video(
+								v-else,
+								class="remote-media",
+								:class="{ 'is-hidden': !tile.hasVideo }",
+								:data-feed-id="tile.videoFeedId || tile.id",
+								:muted="remoteVideoShouldBeMuted(tile)",
+								autoplay,
+								playsinline
+							)
+							audio(
+								v-if="!tile.local && tile.audioFeedId",
+								class="remote-audio",
+								:data-audio-feed-id="tile.audioFeedId",
+								autoplay
+							)
+							.avatar-wrap(v-if="!tile.hasVideo && !tile.screen")
+								avatar(v-if="tile.user", :user="tile.user", :size="48")
+								.mdi.mdi-account-circle(v-else)
+							.tile-gradient
+							.tile-top
+								.audio-meter(:class="{ active: tile.audioLevel > 0.01 }")
+									.audio-meter-fill(:style="audioMeterStyle(tile)")
+								.tile-state-pill.hand-pill(v-if="isTileHandRaised(tile)", :title="$t('Hand raised')")
+									.mdi.mdi-hand-back-right
+								.tile-state-pill(v-else-if="spotlightTile && spotlightTile.key === tile.key")
+									.mdi.mdi-star
+							.avatar-placeholder(v-if="!tile.hasVideo")
+								avatar(:user="tile.user", :size="48")
+								span.user-name {{ tile.label }}
+							.tile-overlay
+								.tile-status
+									.mdi.mdi-pin(v-if="pinnedTileKey === tile.key", :title="$t('Pinned')")
+									.mdi.mdi-star(v-if="spotlightTile && spotlightTile.key === tile.key", :title="$t('Spotlighted')")
+									.mdi.mdi-hand-back-right(v-if="tile.handRaised", :title="$t('Hand raised')")
+									.mdi(:class="tile.cameraOn ? 'mdi-video' : 'mdi-video-off off'", :title="tile.cameraOn ? $t('Camera on') : $t('Camera off')")
+									.mdi(:class="tile.micOn ? 'mdi-microphone' : 'mdi-microphone-off muted'", :title="tile.micOn ? $t('Microphone on') : $t('Muted')")
+									span.tile-label {{ tile.label }}
+								.tile-actions(v-if="size !== 'tiny'")
+									button.tile-action(type="button", :title="pinnedTileKey === tile.key ? $t('Unpin') : $t('Pin')", @click="togglePin(tile)")
+										.mdi(:class="pinnedTileKey === tile.key ? 'mdi-pin-off' : 'mdi-pin'")
+									button.tile-action(type="button", v-if="canModerateParticipants && tile.user", :title="spotlightTile && spotlightTile.key === tile.key ? $t('Clear spotlight') : $t('Spotlight for everyone')", :disabled="spotlightPending", @click="toggleSpotlight(tile)")
+										.mdi(:class="spotlightTile && spotlightTile.key === tile.key ? 'mdi-star-off' : 'mdi-star'")
+									button.tile-action(type="button", v-if="!(tile.local && tile.screen)", :title="$t('Picture in picture')", :disabled="!tile.hasVideo", @click="togglePictureInPicture($event)")
+										.mdi.mdi-picture-in-picture-bottom-right
+									button.tile-action(type="button", :title="$t('Fullscreen')", @click="toggleFullscreen($event)")
+										.mdi.mdi-fullscreen
+									button.tile-action(type="button", v-if="tile.local && tile.screen", :title="$t('Stop screen sharing')", @click="stopScreenShare")
+										.mdi.mdi-monitor-off
+			template(v-else)
+				.video-tile(
+					v-for="tile in paginatedDisplayTiles",
+					:key="tile.key",
+					:class="{ 'is-local': tile.local && !tile.screen, 'is-screen': tile.screen, 'is-speaking': tile.speaking, 'is-pinned': pinnedTileKey === tile.key, 'is-spotlighted': spotlightTile && spotlightTile.key === tile.key }"
+				)
+					.media-frame(:id="`janus_${tile.key}`")
+						video(
+							v-if="tile.local && !tile.screen",
+							ref="localVideo",
+							:class="{ 'is-hidden': !tile.hasVideo }",
+							autoplay,
+							playsinline,
+							muted
+						)
+						.local-screen-placeholder(v-else-if="tile.local && tile.screen")
+							.mdi.mdi-monitor-share
+							span {{ $t('You are sharing your screen') }}
+							button.btn-stop-share(type="button", @click="stopScreenShare")
 								.mdi.mdi-monitor-off
+								span {{ $t('Stop presenting') }}
+						video(
+							v-else,
+							class="remote-media",
+							:class="{ 'is-hidden': !tile.hasVideo }",
+							:data-feed-id="tile.videoFeedId || tile.id",
+							:muted="remoteVideoShouldBeMuted(tile)",
+							autoplay,
+							playsinline
+						)
+						audio(
+							v-if="!tile.local && tile.audioFeedId",
+							class="remote-audio",
+							:data-audio-feed-id="tile.audioFeedId",
+							autoplay
+						)
+						.avatar-wrap(v-if="!tile.hasVideo && !tile.screen")
+							avatar(v-if="tile.user", :user="tile.user", :size="size === 'tiny' ? 40 : 96")
+							.mdi.mdi-account-circle(v-else)
+						.tile-gradient
+						.tile-top
+							.audio-meter(:class="{ active: tile.audioLevel > 0.01 }")
+								.audio-meter-fill(:style="audioMeterStyle(tile)")
+							.tile-state-pill.hand-pill(v-if="isTileHandRaised(tile)", :title="$t('Hand raised')")
+								.mdi.mdi-hand-back-right
+							.tile-state-pill(v-else-if="spotlightTile && spotlightTile.key === tile.key")
+								.mdi.mdi-star
+						.avatar-placeholder(v-if="!tile.hasVideo")
+							avatar(:user="tile.user", :size="72")
+							span.user-name {{ tile.label }}
+						.tile-overlay
+							.tile-status
+								.mdi.mdi-pin(v-if="pinnedTileKey === tile.key", :title="$t('Pinned')")
+								.mdi.mdi-star(v-if="spotlightTile && spotlightTile.key === tile.key", :title="$t('Spotlighted')")
+								.mdi.mdi-hand-back-right(v-if="tile.handRaised", :title="$t('Hand raised')")
+								.mdi(:class="tile.cameraOn ? 'mdi-video' : 'mdi-video-off off'", :title="tile.cameraOn ? $t('Camera on') : $t('Camera off')")
+								.mdi(:class="tile.micOn ? 'mdi-microphone' : 'mdi-microphone-off muted'", :title="tile.micOn ? $t('Microphone on') : $t('Muted')")
+								span.tile-label {{ tile.label }}
+							.tile-actions(v-if="size !== 'tiny'")
+								button.tile-action(type="button", :title="pinnedTileKey === tile.key ? $t('Unpin') : $t('Pin')", @click="togglePin(tile)")
+									.mdi(:class="pinnedTileKey === tile.key ? 'mdi-pin-off' : 'mdi-pin'")
+								button.tile-action(type="button", v-if="canModerateParticipants && tile.user", :title="spotlightTile && spotlightTile.key === tile.key ? $t('Clear spotlight') : $t('Spotlight for everyone')", :disabled="spotlightPending", @click="toggleSpotlight(tile)")
+									.mdi(:class="spotlightTile && spotlightTile.key === tile.key ? 'mdi-star-off' : 'mdi-star'")
+								button.tile-action(type="button", v-if="!(tile.local && tile.screen)", :title="$t('Picture in picture')", :disabled="!tile.hasVideo", @click="togglePictureInPicture($event)")
+									.mdi.mdi-picture-in-picture-bottom-right
+								button.tile-action(type="button", :title="$t('Fullscreen')", @click="toggleFullscreen($event)")
+									.mdi.mdi-fullscreen
+								button.tile-action(type="button", v-if="tile.local && tile.screen", :title="$t('Stop screen sharing')", @click="stopScreenShare")
+									.mdi.mdi-monitor-off
 
 			.slow-banner(v-if="size !== 'tiny' && downstreamSlowLinkCount > 5 && videoOutput", @click="disableIncomingVideo") {{ $t('Slow connection detected. Click to disable incoming video.') }}
 
@@ -304,11 +444,17 @@ const summarizeStream = (stream) => stream ? ({
 
 const calculateLayout = (containerWidth, containerHeight, videoCount, aspectRatio, gap) => {
 	const count = Math.max(videoCount, 1)
-	const minimumCols = count > 2 && containerWidth >= 420 ? 2 : 1
+	const isLandscape = containerWidth >= containerHeight || containerWidth >= 540
+	let minimumCols = 1
+	if (count === 2 && isLandscape) {
+		minimumCols = 2
+	} else if (count > 2 && containerWidth >= 420) {
+		minimumCols = 2
+	}
 	let bestLayout = {
 		area: 0,
 		cols: minimumCols,
-		rows: count,
+		rows: Math.ceil(count / minimumCols),
 		width: containerWidth,
 		height: containerHeight
 	}
@@ -323,6 +469,11 @@ const calculateLayout = (containerWidth, containerHeight, videoCount, aspectRati
 		const width = Math.min(widthFromContainer, widthFromHeight)
 		const height = Math.min(heightFromWidth, heightFromContainer)
 		const area = width * height
+		// Prioritize 2 side-by-side columns for 2 people on landscape displays
+		if (count === 2 && cols === 2 && isLandscape) {
+			bestLayout = {area, cols, rows, width, height}
+			break
+		}
 		const isBetterShape = area === bestLayout.area && Math.abs(cols - rows) < Math.abs(bestLayout.cols - bestLayout.rows)
 		if (area > bestLayout.area || isBetterShape) {
 			bestLayout = {area, cols, rows, width, height}
@@ -496,7 +647,6 @@ export default {
 		canModerateParticipants() {
 			return this.isModerator ||
 				this.hasPermission('room:januscall.moderate') ||
-				this.hasPermission('room:bbb.moderate') ||
 				this.hasPermission('room:update') ||
 				this.hasPermission('world:update')
 		},
@@ -516,20 +666,12 @@ export default {
 			return Number(this.screenShareSessionId || Number(this.sessionId) + 1000000000)
 		},
 		gridStyle() {
-			if (this.size === 'tiny') {
+			if (this.size === 'tiny' || this.isStageMode) {
 				return {
 					'--tile-columns': 1,
 					'--tile-rows': 1,
 					'--tile-width': '100%',
 					'--tile-height': '100%',
-				}
-			}
-			if (this.effectiveViewMode === 'speaker') {
-				return {
-					'--tile-columns': 1,
-					'--tile-rows': 1,
-					'--tile-width': 'minmax(0, 1fr)',
-					'--tile-height': 'minmax(0, 1fr)',
 				}
 			}
 			const w = this.layout.width > 0 ? `${this.layout.width}px` : 'minmax(0, 1fr)'
@@ -541,10 +683,25 @@ export default {
 				'--tile-height': h,
 			}
 		},
+		isStageMode() {
+			return this.size !== 'tiny' && (this.hasScreenTile || this.effectiveViewMode === 'speaker')
+		},
+		stageTile() {
+			if (!this.isStageMode) return null
+			return this.focusTile
+		},
+		filmstripTiles() {
+			if (!this.isStageMode) return []
+			const stageKey = this.stageTile?.key
+			return this.tiles.filter(tile => tile.key !== stageKey)
+		},
 		galleryClasses() {
 			return {
-				'has-screen': this.effectiveViewMode === 'gallery' && this.hasScreenTile,
+				'is-stage-mode': this.isStageMode,
+				'has-screen': this.hasScreenTile,
 				'is-speaker-layout': this.effectiveViewMode === 'speaker',
+				[`cols-${this.layout.cols || 1}`]: !this.isStageMode,
+				[`tiles-${this.tiles.length}`]: true,
 			}
 		},
 		hasScreenTile() {
@@ -3064,12 +3221,8 @@ export default {
 		},
 		onResize() {
 			if (!this.$refs.container) return
-			if (this.effectiveViewMode === 'speaker') {
+			if (this.isStageMode) {
 				this.layout = {cols: 1, rows: 1, width: 0, height: 0}
-				return
-			}
-			if (this.hasScreenTile) {
-				this.layout = {cols: 2, rows: Math.max(this.tiles.length - 1, 1)}
 				return
 			}
 			const bbox = this.$refs.container.getBoundingClientRect()
@@ -3346,37 +3499,112 @@ export default {
 		padding: 16px
 		position: relative
 		transition: grid-template-columns .2s ease, grid-template-rows .2s ease
-		&.has-screen
-			align-content: stretch
-			align-items: stretch
-			grid-template-columns: minmax(0, 1fr) minmax(240px, 320px)
-			grid-template-rows: repeat(var(--tile-rows), minmax(0, 1fr))
-			.video-tile
-				grid-column: 2
-			.video-tile.is-screen
-				grid-column: 1
-				grid-row: 1 / -1
-				align-self: center
-				aspect-ratio: 16 / 9
-		&.is-speaker-layout
+		&.is-stage-mode
 			display: flex
-			flex-wrap: wrap
-			align-content: stretch
+			flex-direction: row
 			align-items: stretch
-			justify-content: center
-			overflow-x: hidden
-			overflow-y: auto
-			.video-tile
-				flex: 0 0 176px
-				aspect-ratio: 16 / 9
-				height: 112px
-				width: 176px
-			.video-tile:first-child
-				aspect-ratio: auto
-				flex: 1 0 100%
-				height: calc(100% - 144px)
-				min-height: 240px
+			justify-content: space-between
+			gap: 16px
+			padding: 16px
+			overflow: hidden
+
+			@media (max-width: 768px)
+				flex-direction: column
+
+			.stage-container
+				flex: 1 1 0%
+				min-width: 0
+				min-height: 0
+				height: 100%
 				width: 100%
+				display: flex
+				align-items: center
+				justify-content: center
+				position: relative
+
+				.video-tile
+					width: 100%
+					height: 100%
+					max-width: 100%
+					max-height: 100%
+					border-radius: 12px
+					display: flex
+					align-items: center
+					justify-content: center
+					background: #000000
+
+					.media-frame
+						width: 100%
+						height: 100%
+						display: flex
+						align-items: center
+						justify-content: center
+
+						video
+							max-width: 100%
+							max-height: 100%
+							width: 100%
+							height: 100%
+							object-fit: contain
+
+			.filmstrip-container
+				display: flex
+				flex-direction: column
+				gap: 10px
+				width: 240px
+				max-width: 280px
+				height: 100%
+				overflow-y: auto
+				overflow-x: hidden
+				flex-shrink: 0
+				padding: 2px
+
+				@media (max-width: 768px)
+					flex-direction: row
+					width: 100%
+					max-width: 100%
+					height: 110px
+					overflow-x: auto
+					overflow-y: hidden
+
+				.video-tile
+					width: 100%
+					aspect-ratio: 16 / 9
+					flex-shrink: 0
+					min-height: 110px
+					max-height: 150px
+					border-radius: 8px
+
+					@media (max-width: 768px)
+						height: 100%
+						width: auto
+						max-height: 100%
+
+		// Centering rules for balanced grid in gallery mode
+		&.cols-2 .video-tile:last-child:nth-child(odd)
+			grid-column: 1 / span 2
+			justify-self: center
+			width: var(--tile-width)
+
+		&.cols-3 .video-tile:nth-child(3n + 1):last-child
+			grid-column: 1 / -1
+			justify-self: center
+			width: var(--tile-width)
+
+		&.cols-3 .video-tile:nth-child(3n + 1):nth-last-child(2)
+			grid-column: 1 / 3
+			justify-self: end
+			width: var(--tile-width)
+
+		&.cols-3 .video-tile:nth-child(3n + 2):last-child
+			grid-column: 2 / 4
+			justify-self: start
+			width: var(--tile-width)
+
+		&.cols-4 .video-tile:nth-child(4n + 1):last-child
+			grid-column: 1 / -1
+			justify-self: center
+			width: var(--tile-width)
 
 	.video-tile
 		background: #1e2229
@@ -3430,15 +3658,30 @@ export default {
 		flex-direction: column
 		font-size: 15px
 		font-weight: 650
-		gap: 10px
+		gap: 14px
 		height: 100%
 		justify-content: center
-		padding: 16px
+		padding: 24px
 		text-align: center
 		width: 100%
 		.mdi
 			color: #55a4ff
 			font-size: 52px
+		.btn-stop-share
+			display: inline-flex
+			align-items: center
+			gap: 8px
+			background: #dc2626
+			color: #ffffff
+			border: none
+			border-radius: 6px
+			padding: 8px 16px
+			font-size: 14px
+			font-weight: 600
+			cursor: pointer
+			transition: background 0.15s ease
+			&:hover
+				background: #b91c1c
 
 	.avatar-wrap
 		align-items: center
@@ -3556,6 +3799,55 @@ export default {
 			background: #ffb020
 			.mdi
 				color: #111317
+
+	.tile-overlay
+		align-items: center
+		bottom: 10px
+		display: flex
+		gap: 8px
+		justify-content: space-between
+		left: 10px
+		position: absolute
+		right: 10px
+		z-index: 5
+		pointer-events: none
+
+		.tile-status
+			align-items: center
+			background: rgba(0, 0, 0, 0.65)
+			backdrop-filter: blur(8px)
+			border-radius: 6px
+			color: #fff
+			display: inline-flex
+			font-size: 13px
+			font-weight: 500
+			gap: 6px
+			max-width: calc(100% - 120px)
+			min-width: 0
+			padding: 4px 10px
+			pointer-events: auto
+
+			.tile-label
+				overflow: hidden
+				text-overflow: ellipsis
+				white-space: nowrap
+
+			.mdi
+				font-size: 15px
+
+				&.off, &.muted
+					color: #ef4444
+
+		.tile-actions
+			pointer-events: auto
+			display: flex
+			align-items: center
+			gap: 6px
+			opacity: 0
+			transition: opacity .15s ease
+
+	.video-tile:hover .tile-overlay .tile-actions
+		opacity: 1
 
 	.tile-bottom
 		align-items: center

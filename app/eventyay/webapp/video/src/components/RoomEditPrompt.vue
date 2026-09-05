@@ -153,7 +153,8 @@ export default {
 			const videoTypes = getAvailableVideoProviders(
 				this.hasPermission,
 				this.isAdminMode,
-				(flag) => features.enabled(flag)
+				(flag) => features.enabled(flag),
+				this.$store.state.world?.video_providers
 			).map(provider => {
 				const type = getRoomTypeById(provider.roomTypeId)
 				if (!type) return null

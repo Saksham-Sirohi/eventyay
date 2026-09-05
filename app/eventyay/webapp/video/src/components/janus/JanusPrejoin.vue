@@ -298,6 +298,7 @@ export default {
 	flex: auto
 	height: 100%
 	width: 100%
+	max-width: 100%
 	display: flex
 	align-items: center
 	justify-content: center
@@ -305,10 +306,13 @@ export default {
 	padding: 24px
 	box-sizing: border-box
 	overflow-y: auto
+	overflow-x: hidden
 
 	.prejoin-container
 		width: 100%
-		max-width: 920px
+		max-width: 860px
+		min-width: 0
+		box-sizing: border-box
 
 	.prejoin-layout
 		display: grid
@@ -587,5 +591,14 @@ export default {
 				padding: 10px 12px
 				border-radius: 6px
 				font-size: 12.5px
-				line-height: 1.4
+.in-room-manager
+	.c-janus-prejoin
+		padding: 12px
+		.prejoin-container
+			max-width: 100%
+		.prejoin-layout
+			grid-template-columns: 1fr
+			gap: 12px
+		.join-card .room-header
+			display: none
 </style>

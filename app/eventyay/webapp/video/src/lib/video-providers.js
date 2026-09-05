@@ -63,8 +63,22 @@ export const VIDEO_CREATE_PROVIDERS = [
 	}
 ]
 
-export function isVideoProviderEnabled(provider, isFeatureEnabled) {
-	return !provider.featureFlag || Boolean(isFeatureEnabled(provider.featureFlag))
+export const MODULE_TYPE_TO_PROVIDER = {
+	'call.bigbluebutton': 'bbb',
+	'call.jitsi': 'jitsi',
+	'call.janus': 'janus',
+	'call.loungemesh': 'loungemesh',
+	'call.zoom': 'zoom',
+	'networking.roulette': 'janus'
+}
+
+export function isVideoProviderEnabled(provider, isFeatureEnabled, videoProvidersConfig) {
+	if (videoProvidersConfig && videoProvidersConfig[provider.id]) {
+		if (videoProvidersConfig[provider.id].organizer === false) {
+			return false
+		}
+	}
+	return !provider.featureFlag || Boolean(isFeatureEnabled ? isFeatureEnabled(provider.featureFlag) : true)
 }
 
 export function isVideoProviderPermitted(provider, hasPermission, isAdminMode = false) {
@@ -76,11 +90,24 @@ export function isVideoProviderPermitted(provider, hasPermission, isAdminMode = 
 	return provider.roomTypeId === 'stage' && hasPermission('room:update')
 }
 
-export function getAvailableVideoProviders(hasPermission, isAdminMode, isFeatureEnabled) {
+export function getAvailableVideoProviders(hasPermission, isAdminMode, isFeatureEnabled, videoProvidersConfig) {
 	return VIDEO_CREATE_PROVIDERS.filter(provider =>
-		isVideoProviderEnabled(provider, isFeatureEnabled) &&
+		isVideoProviderEnabled(provider, isFeatureEnabled, videoProvidersConfig) &&
 		isVideoProviderPermitted(provider, hasPermission, isAdminMode)
 	)
+}
+
+export function isRoomVisibleToAttendee(room, videoProvidersConfig) {
+	if (!videoProvidersConfig) return true
+	const modules = room?.modules || room?.module_config || []
+	for (const m of modules) {
+		const type = typeof m === 'string' ? m : m?.type
+		const provider = MODULE_TYPE_TO_PROVIDER[type]
+		if (provider && videoProvidersConfig[provider]?.attendee === false) {
+			return false
+		}
+	}
+	return true
 }
 
 export function getVideoProviderByRoomTypeId(roomTypeId) {

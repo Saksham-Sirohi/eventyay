@@ -82,6 +82,7 @@ import Session from '@schedule/components/Session.vue'
 import SpeakersList from '@schedule/components/SpeakersList.vue'
 import MarkdownContent from 'components/MarkdownContent'
 import RichTextContent from 'components/RichTextContent'
+import { isRoomVisibleToAttendee } from 'lib/video-providers'
 
 export default {
 	components: { MarkdownContent, Session, RichTextContent, SpeakersList },
@@ -295,7 +296,10 @@ export default {
 				'call.jitsi',
 				'call.loungemesh'
 			]
-			return this.rooms.filter(r => r.schedule_data || r.modules?.some(m => videoModuleTypes.includes(m.type))).map(room => {
+			return this.rooms
+				.filter(r => isRoomVisibleToAttendee(r, this.world?.video_providers))
+				.filter(r => r.schedule_data || r.modules?.some(m => videoModuleTypes.includes(m.type)))
+				.map(room => {
 				const sessionInfo = this.currentSessionPerRoom?.[room.id]
 				const session = sessionInfo?.session
 				const hasVideo = room.modules && room.modules.some(m => videoModuleTypes.includes(m.type))

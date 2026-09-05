@@ -242,9 +242,27 @@ def test_loungemesh_token_exchange_view(test_setup):
     resp = client.post("/api/v1/loungemesh/token/", data=json.dumps({"token": "fake"}), content_type="application/json")
     assert resp.status_code == 403
 
-    # 3. Valid attendee token
+    # 3. Valid token but missing or invalid API secret -> 401 Unauthorized
     token_obj = issue_opaque_token(event=event, room=room, user=user, moderator=False, expires_in_seconds=1800)
     resp = client.post("/api/v1/loungemesh/token/", data=json.dumps({"token": token_obj.token}), content_type="application/json")
+    assert resp.status_code == 401
+    assert resp.json()["error"] == "unauthorized"
+
+    resp = client.post(
+        "/api/v1/loungemesh/token/",
+        data=json.dumps({"token": token_obj.token}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION="Bearer wrong_secret",
+    )
+    assert resp.status_code == 401
+
+    # 4. Valid attendee token with Authorization Bearer header -> 200 OK
+    resp = client.post(
+        "/api/v1/loungemesh/token/",
+        data=json.dumps({"token": token_obj.token}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION="Bearer test_lm_secret",
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "granted"
@@ -255,10 +273,15 @@ def test_loungemesh_token_exchange_view(test_setup):
     assert data["features"]["whiteboard"] is True
     assert data["features"]["spatial_chat"] is True
 
-    # 4. Valid moderator token
+    # 5. Valid moderator token with X-LoungeMesh-Secret header -> 200 OK
     mod_user = test_setup["moderator_user"]
     mod_token_obj = issue_opaque_token(event=event, room=room, user=mod_user, moderator=True, expires_in_seconds=1800)
-    resp = client.post("/api/v1/loungemesh/token/", data=json.dumps({"token": mod_token_obj.token}), content_type="application/json")
+    resp = client.post(
+        "/api/v1/loungemesh/token/",
+        data=json.dumps({"token": mod_token_obj.token}),
+        content_type="application/json",
+        HTTP_X_LOUNGEMESH_SECRET="test_lm_secret",
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["moderator"] is True
@@ -272,7 +295,17 @@ def test_loungemesh_token_refresh_view(test_setup):
     room = test_setup["room"]
 
     token_obj = issue_opaque_token(event=event, room=room, user=user, moderator=False, expires_in_seconds=1800)
+    # Without secret -> 401
     resp = client.post("/api/v1/loungemesh/token/refresh/", data=json.dumps({"token": token_obj.token}), content_type="application/json")
+    assert resp.status_code == 401
+
+    # With Bearer secret -> 200
+    resp = client.post(
+        "/api/v1/loungemesh/token/refresh/",
+        data=json.dumps({"token": token_obj.token}),
+        content_type="application/json",
+        HTTP_AUTHORIZATION="Bearer test_lm_secret",
+    )
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "refreshed"

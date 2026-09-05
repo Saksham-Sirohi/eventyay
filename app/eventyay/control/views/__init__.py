@@ -213,6 +213,7 @@ from .admin_views import (
     TurnServerUpdate,
     UserList,
     UserUpdate,
+    VideoProviderToggleVisibility,
     VideoSettings,
 )
 
@@ -252,5 +253,6 @@ __all__ = [
     'TurnServerUpdate',
     'UserList',
     'UserUpdate',
+    'VideoProviderToggleVisibility',
     'VideoSettings',
 ]

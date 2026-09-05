@@ -1,5 +1,11 @@
 <template lang="pug">
 .c-base-channel-form
+	.provider-disabled-warning(v-if="isProviderDisabled")
+		i.mdi.mdi-alert-circle-outline
+		.warning-text
+			strong {{ $t('Feature Disabled') }}
+			p {{ $t('This feature is no longer available. Please contact system administrator.') }}
+
 	.provider-overview-card
 		.provider-icon-wrapper(:class="providerId")
 			i.mdi(:class="providerIcon")
@@ -42,6 +48,14 @@ export default {
 			type: Boolean,
 			default: false
 		}
+	},
+	computed: {
+		isProviderDisabled() {
+			const providers = this.$store?.state?.world?.video_providers
+			if (!providers || !this.providerId) return false
+			const config = providers[this.providerId]
+			return config && config.available === false
+		}
 	}
 }
 </script>
@@ -50,6 +64,32 @@ export default {
 	display: flex
 	flex-direction: column
 	gap: 20px
+
+	.provider-disabled-warning
+		display: flex
+		align-items: flex-start
+		gap: 12px
+		padding: 14px 16px
+		background-color: #fff8f8
+		border: 1px solid #fecaca
+		border-radius: 8px
+		color: #991b1b
+
+		> i.mdi
+			font-size: 22px
+			color: #dc2626
+			flex-shrink: 0
+			margin-top: 1px
+
+		.warning-text
+			strong
+				display: block
+				font-size: 14px
+				margin-bottom: 2px
+			p
+				margin: 0
+				font-size: 13px
+				color: #b91c1c
 
 	.provider-overview-card
 		display: flex

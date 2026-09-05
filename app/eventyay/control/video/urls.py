@@ -31,6 +31,11 @@ urlpatterns = [
     
     # Unified Video Settings
     path("settings/", views.VideoSettings.as_view(), name="settings"),
+    path(
+        "settings/toggle-visibility/",
+        views.VideoProviderToggleVisibility.as_view(),
+        name="settings.toggle-visibility",
+    ),
     
     # BBB Server Management URLs
     path("bbbs/", SettingsTabRedirectView.as_view(tab="bbb"), name="bbbserver.list"),
