@@ -90,7 +90,61 @@
         }
     }
 
+    async function toggleProvider(input) {
+        const container = input.closest("[data-provider-table]") || input.closest("table");
+        const toggleUrl = container ? container.dataset.toggleUrl : null;
+        if (!toggleUrl) return;
+
+        const previous = !input.checked;
+        input.disabled = true;
+        const parentDiv = input.closest("td");
+        const statusLabel = parentDiv ? parentDiv.querySelector(".toggle-status-label") : null;
+        const toggle = input.closest(".video-server-toggle");
+
+        try {
+            const response = await fetch(toggleUrl, {
+                method: "POST",
+                credentials: "same-origin",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCsrfToken(container),
+                },
+                body: JSON.stringify({
+                    provider: input.dataset.provider,
+                    enabled: input.checked,
+                }),
+            });
+            let payload = {};
+            try {
+                payload = await response.json();
+            } catch (err) {
+                if (!response.ok) throw new Error("Could not update video provider settings.");
+                throw err;
+            }
+            if (!response.ok || !payload.ok) {
+                throw new Error(payload.error || "Could not update video provider settings.");
+            }
+            input.checked = payload.enabled;
+            if (statusLabel) {
+                statusLabel.innerHTML = payload.enabled
+                    ? '<span class="text-success"><span class="fa fa-check"></span> Enabled</span>'
+                    : '<span class="text-danger"><span class="fa fa-ban"></span> Disabled</span>';
+                if (toggle) toggle.setAttribute("title", payload.enabled ? "Enabled" : "Disabled");
+            }
+        } catch (error) {
+            input.checked = previous;
+            window.alert(error.message);
+        } finally {
+            input.disabled = false;
+        }
+    }
+
     document.addEventListener("change", (event) => {
+        const providerInput = event.target.closest(".video-provider-visibility-toggle");
+        if (providerInput) {
+            toggleProvider(providerInput);
+            return;
+        }
         const input = event.target.closest("[data-video-server-toggle], .video-server-toggle-input");
         if (!input) {
             return;

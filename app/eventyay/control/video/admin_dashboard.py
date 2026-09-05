@@ -88,15 +88,19 @@ def get_video_server_dashboard_rows():
         )
         if has_event_exclusive:
             queryset = queryset.select_related("event_exclusive")
+        queryset = queryset.prefetch_related("organizers", "events")
 
         for server in queryset:
             active = bool(server.active)
             rows.append(
                 {
+                    "server": server,
                     "server_type": server_type,
                     "type_label": config.label,
                     "name": getattr(server, config.display_attr),
                     "event_exclusive": server.event_exclusive if has_event_exclusive else None,
+                    "organizers": list(server.organizers.all()),
+                    "events": list(server.events.all()),
                     "edit_url": reverse(
                         config.update_url_name, kwargs={"pk": server.pk}
                     ),

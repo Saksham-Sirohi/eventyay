@@ -126,7 +126,12 @@ export default {
 	computed: {
 		...mapGetters(['hasPermission', 'isAdminMode']),
 		availableRoomTypes() {
-			return filterRoomTypesByPermission(this.allRoomTypes, this.hasPermission, this.isAdminMode)
+			return filterRoomTypesByPermission(
+				this.allRoomTypes,
+				this.hasPermission,
+				this.isAdminMode,
+				this.$store.state.world?.video_providers
+			)
 		},
 		modules() {
 			return this.config?.module_config.reduce((acc, module) => {

@@ -4,6 +4,7 @@ import uuid
 from contextlib import suppress
 
 import jwt
+from asgiref.sync import sync_to_async
 from channels.db import database_sync_to_async
 from channels.layers import get_channel_layer
 from django.conf import settings
@@ -22,7 +23,13 @@ from eventyay.base.services.room_creation_gate import (
     user_can_create_server_backed_room_during_development,
 )
 from eventyay.base.services.video_theme import build_video_theme_for_event
-from eventyay.base.settings import GlobalSettingsObject
+from eventyay.base.settings import (
+    GlobalSettingsObject,
+    get_provider_for_module_type,
+    get_video_provider_visibility,
+    is_room_visible_for_attendee,
+    is_video_provider_enabled_for_organizer,
+)
 from eventyay.core.permissions import Permission
 
 
@@ -100,6 +107,22 @@ def get_rooms(event, user):
         live_features = (getattr(event, 'config', None) or {}).get('live_features', {})
         if not live_features.get('chat_rooms', False):
             rooms_list = [r for r in rooms_list if not is_chat_channel_room(r)]
+
+        is_organizer_or_admin = False
+        if user:
+            try:
+                is_organizer_or_admin = (
+                    getattr(user, "is_administrator", False)
+                    or getattr(user, "is_staff", False)
+                    or getattr(user, "is_superuser", False)
+                    or event.has_permission(user=user, permission=[Permission.ROOM_UPDATE, Permission.EVENT_UPDATE])
+                )
+            except Exception:
+                is_organizer_or_admin = False
+
+        if not is_organizer_or_admin:
+            rooms_list = [r for r in rooms_list if is_room_visible_for_attendee(r)]
+
         return rooms_list
 
 
@@ -259,6 +282,7 @@ def get_room_config(room, permissions, *, current_stream=_UNSET):
         stream_data = get_room_current_stream_data(room)
     else:
         stream_data = current_stream
+    visible_to_attendee = is_room_visible_for_attendee(room)
     room_config = {
         "id": str(room.id),
         "name": room.name,
@@ -271,6 +295,8 @@ def get_room_config(room, permissions, *, current_stream=_UNSET):
         "modules": [],
         "schedule_data": room.schedule_data or None,
         "currentStream": stream_data,
+        "is_disabled": not visible_to_attendee,
+        "disabled_reason": "This feature is no longer available. Please contact system administrator." if not visible_to_attendee else None,
     }
 
     if is_chat_channel_room(room):
@@ -341,6 +367,7 @@ def get_event_config_for_user(event, user):
             **(cfg.get("live_features") or {}),
         },
         "onsite_traits": cfg.get("onsite_traits", []),
+        "video_providers": get_video_provider_visibility(),
     }
     # Build permission strings and include world:* aliases for event:* permissions for frontend compatibility
     event_perm_values = [
@@ -468,9 +495,21 @@ def get_platform_video_defaults_sync():
 
 
 get_platform_video_defaults = database_sync_to_async(get_platform_video_defaults_sync)
+is_video_provider_enabled_for_organizer_async = sync_to_async(
+    is_video_provider_enabled_for_organizer, thread_sensitive=True
+)
 
 
 async def create_room(event, data, creator):
+    for module in data.get("modules", []):
+        if isinstance(module, dict):
+            provider = get_provider_for_module_type(module.get("type"))
+            if provider and not await is_video_provider_enabled_for_organizer_async(provider):
+                raise ValidationError(
+                    f"Video provider '{provider}' is currently disabled for room creation.",
+                    code="denied",
+                )
+
     types = {m["type"] for m in data.get("modules", [])}
     livestream_types = {
         "livestream.native",
@@ -657,8 +696,19 @@ async def create_room(event, data, creator):
 async def get_room_config_for_user(room: str, event_id: str, user):
     room = await get_room(id=room, event_id=event_id)
     permissions = await database_sync_to_async(room.event.get_all_permissions)(user)
+    effective_permissions = permissions[room] | permissions[room.event]
+    is_orga = bool(
+        "room:update" in effective_permissions
+        or "event:update" in effective_permissions
+        or "world:update" in effective_permissions
+    )
+    if not is_orga:
+        visible = await database_sync_to_async(is_room_visible_for_attendee)(room)
+        if not visible:
+            return None
+
     return await database_sync_to_async(get_room_config)(
-        room, permissions[room] | permissions[room.event]
+        room, effective_permissions
     )
 
 

@@ -54,6 +54,7 @@ import OrganiserSidebar from 'components/OrganiserSidebar'
 import MediaSource from 'components/MediaSource'
 import Notifications from 'components/notifications'
 import GreetingPrompt from 'components/profile/GreetingPrompt'
+import { isRoomVisibleToAttendee } from 'lib/video-providers'
 
 const mediaModules = ['livestream.native', 'livestream.youtube', 'call.bigbluebutton', 'call.janus', 'call.zoom', 'call.jitsi', 'call.loungemesh']
 const stageToolModules = ['livestream.native', 'livestream.youtube', 'call.janus']
@@ -205,6 +206,7 @@ export default {
 		},
 		roomHasMedia() {
 			if (this.hasFatalError(this.room)) return false
+			if (this.room?.is_disabled || !isRoomVisibleToAttendee(this.room, this.world?.video_providers)) return false
 			return this.room?.modules.some(module => mediaModules.includes(module.type))
 		},
 		// Single source of truth for which room should be streaming

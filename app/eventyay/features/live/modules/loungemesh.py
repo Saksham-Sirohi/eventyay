@@ -46,10 +46,6 @@ class LoungeMeshModule(BaseModule):
                 user=self.consumer.user,
                 permission=[
                     Permission.ROOM_LOUNGEMESH_MODERATE,
-                    Permission.ROOM_BBB_MODERATE,
-                    Permission.ROOM_JITSI_MODERATE,
-                    Permission.ROOM_JANUSCALL_MODERATE,
-                    Permission.ROOM_CHAT_MODERATE,
                     Permission.ROOM_UPDATE,
                     Permission.EVENT_UPDATE,
                 ],

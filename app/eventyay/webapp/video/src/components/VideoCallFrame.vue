@@ -293,9 +293,9 @@ export default {
 		justify-content: space-between
 		height: 48px
 		padding: 0 16px
-		background: #ffffff
-		border-bottom: 1px solid #e5e7eb
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04)
+		background: #181c24
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08)
+		box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2)
 		z-index: 10
 		flex-shrink: 0
 
@@ -312,8 +312,8 @@ export default {
 				width: 28px
 				height: 28px
 				border-radius: 6px
-				background: #e8f4fd
-				color: #2185d0
+				background: rgba(33, 133, 208, 0.15)
+				color: #55a4ff
 				font-size: 17px
 				flex-shrink: 0
 
@@ -323,7 +323,7 @@ export default {
 				overflow: hidden
 
 				.room-title
-					color: #111827
+					color: #f3f4f6
 					font-size: 14px
 					font-weight: 600
 					white-space: nowrap
@@ -341,7 +341,7 @@ export default {
 				align-items: center
 				gap: 6px
 				font-size: 12px
-				color: #6b7280
+				color: #9ca3af
 
 				.status-dot
 					width: 8px
@@ -350,24 +350,24 @@ export default {
 					background-color: #f59e0b
 
 				&.connected
-					color: #16a34a
+					color: #34d399
 					.status-dot
-						background-color: #16a34a
-						box-shadow: 0 0 6px rgba(22, 163, 74, 0.4)
+						background-color: #34d399
+						box-shadow: 0 0 6px rgba(52, 211, 153, 0.5)
 
 				&.error
-					color: #db2828
+					color: #ef4444
 					.status-dot
-						background-color: #db2828
+						background-color: #ef4444
 
 			.chrome-action-btn
 				display: inline-flex
 				align-items: center
 				justify-content: center
 				gap: 6px
-				background: #ffffff
-				border: 1px solid #d1d5db
-				color: #374151
+				background: rgba(255, 255, 255, 0.08)
+				border: 1px solid rgba(255, 255, 255, 0.14)
+				color: #e5e7eb
 				padding: 5px 12px
 				border-radius: 6px
 				font-size: 13px
@@ -376,19 +376,19 @@ export default {
 				transition: all 0.15s ease
 
 				&:hover
-					background: #f9fafb
-					border-color: #2185d0
-					color: #2185d0
+					background: rgba(255, 255, 255, 0.15)
+					border-color: rgba(255, 255, 255, 0.25)
+					color: #ffffff
 
 				&.btn-hangup
-					background: #db2828
-					border-color: #c52424
+					background: #dc2626
+					border-color: #b91c1c
 					color: #ffffff
 					font-weight: 600
 
 					&:hover
-						background: #c52424
-						border-color: #b91c1c
+						background: #b91c1c
+						border-color: #991b1b
 						color: #ffffff
 
 	.call-viewport

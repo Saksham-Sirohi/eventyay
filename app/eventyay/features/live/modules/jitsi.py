@@ -19,40 +19,36 @@ logger = logging.getLogger(__name__)
 
 JITSI_PARTICIPANT_TOOLBAR_BUTTONS = [
     "camera",
-    "closedcaptions",
-    "desktop",
-    "filmstrip",
-    "fullscreen",
-    "hangup",
     "microphone",
-    "noisesuppression",
-    "profile",
+    "desktop",
+    "chat",
     "raisehand",
+    "participants-pane",
+    "tileview",
     "select-background",
     "settings",
-    "tileview",
-    "toggle-camera",
+    "fullscreen",
     "videoquality",
+    "hangup",
 ]
 
 JITSI_MODERATOR_TOOLBAR_BUTTONS = [
-    *JITSI_PARTICIPANT_TOOLBAR_BUTTONS,
-    "download",
-    "etherpad",
-    "feedback",
-    "fodeviceselection",
-    "help",
-    "livestreaming",
+    "camera",
+    "microphone",
+    "desktop",
+    "chat",
+    "raisehand",
+    "participants-pane",
+    "tileview",
+    "select-background",
     "mute-everyone",
     "mute-video-everyone",
-    "participants-pane",
     "recording",
-    "security",
-    "shareaudio",
-    "sharedvideo",
-    "shortcuts",
-    "stats",
-    "whiteboard",
+    "livestreaming",
+    "settings",
+    "fullscreen",
+    "videoquality",
+    "hangup",
 ]
 
 JITSI_INTERFACE_CONFIG_OVERWRITE = {
@@ -68,6 +64,13 @@ JITSI_INTERFACE_CONFIG_OVERWRITE = {
     "SHOW_JITSI_WATERMARK": False,
     "SHOW_POWERED_BY": False,
     "SHOW_WATERMARK_FOR_GUESTS": False,
+    "SHOW_PROMOTIONAL_CLOSE_PAGE": False,
+    "HIDE_DEEP_LINKING_LOGO": True,
+    "GENERATE_ROOMNAMES_ON_WELCOME_PAGE": False,
+    "RECENT_LIST_ENABLED": False,
+    "TOOLBAR_ALWAYS_VISIBLE": False,
+    "DISABLE_VIDEO_BACKGROUND": True,
+    "DISABLE_JOIN_LEAVE_NOTIFICATIONS": False,
 }
 
 JITSI_JWT_LIFETIME_SECONDS = 10 * 60
@@ -118,32 +121,40 @@ def build_jitsi_config_overwrite(
         "startWithVideoMuted": start_video_muted or (disable_cam and not is_moderator),
         "enableUserRolesBasedOnToken": bool(has_jwt),
         "tokenAuthUrl": None,
-        "securityUi": {"hideLobbyButton": not is_moderator},
+        "securityUi": {"hideLobbyButton": not is_moderator, "disablePassword": True},
         "readOnlyName": not require_display_name,
         "enableClosePage": False,
         "disableInviteFunctions": True,
         "disablePolls": True,
+        "disableThirdPartyRequests": True,
+        "defaultRemoteDisplayName": "Attendee",
+        "hideConferenceTimer": False,
         "hiddenPremeetingButtons": ["invite"],
         "disableSelfView": False,
-        "fileRecordingsEnabled": record,
-        "liveStreamingEnabled": livestreaming,
+        "fileRecordingsEnabled": record if is_moderator else False,
+        "liveStreamingEnabled": livestreaming if is_moderator else False,
+        "toolbarConfig": {"alwaysVisible": False, "timeout": 4000},
+        "filmstrip": {"disableResizable": False},
         "breakoutRooms": {
             "hideAddRoomButton": True,
             "hideAutoAssignButton": True,
+            "hideJoinRoomButton": not is_moderator,
         },
         "remoteVideoMenu": {
             "disableKick": not is_moderator,
             "disableGrantModerator": not is_moderator,
+            "disablePrivateChat": False,
         },
         "prejoinPageEnabled": require_display_name,
         "prejoinConfig": {"enabled": require_display_name},
         "requireDisplayName": require_display_name,
-        "enableLobby": waiting_room,
+        "enableLobby": True,
         "lobby": {"enable": waiting_room},
         "disableDeepLinking": True,
         "enableWelcomePage": False,
         "welcomePage": {"disabled": True},
         "doNotStoreRoom": True,
+        "whiteboard": {"enabled": False},
     }
     if room_display_name:
         config_overwrite["subject"] = room_display_name
@@ -162,9 +173,17 @@ def build_jitsi_config_overwrite(
             part_buttons.remove("chat")
         config_overwrite.update(
             {
+                "fileRecordingsEnabled": False,
+                "liveStreamingEnabled": False,
                 "disableRemoteMute": True,
                 "disableModeratorIndicator": True,
                 "disableChat": disable_chat,
+                "securityUi": {"hideLobbyButton": True, "disablePassword": True},
+                "remoteVideoMenu": {
+                    "disableKick": True,
+                    "disableGrantModerator": True,
+                    "disablePrivateChat": False,
+                },
                 "participantsPane": {
                     "hideModeratorSettingsTab": True,
                     "hideMoreActionsButton": True,
@@ -172,6 +191,8 @@ def build_jitsi_config_overwrite(
                 },
                 "breakoutRooms": {
                     **config_overwrite["breakoutRooms"],
+                    "hideAddRoomButton": True,
+                    "hideAutoAssignButton": True,
                     "hideJoinRoomButton": True,
                     "hideModeratorSettingsTab": True,
                     "hideMoreActionsButton": True,
@@ -193,17 +214,14 @@ class JitsiModule(BaseModule):
     async def can_moderate_room(self) -> bool:
         """
         Map Eventyay user moderation permissions to room moderator status.
-        Checks if the user holds room moderation permission, BBB/Janus moderation,
-        chat moderation, or event/room administrative update rights.
+        Checks if the user holds room moderation permission, or event/room
+        administrative update rights.
         """
         return bool(
             await self.consumer.event.has_permission_async(
                 user=self.consumer.user,
                 permission=[
                     Permission.ROOM_JITSI_MODERATE,
-                    Permission.ROOM_BBB_MODERATE,
-                    Permission.ROOM_JANUSCALL_MODERATE,
-                    Permission.ROOM_CHAT_MODERATE,
                     Permission.ROOM_UPDATE,
                     Permission.EVENT_UPDATE,
                 ],
@@ -322,7 +340,7 @@ class JitsiModule(BaseModule):
         payload = {
             "aud": "jitsi",
             "iss": app_id,
-            "sub": domain,
+            "sub": "*",
             "room": room_name,
             "nbf": now - 10,
             "exp": now + JITSI_JWT_LIFETIME_SECONDS,
@@ -338,7 +356,7 @@ class JitsiModule(BaseModule):
                 "features": {
                     "livestreaming": bool(is_moderator and self.module_config.get("livestreaming", False)),
                     "recording": bool(is_moderator and self.module_config.get("record", False)),
-                    "transcription": bool(is_moderator),
+                    "transcription": bool(is_moderator and self.module_config.get("transcription", False)),
                     "outbound-call": False,
                 },
             },

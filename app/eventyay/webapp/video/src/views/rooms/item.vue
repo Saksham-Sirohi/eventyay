@@ -1,6 +1,12 @@
 <template lang="pug">
 .c-room(v-if="room", :class="{'standalone-chat': modules['chat.native'] && room.modules.length === 1}")
-	.stage(v-if="modules['livestream.native'] || modules['livestream.youtube']")
+	.room-feature-disabled(v-if="roomIsDisabled")
+		.disabled-card
+			i.mdi.mdi-alert-circle-outline(aria-hidden="true")
+			h2 {{ $t('Feature No Longer Available') }}
+			p.disabled-message {{ roomDisabledReason }}
+			router-link.btn-back-dashboard(:to="{name: 'home'}") {{ $t('Back to Dashboard') }}
+	.stage(v-else-if="modules['livestream.native'] || modules['livestream.youtube']")
 		media-source-placeholder
 		reactions-overlay(v-if="hasLivestream")
 		upcoming-stream-countdown(:room="room")
@@ -40,7 +46,8 @@ import AudioTranslationDropdown from 'components/AudioTranslationDropdown'
 import UpcomingStreamCountdown from 'components/UpcomingStreamCountdown'
 import { normalizeAudioTranslationSource } from 'lib/validators'
 import { pluginLanguageStreams, roomUsesPluginLanguageStreams } from '../../interpretation-streams'
-import { hasEmbeddedSuite } from 'lib/video-providers'
+import { hasOrganizerTraits } from 'lib/traitGrants'
+import { hasEmbeddedSuite, isRoomVisibleToAttendee } from 'lib/video-providers'
 
 export default {
 	name: 'Room',
@@ -83,10 +90,30 @@ export default {
 				this.$store.commit('setActiveRoomSidebarTab', tab)
 			}
 		},
+		roomIsDisabled() {
+			if (!this.room) return false
+			if (this.room.is_disabled) return true
+			return !isRoomVisibleToAttendee(this.room, this.$store.state.world?.video_providers)
+		},
+		roomDisabledReason() {
+			return this.room?.disabled_reason || this.$t('This feature is no longer available. Please contact system administrator.')
+		},
+		hasOrganiserPermissions() {
+			if (!window.eventyay?.isOrganizerArea) return false
+			if (window.eventyay?.hasOrganiserPermissions) return true
+			const tokenTraits = this.$store.state.user?.traits || []
+			return (
+				hasOrganizerTraits(tokenTraits) ||
+				this.hasPermission('world:users.list') ||
+				this.hasPermission('world:update') ||
+				this.hasPermission('room:update')
+			)
+		},
 		hasEmbeddedCallSuite() {
 			return hasEmbeddedSuite(this.modules)
 		},
 		hasSidebar() {
+			if (this.roomIsDisabled) return false
 			// Video conference suites (BigBlueButton, Jitsi, Zoom) have their own native in-frame
 			// options for chats, polls, questions, etc.; do not show platform native sidebar for them.
 			// Janus WebRTC uses native platform chat and displays the sidebar when chat.native is attached.
@@ -130,7 +157,16 @@ export default {
 			this.unreadTabs[tab] = false
 		},
 		room: {
-			handler: 'initializeLanguages',
+			handler() {
+				this.initializeLanguages()
+				this.checkDirectAccess()
+			},
+			immediate: true
+		},
+		rooms: {
+			handler() {
+				this.checkDirectAccess()
+			},
 			immediate: true
 		},
 		'room.currentStream': {
@@ -162,10 +198,22 @@ export default {
 			this.$store.dispatch('startStreamPolling', this.room.id)
 		}
 	},
+	mounted() {
+		this.checkDirectAccess()
+	},
 	beforeUnmount() {
 		this.$store.dispatch('stopStreamPolling')
 	},
 	methods: {
+		checkDirectAccess() {
+			if (!this.rooms || this.rooms.length === 0) return
+			if (!this.hasOrganiserPermissions) {
+				const roomId = this.roomId || this.$route.params.roomId
+				if (roomId && (!this.room || this.roomIsDisabled)) {
+					this.$router.replace({ name: 'about' })
+				}
+			}
+		},
 		changedTabContent(tab) {
 			if (tab === this.activeSidebarTab) return
 			this.unreadTabs[tab] = true
@@ -213,10 +261,14 @@ export default {
 	display: flex
 	min-height: 0
 	min-width: 0
+	max-width: 100%
+	overflow: hidden
 	.stage
 		display: flex
 		flex-direction: column
 		min-height: 0
+		min-width: 0
+		max-width: 100%
 		flex: auto
 		overflow: hidden
 		position: relative
@@ -305,4 +357,56 @@ export default {
 				flex: auto
 				width: 100vw
 				min-height: 0
+	.room-feature-disabled
+		display: flex
+		flex-direction: column
+		align-items: center
+		justify-content: center
+		width: 100%
+		height: 100%
+		min-height: 60vh
+		padding: 32px
+		background-color: $clr-grey-50
+		flex: auto
+
+		.disabled-card
+			max-width: 520px
+			text-align: center
+			padding: 40px 32px
+			background-color: $clr-white
+			border: 1px solid $clr-grey-200
+			border-radius: 8px
+			box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05)
+
+			i.mdi
+				font-size: 56px
+				color: #d9534f
+				margin-bottom: 16px
+				display: block
+
+			h2
+				font-size: 22px
+				font-weight: 600
+				color: $clr-grey-900
+				margin: 0 0 12px
+
+			.disabled-message
+				font-size: 15px
+				line-height: 1.5
+				color: $clr-grey-700
+				margin: 0 0 24px
+
+			.btn-back-dashboard
+				display: inline-block
+				padding: 9px 22px
+				background-color: #337ab7
+				color: #ffffff
+				border-radius: 4px
+				font-size: 14px
+				font-weight: 500
+				text-decoration: none
+				transition: background-color 0.15s ease
+				&:hover
+					background-color: #286090
+					text-decoration: none
 </style>

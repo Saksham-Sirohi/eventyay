@@ -20,6 +20,12 @@ class LoungeMeshServer(models.Model):
     event_exclusive = models.ForeignKey(
         "Event", null=True, blank=True, on_delete=models.PROTECT
     )
+    organizers = models.ManyToManyField(
+        "Organizer", blank=True, related_name="loungemesh_servers"
+    )
+    events = models.ManyToManyField(
+        "Event", blank=True, related_name="loungemesh_servers"
+    )
 
     def __str__(self):
         return self.url

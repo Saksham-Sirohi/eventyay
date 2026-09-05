@@ -20,17 +20,14 @@ class BBBModule(BaseModule):
     async def can_moderate_room(self) -> bool:
         """
         Map Eventyay user moderation permissions to BBB moderator status.
-        Checks if the user holds room moderation permission, Jitsi/Janus moderation,
-        chat moderation, or event/room administrative update rights.
+        Checks if the user holds room moderation permission, or event/room
+        administrative update rights.
         """
         return bool(
             await self.consumer.event.has_permission_async(
                 user=self.consumer.user,
                 permission=[
                     Permission.ROOM_BBB_MODERATE,
-                    Permission.ROOM_JITSI_MODERATE,
-                    Permission.ROOM_JANUSCALL_MODERATE,
-                    Permission.ROOM_CHAT_MODERATE,
                     Permission.ROOM_UPDATE,
                     Permission.EVENT_UPDATE,
                 ],

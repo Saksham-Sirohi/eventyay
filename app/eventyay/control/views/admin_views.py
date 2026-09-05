@@ -56,6 +56,11 @@ from eventyay.control.forms.server_management import (
     EventForm,
 )
 from eventyay.base.models.log import LogEntry
+from eventyay.base.settings import (
+    GlobalSettingsObject,
+    SUPPORTED_VIDEO_PROVIDERS,
+    get_video_provider_visibility,
+)
 from eventyay.control.permissions import AdministratorPermissionRequiredMixin
 from eventyay.control.tasks import clear_event_data
 from eventyay.control.video.admin_dashboard import get_video_server_config
@@ -132,14 +137,162 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["bbb_servers"] = BBBServer.objects.select_related("event_exclusive").order_by("url")
-        ctx["janus_servers"] = JanusServer.objects.select_related("event_exclusive").order_by("url")
-        ctx["jitsi_servers"] = JitsiServer.objects.select_related("event_exclusive").order_by("url")
-        ctx["turn_servers"] = TurnServer.objects.select_related("event_exclusive").order_by("hostname")
-        ctx["loungemesh_servers"] = LoungeMeshServer.objects.select_related("event_exclusive").order_by("url")
-        # Define the tabs logic, active tab defaults to bbb
-        ctx["active_tab"] = kwargs.get("active_tab") or self.request.GET.get("tab", "bbb")
+        bbb_qs = BBBServer.objects.select_related("event_exclusive").prefetch_related("organizers", "events").order_by("url")
+        janus_qs = JanusServer.objects.select_related("event_exclusive").prefetch_related("organizers", "events").order_by("url")
+        jitsi_qs = JitsiServer.objects.select_related("event_exclusive").prefetch_related("organizers", "events").order_by("url")
+        turn_qs = TurnServer.objects.select_related("event_exclusive").prefetch_related("organizers", "events").order_by("hostname")
+        loungemesh_qs = LoungeMeshServer.objects.select_related("event_exclusive").prefetch_related("organizers", "events").order_by("url")
+
+        ctx["bbb_servers"] = bbb_qs
+        ctx["janus_servers"] = janus_qs
+        ctx["jitsi_servers"] = jitsi_qs
+        ctx["turn_servers"] = turn_qs
+        ctx["loungemesh_servers"] = loungemesh_qs
+
+        # Provider visibility and status for the General tab
+        visibility = get_video_provider_visibility()
+        ctx["provider_visibility"] = visibility
+        ctx["providers"] = [
+            {
+                "id": "bbb",
+                "name": _("BigBlueButton"),
+                "icon": "fa-graduation-cap",
+                "badge": f"{bbb_qs.filter(active=True).count()} / {bbb_qs.count()} " + str(_("servers")),
+                "description": _("Classroom and lecture conferencing system. Best for workshops, breakout sessions, and structured presentations."),
+                "enabled": visibility.get("bbb", {}).get("organizer", True) and visibility.get("bbb", {}).get("attendee", True),
+                "organizer": visibility.get("bbb", {}).get("organizer", True),
+                "attendee": visibility.get("bbb", {}).get("attendee", True),
+                "server_tab": "bbb",
+            },
+            {
+                "id": "jitsi",
+                "name": _("Jitsi Meet"),
+                "icon": "fa-video-camera",
+                "badge": f"{jitsi_qs.filter(active=True).count()} / {jitsi_qs.count()} " + str(_("servers")),
+                "description": _("Lightweight interactive video meeting rooms powered by Jitsi Meet."),
+                "enabled": visibility.get("jitsi", {}).get("organizer", True) and visibility.get("jitsi", {}).get("attendee", True),
+                "organizer": visibility.get("jitsi", {}).get("organizer", True),
+                "attendee": visibility.get("jitsi", {}).get("attendee", True),
+                "server_tab": "jitsi",
+            },
+            {
+                "id": "janus",
+                "name": _("Janus WebRTC"),
+                "icon": "fa-users",
+                "badge": f"{janus_qs.filter(active=True).count()} / {janus_qs.count()} " + str(_("servers")),
+                "description": _("Low-latency WebRTC video streaming and speed-networking roulette powered by Janus."),
+                "enabled": visibility.get("janus", {}).get("organizer", True) and visibility.get("janus", {}).get("attendee", True),
+                "organizer": visibility.get("janus", {}).get("organizer", True),
+                "attendee": visibility.get("janus", {}).get("attendee", True),
+                "server_tab": "janus",
+            },
+            {
+                "id": "loungemesh",
+                "name": _("LoungeMesh"),
+                "icon": "fa-cubes",
+                "badge": f"{loungemesh_qs.filter(active=True).count()} / {loungemesh_qs.count()} " + str(_("servers")),
+                "description": _("Spatial 2D/3D networking proximity lounge with embedded whiteboards and collaborative notes."),
+                "enabled": visibility.get("loungemesh", {}).get("organizer", True) and visibility.get("loungemesh", {}).get("attendee", True),
+                "organizer": visibility.get("loungemesh", {}).get("organizer", True),
+                "attendee": visibility.get("loungemesh", {}).get("attendee", True),
+                "server_tab": "loungemesh",
+            },
+            {
+                "id": "zoom",
+                "name": _("Zoom"),
+                "icon": "fa-video-camera",
+                "badge": str(_("External integration")),
+                "description": _("Direct integration for Zoom meetings and webinars embedded into the event space."),
+                "enabled": visibility.get("zoom", {}).get("organizer", True) and visibility.get("zoom", {}).get("attendee", True),
+                "organizer": visibility.get("zoom", {}).get("organizer", True),
+                "attendee": visibility.get("zoom", {}).get("attendee", True),
+                "server_tab": None,
+            },
+        ]
+        # Active tab defaults to general
+        ctx["active_tab"] = kwargs.get("active_tab") or self.request.GET.get("tab", "general")
         return ctx
+
+    def post(self, request, *args, **kwargs):
+        gs = GlobalSettingsObject()
+        changed = []
+        for p in SUPPORTED_VIDEO_PROVIDERS:
+            key_single = f"video_provider_{p}"
+            org_key = f"video_provider_{p}_organizer"
+            att_key = f"video_provider_{p}_attendee"
+
+            # Check if submitted with single unified toggle or role-specific toggles
+            if key_single in request.POST or (org_key not in request.POST and att_key not in request.POST):
+                is_enabled = request.POST.get(key_single) in ("true", "1", "on")
+                for r_key, r_name in [(org_key, "organizer"), (att_key, "attendee")]:
+                    prev = gs.settings.get(r_key, as_type=bool, default=True)
+                    if is_enabled != prev:
+                        gs.settings.set(r_key, is_enabled)
+                        changed.append(f"{p} {r_name}: {is_enabled}")
+            else:
+                new_org = request.POST.get(org_key) in ("true", "1", "on")
+                new_att = request.POST.get(att_key) in ("true", "1", "on")
+                prev_org = gs.settings.get(org_key, as_type=bool, default=True)
+                prev_att = gs.settings.get(att_key, as_type=bool, default=True)
+
+                if new_org != prev_org:
+                    gs.settings.set(org_key, new_org)
+                    changed.append(f"{p} organizer: {new_org}")
+                if new_att != prev_att:
+                    gs.settings.set(att_key, new_att)
+                    changed.append(f"{p} attendee: {new_att}")
+
+        if changed:
+            LogEntry.objects.create(
+                content_object=request.user,
+                user=request.user,
+                action_type="eventyay.video.settings.visibility_changed",
+                data=json.dumps({"changes": changed}),
+            )
+            messages.success(request, _("Video server visibility settings saved successfully."))
+        else:
+            messages.info(request, _("No changes made to video server visibility settings."))
+
+        return redirect(reverse("eventyay_admin:video_admin:settings") + "?tab=general")
+
+
+class VideoProviderToggleVisibility(AdministratorPermissionRequiredMixin, View):
+    def post(self, request, *args, **kwargs):
+        try:
+            payload = json.loads(request.body.decode() or "{}")
+        except json.JSONDecodeError:
+            return JsonResponse({"ok": False, "error": _("Invalid JSON payload.")}, status=400)
+
+        provider = payload.get("provider")
+        role = payload.get("role")
+        enabled = payload.get("enabled")
+
+        if provider not in SUPPORTED_VIDEO_PROVIDERS:
+            return JsonResponse({"ok": False, "error": _("Unsupported video provider.")}, status=400)
+
+        if not isinstance(enabled, bool):
+            return JsonResponse({"ok": False, "error": _("The enabled value must be true or false.")}, status=400)
+
+        gs = GlobalSettingsObject()
+        roles_to_update = [role] if role in ("organizer", "attendee") else ["organizer", "attendee"]
+
+        for r in roles_to_update:
+            setting_key = f"video_provider_{provider}_{r}"
+            gs.settings.set(setting_key, enabled)
+
+        LogEntry.objects.create(
+            content_object=request.user,
+            user=request.user,
+            action_type=f"eventyay.video.{provider}.visibility_changed",
+            data=json.dumps({"provider": provider, "roles": roles_to_update, "enabled": enabled}),
+        )
+
+        return JsonResponse({
+            "ok": True,
+            "provider": provider,
+            "enabled": enabled,
+            "status": str(_("Enabled")) if enabled else str(_("Disabled")),
+        })
 
 
 class VideoServerToggleActive(AdministratorPermissionRequiredMixin, View):

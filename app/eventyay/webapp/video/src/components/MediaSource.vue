@@ -41,6 +41,7 @@ import {
 	STREAM_TYPE_VIMEO,
 	STREAM_TYPE_YOUTUBE,
 } from 'lib/stage-streams';
+import { isRoomVisibleToAttendee } from 'lib/video-providers';
 
 
 
@@ -103,23 +104,31 @@ const module = computed(() => {
 	);
 });
 
-const isLivestreamModule = computed(() =>
-	[
+const isRoomDisabled = computed(() => {
+	if (!props.room) return false;
+	if (props.room.is_disabled) return true;
+	return !isRoomVisibleToAttendee(props.room, store.state.world?.video_providers);
+});
+
+const isLivestreamModule = computed(() => {
+	if (isRoomDisabled.value) return false;
+	return [
 		'livestream.native',
 		'livestream.youtube',
-	].includes(module.value?.type)
-);
+	].includes(module.value?.type);
+});
 
-const isVideoCall = computed(() =>
-	Boolean(
+const isVideoCall = computed(() => {
+	if (isRoomDisabled.value) return false;
+	return Boolean(
 		props.call ||
 		[
 			'call.janus',
 			'call.jitsi',
 			'call.bigbluebutton',
 		].includes(module.value?.type)
-	)
-);
+	);
+});
 
 const isScheduleDrivenStage = computed(() =>
 	isLivestreamModule.value &&
@@ -127,6 +136,7 @@ const isScheduleDrivenStage = computed(() =>
 );
 
 const shouldUseLivestream = computed(() => {
+	if (isRoomDisabled.value) return false;
 	if (!props.room || !module.value) return false;
 	const streamType = isScheduleDrivenStage.value ? props.room?.currentStream?.stream_type : null;
 
@@ -501,11 +511,9 @@ function onWindowMessage(event) {
 		data.action === 'leave' ||
 		data.event === 'hangup' ||
 		data.type === 'hangup' ||
-		data.type === 'loungemesh:leave' ||
-		data.action === 'loungemesh:leave' ||
 		data.event === 'loungemesh:leave' ||
-		data.type === 'leave' ||
-		data.event === 'leave'
+		data.action === 'loungemesh:leave' ||
+		(data.source === 'loungemesh' && (data.action === 'leave' || data.type === 'hangup' || data.event === 'hangup' || data.type === 'leave'))
 	) {
 		emit('leave', props.room);
 		destroyIframe();
@@ -553,6 +561,7 @@ function subscribeToYouTubePlayerEvents() {
 
 async function initializeIframe(mute, skipConsentCheck = false) {
 	if (!module.value) return;
+	if (isRoomDisabled.value) return;
 	if (shouldUseLivestream.value) return;
 	if (isVideoCall.value) return;
 	if (iframeOffline.value) return;

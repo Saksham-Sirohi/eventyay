@@ -38,9 +38,15 @@ from eventyay.base.services.room import (
     validate_room_config_patch,
 )
 from eventyay.base.services.room_creation_gate import (
+    newly_added_provider_modules,
     newly_added_server_backed_room_modules,
     user_can_create_server_backed_room_during_development,
     user_has_all_server_backed_room_create_permissions,
+)
+from eventyay.base.settings import (
+    get_provider_for_module_type,
+    is_room_visible_for_attendee,
+    is_video_provider_enabled_for_organizer,
 )
 from eventyay.core.permissions import Permission
 from eventyay.core.utils.redis import aredis
@@ -64,8 +70,14 @@ from eventyay.features.live.decorators import (
 from eventyay.features.live.exceptions import ConsumerException
 from eventyay.features.live.modules.base import BaseModule
 
-
 logger = logging.getLogger(__name__)
+
+is_room_visible_for_attendee_async = asgiref.sync.sync_to_async(
+    is_room_visible_for_attendee, thread_sensitive=True
+)
+is_video_provider_enabled_for_organizer_async = asgiref.sync.sync_to_async(
+    is_video_provider_enabled_for_organizer, thread_sensitive=True
+)
 
 
 def serialize_room_config(room_or_rooms, many=False):
@@ -211,6 +223,12 @@ class RoomModule(BaseModule):
     @command("enter")
     @room_action(permission_required=Permission.ROOM_VIEW)
     async def enter_room(self, body):
+        if not await self.consumer.event.has_permission_async(
+            user=self.consumer.user, permission=Permission.ROOM_UPDATE
+        ):
+            if not await is_room_visible_for_attendee_async(self.room):
+                raise ConsumerException("room.disabled", "This room is currently not available.")
+
         await self.consumer.channel_layer.group_add(
             GROUP_ROOM.format(id=self.room.pk), self.consumer.channel_name
         )
@@ -584,12 +602,30 @@ class RoomModule(BaseModule):
         await self.consumer.send_success(await database_sync_to_async(serialize_room_config)(rooms, many=True))
 
     @command("config.get")
-    @room_action(permission_required=Permission.ROOM_UPDATE)
+    @room_action(
+        permission_required=[
+            Permission.ROOM_UPDATE,
+            Permission.EVENT_UPDATE,
+            Permission.ROOM_JITSI_MODERATE,
+            Permission.ROOM_JANUSCALL_MODERATE,
+            Permission.ROOM_BBB_MODERATE,
+            Permission.ROOM_LOUNGEMESH_MODERATE,
+        ]
+    )
     async def config_get(self, body):
         await self.consumer.send_success(await database_sync_to_async(serialize_room_config)(self.room))
 
     @command("config.patch")
-    @room_action(permission_required=Permission.ROOM_UPDATE)
+    @room_action(
+        permission_required=[
+            Permission.ROOM_UPDATE,
+            Permission.EVENT_UPDATE,
+            Permission.ROOM_JITSI_MODERATE,
+            Permission.ROOM_JANUSCALL_MODERATE,
+            Permission.ROOM_BBB_MODERATE,
+            Permission.ROOM_LOUNGEMESH_MODERATE,
+        ]
+    )
     async def config_patch(self, body):
         newly_added_server_modules = newly_added_server_backed_room_modules(
             self.room.module_config,
@@ -608,6 +644,20 @@ class RoomModule(BaseModule):
             ):
                 await self.consumer.send_error(code="config.denied")
                 return
+
+        if "module_config" in body:
+            newly_added_providers = newly_added_provider_modules(
+                self.room.module_config,
+                body.get("module_config"),
+            )
+            for module in newly_added_providers:
+                provider = get_provider_for_module_type(module.get("type"))
+                if provider and not await is_video_provider_enabled_for_organizer_async(provider):
+                    await self.consumer.send_error(
+                        code="config.denied",
+                        message=f"Video provider '{provider}' is disabled for room creation.",
+                    )
+                    return
 
         old = await database_sync_to_async(serialize_room_config)(self.room)
         validated_data, update_fields = await database_sync_to_async(

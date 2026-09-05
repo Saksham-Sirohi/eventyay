@@ -38,8 +38,8 @@ export default {
 			errorMsg: null,
 			jitsiApi: null,
 			isDestroyed: false,
-			hasJoinedConference: false,
-			userLeftConference: false
+			conferenceJoined: false,
+			userHungUp: false
 		}
 	},
 	async mounted() {
@@ -54,6 +54,8 @@ export default {
 			this.loading = true
 			this.error = null
 			this.errorMsg = null
+			this.conferenceJoined = false
+			this.userHungUp = false
 			this.cleanupMedia()
 			await this.$nextTick()
 
@@ -66,7 +68,12 @@ export default {
 				const wsScheme = isHttp ? 'ws' : 'wss'
 				const serverUrl = config.url || `${scheme}://${config.domain}`
 
-				// Force SFU scalability defaults (disable P2P, enable layer suspension)
+				// Clean Eventyay meeting defaults
+				const defaultToolbarButtons = [
+					'camera', 'microphone', 'desktop', 'chat', 'raisehand',
+					'participants-pane', 'tileview', 'select-background',
+					'settings', 'fullscreen', 'videoquality', 'hangup'
+				]
 				const configOverwrite = {
 					p2p: { enabled: false },
 					enableLayerSuspension: true,
@@ -76,16 +83,53 @@ export default {
 					enableLobby: false,
 					lobby: { enable: false },
 					tokenAuthUrl: null,
-					securityUi: { hideLobbyButton: true },
+					securityUi: { hideLobbyButton: true, disablePassword: true },
 					requireDisplayName: false,
 					disableDeepLinking: true,
 					enableWelcomePage: false,
 					welcomePage: { disabled: true },
+					disableThirdPartyRequests: true,
+					disableInviteFunctions: true,
+					disablePolls: true,
+					whiteboard: { enabled: false },
+					toolbarConfig: { alwaysVisible: false, timeout: 4000 },
+					toolbarButtons: config.configOverwrite?.toolbarButtons || defaultToolbarButtons,
+					hideConferenceTimer: false,
 					...(config.domain && !config.domain.includes('meet.jit.si') ? {
 						bosh: `${scheme}://${config.domain}/http-bind`,
 						websocket: `${wsScheme}://${config.domain}/xmpp-websocket`
 					} : {}),
 					...(config.configOverwrite || {})
+				}
+
+				if (!config.moderator) {
+					configOverwrite.fileRecordingsEnabled = false
+					configOverwrite.liveStreamingEnabled = false
+					configOverwrite.disableRemoteMute = true
+					configOverwrite.disableModeratorIndicator = true
+					configOverwrite.securityUi = { hideLobbyButton: true, disablePassword: true }
+					configOverwrite.remoteVideoMenu = { disableKick: true, disableGrantModerator: true, disablePrivateChat: false }
+					configOverwrite.participantsPane = { hideModeratorSettingsTab: true, hideMoreActionsButton: true, hideMuteAllButton: true }
+					configOverwrite.breakoutRooms = { hideAddRoomButton: true, hideAutoAssignButton: true, hideJoinRoomButton: true, hideModeratorSettingsTab: true, hideMoreActionsButton: true, hideMuteAllButton: true }
+				}
+
+				const interfaceConfigOverwrite = {
+					APP_NAME: 'Eventyay Video',
+					NATIVE_APP_NAME: 'Eventyay Video',
+					PROVIDER_NAME: 'Eventyay',
+					SHOW_JITSI_WATERMARK: false,
+					SHOW_BRAND_WATERMARK: false,
+					SHOW_POWERED_BY: false,
+					SHOW_WATERMARK_FOR_GUESTS: false,
+					SHOW_CHROME_EXTENSION_BANNER: false,
+					SHOW_PROMOTIONAL_CLOSE_PAGE: false,
+					HIDE_DEEP_LINKING_LOGO: true,
+					GENERATE_ROOMNAMES_ON_WELCOME_PAGE: false,
+					RECENT_LIST_ENABLED: false,
+					TOOLBAR_ALWAYS_VISIBLE: false,
+					DISABLE_VIDEO_BACKGROUND: true,
+					DISABLE_JOIN_LEAVE_NOTIFICATIONS: false,
+					...(config.interfaceConfigOverwrite || {})
 				}
 
 				const JitsiMeetExternalAPI = await this.loadJitsiExternalApi(config)
@@ -96,6 +140,17 @@ export default {
 					throw new Error('Jitsi container not available')
 				}
 
+				const safeUserInfo = {}
+				if (config.userInfo?.displayName) {
+					safeUserInfo.displayName = String(config.userInfo.displayName).trim()
+				}
+				if (config.userInfo?.email) {
+					safeUserInfo.email = String(config.userInfo.email).trim()
+				}
+				if (config.userInfo?.avatar && typeof config.userInfo.avatar === 'string' && config.userInfo.avatar.trim() && !config.userInfo.avatar.includes('[object')) {
+					safeUserInfo.avatarURL = config.userInfo.avatar.trim()
+				}
+
 				const jitsiOptions = {
 					roomName: config.roomName,
 					parentNode: this.$refs.jitsiContainer,
@@ -104,8 +159,8 @@ export default {
 					scheme: scheme,
 					noSSL: (scheme === 'http'),
 					configOverwrite,
-					interfaceConfigOverwrite: config.interfaceConfigOverwrite,
-					userInfo: config.userInfo
+					interfaceConfigOverwrite,
+					userInfo: safeUserInfo
 				}
 				if (config.jwt) {
 					jitsiOptions.jwt = config.jwt
@@ -133,43 +188,39 @@ export default {
 
 				this.jitsiApi.addListener('videoConferenceJoined', () => {
 					this.loading = false
-					this.hasJoinedConference = true
+					this.conferenceJoined = true
 					this.$emit('connected')
 					if (config.roomDisplayName) {
 						try {
 							this.jitsiApi.executeCommand('subject', config.roomDisplayName)
 						} catch (e) {}
 					}
-					if (!config.jwt && config.userInfo?.displayName) {
+					if (!config.jwt && safeUserInfo.displayName) {
 						try {
-							this.jitsiApi.executeCommand('displayName', config.userInfo.displayName)
+							this.jitsiApi.executeCommand('displayName', safeUserInfo.displayName)
 						} catch (e) {}
 					}
-					if (!config.jwt && config.userInfo?.email) {
+					if (!config.jwt && safeUserInfo.email) {
 						try {
-							this.jitsiApi.executeCommand('email', config.userInfo.email)
+							this.jitsiApi.executeCommand('email', safeUserInfo.email)
 						} catch (e) {}
 					}
-					if (config.userInfo?.avatar && typeof config.userInfo.avatar === 'string' && config.userInfo.avatar.trim()) {
+					if (safeUserInfo.avatarURL) {
 						try {
-							this.jitsiApi.executeCommand('avatarUrl', config.userInfo.avatar.trim())
+							this.jitsiApi.executeCommand('avatarUrl', safeUserInfo.avatarURL)
 						} catch (e) {}
 					}
+					try {
+						this.jitsiApi.executeCommand('setTileView', true)
+					} catch (e) {}
 				})
 
 				this.jitsiApi.addListener('videoConferenceLeft', () => {
-					this.userLeftConference = true
+					this.conferenceJoined = false
 				})
 
 				this.jitsiApi.addListener('readyToClose', () => {
-					if (this.userLeftConference || this.hasJoinedConference) {
-						this.hangup()
-					} else {
-						this.loading = false
-						this.error = new Error('Meeting closed unexpectedly')
-						this.errorMsg = this.$t('Connection to the meeting was interrupted.')
-						this.$emit('error', this.error)
-					}
+					this.hangup()
 				})
 
 				this.jitsiApi.addListener('participantJoined', (p) => {
@@ -214,7 +265,7 @@ export default {
 			}
 		},
 		hangup() {
-			this.userLeftConference = true
+			this.userHungUp = true
 			if (this.jitsiApi) {
 				try {
 					this.jitsiApi.executeCommand('hangup')
@@ -224,29 +275,25 @@ export default {
 			this.$emit('hangup')
 		},
 		async loadJitsiExternalApi(config) {
-			if (window.JitsiMeetExternalAPI && window.JitsiMeetExternalAPI._patchedForHttp) {
-				return window.JitsiMeetExternalAPI
+			const patchExternalAPI = (api) => {
+				if (api && api.prototype && !api._patchedForHttp) {
+					const origCreateIFrame = api.prototype._createIFrame
+					api.prototype._createIFrame = function(height, width, sandbox) {
+						if (this._url && location.protocol === 'http:' && this._url.startsWith('https:')) {
+							this._url = this._url.replace(/^https:/, 'http:')
+						}
+						return origCreateIFrame.call(this, height, width, sandbox)
+					}
+					api._patchedForHttp = true
+				}
+				return api
+			}
+
+			if (window.JitsiMeetExternalAPI) {
+				return patchExternalAPI(window.JitsiMeetExternalAPI)
 			}
 			const baseUrl = config.url || (String(config.protocol).startsWith('http:') ? `http://${config.domain}` : `https://${config.domain}`)
 			const scriptUrl = `${baseUrl.replace(/\/+$/, '')}/external_api.js`
-
-			try {
-				const resp = await fetch(scriptUrl)
-				let code = await resp.text()
-				const target = 'url:`https://${t}/#jitsi_meet_external_api_id=${j}`'
-				const replacement = 'url:`${(e&&e.protocol)?(e.protocol.endsWith(":")?e.protocol:e.protocol+":"):(typeof location!=="undefined"?location.protocol:"https:")}//${t}/#jitsi_meet_external_api_id=${j}`'
-				if (code.includes(target)) {
-					code = code.replace(target, replacement)
-				}
-				const fn = new Function(code)
-				fn()
-				if (window.JitsiMeetExternalAPI) {
-					window.JitsiMeetExternalAPI._patchedForHttp = true
-					return window.JitsiMeetExternalAPI
-				}
-			} catch (e) {
-				console.warn('Could not fetch and patch external_api.js dynamically, falling back to script tag:', e)
-			}
 
 			return new Promise((resolve, reject) => {
 				const script = document.createElement('script')
@@ -254,7 +301,7 @@ export default {
 				script.async = true
 				script.onload = () => {
 					if (window.JitsiMeetExternalAPI) {
-						resolve(window.JitsiMeetExternalAPI)
+						resolve(patchExternalAPI(window.JitsiMeetExternalAPI))
 					} else {
 						reject(new Error('JitsiMeetExternalAPI missing on window'))
 					}
