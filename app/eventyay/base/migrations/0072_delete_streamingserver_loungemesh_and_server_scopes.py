@@ -123,4 +123,64 @@ class Migration(migrations.Migration):
             name='organizers',
             field=models.ManyToManyField(blank=True, related_name='turn_servers', to='base.organizer'),
         ),
+        migrations.RemoveField(
+            model_name='roulettepairing',
+            name='room',
+        ),
+        migrations.RemoveField(
+            model_name='roulettepairing',
+            name='user1',
+        ),
+        migrations.RemoveField(
+            model_name='roulettepairing',
+            name='user2',
+        ),
+        migrations.AlterUniqueTogether(
+            name='rouletterequest',
+            unique_together=None,
+        ),
+        migrations.RemoveField(
+            model_name='rouletterequest',
+            name='room',
+        ),
+        migrations.RemoveField(
+            model_name='rouletterequest',
+            name='user',
+        ),
+        migrations.RenameIndex(
+            model_name='gmailoauthcredential',
+            new_name='base_gmailo_event_i_133776_idx',
+            old_name='base_gmailo_event_i_6f0d0d_idx',
+        ),
+        migrations.RenameIndex(
+            model_name='gmailoauthcredential',
+            new_name='base_gmailo_is_acti_22cf9d_idx',
+            old_name='base_gmailo_is_acti_0d8f8f_idx',
+        ),
+        migrations.AlterField(
+            model_name='invoicevoucher',
+            name='max_usages',
+            field=models.PositiveIntegerField(default=1, help_text='How many times this voucher can be redeemed.', verbose_name='Maximum redemptions'),
+        ),
+        migrations.AlterField(
+            model_name='invoicevoucher',
+            name='price_mode',
+            field=models.CharField(choices=[('none', 'No effect'), ('set', 'Set product price to'), ('subtract', 'Subtract from product price'), ('percent', 'Reduce product price by (%)')], default='none', max_length=100, verbose_name='Waiver type'),
+        ),
+        migrations.AlterField(
+            model_name='question',
+            name='type',
+            field=models.CharField(choices=[('N', 'Number'), ('S', 'Text (one line)'), ('T', 'Multiline text'), ('B', 'Confirm Checkbox'), ('C', 'Radio button (Choose one option)'), ('L', 'Dropdown (Choose one option)'), ('M', 'Checkbox (Choose one or several options)'), ('F', 'File upload'), ('D', 'Date'), ('H', 'Time'), ('W', 'Date and time'), ('CC', 'Country code (ISO 3166-1 alpha-2)'), ('TEL', 'Phone number'), ('DES', 'Text field'), ('URL', 'URL')], max_length=5, verbose_name='Type'),
+        ),
+        migrations.AlterField(
+            model_name='talkquestion',
+            name='variant',
+            field=models.CharField(choices=[('number', 'Number'), ('string', 'Text (one-line)'), ('text', 'Multi-line text'), ('url', 'URL'), ('video', 'Video link'), ('date', 'Date'), ('datetime', 'Date and time'), ('boolean', 'Confirmation'), ('file', 'File upload'), ('choices', 'Radio button (Choose one option)'), ('multiple_choice', 'Checkbox (Choose one or several options)'), ('select', 'Select (one option)'), ('country', 'Country List'), ('tel', 'Phone number')], default='string', max_length=15),
+        ),
+        migrations.DeleteModel(
+            name='RoulettePairing',
+        ),
+        migrations.DeleteModel(
+            name='RouletteRequest',
+        ),
     ]

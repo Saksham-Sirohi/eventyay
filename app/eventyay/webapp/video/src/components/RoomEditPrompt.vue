@@ -88,7 +88,6 @@ import ChannelBBB from 'views/admin/rooms/types-edit/channel-bbb'
 import ChannelJanus from 'views/admin/rooms/types-edit/channel-janus'
 import ChannelJitsi from 'views/admin/rooms/types-edit/channel-jitsi'
 import ChannelZoom from 'views/admin/rooms/types-edit/channel-zoom'
-import ChannelRoulette from 'views/admin/rooms/types-edit/channel-roulette'
 import ChannelLoungeMesh from 'views/admin/rooms/types-edit/channel-loungemesh'
 import PageLanding from 'views/admin/rooms/types-edit/page-landing'
 import SidebarAddons from 'views/admin/rooms/types-edit/SidebarAddons'
@@ -142,7 +141,6 @@ export default {
 				stage: Stage,
 				'page-landing': PageLanding,
 				'channel-bbb': ChannelBBB,
-				'channel-roulette': ChannelRoulette,
 				'channel-janus': ChannelJanus,
 				'channel-jitsi': ChannelJitsi,
 				'channel-zoom': ChannelZoom,

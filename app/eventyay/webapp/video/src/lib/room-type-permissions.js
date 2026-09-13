@@ -29,9 +29,6 @@ export function isRoomTypeAvailable(typeId, hasPermission, isAdminMode = false, 
 	if (typeId === 'channel-text') {
 		return hasPermission('world:rooms.create.chat') || isAdminMode
 	}
-	if (typeId === 'channel-roulette') {
-		return hasPermission('room:update') || isAdminMode
-	}
 	if (typeId === 'page-landing') {
 		return hasPermission('room:update') || isAdminMode
 	}

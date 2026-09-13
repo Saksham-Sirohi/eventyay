@@ -70,7 +70,6 @@ import ChannelJanus from './types-edit/channel-janus'
 import ChannelJitsi from './types-edit/channel-jitsi'
 import ChannelZoom from './types-edit/channel-zoom'
 import ChannelLoungeMesh from './types-edit/channel-loungemesh'
-import ChannelRoulette from './types-edit/channel-roulette'
 import PageLanding from './types-edit/page-landing'
 import SidebarAddons from './types-edit/SidebarAddons'
 import {
@@ -106,7 +105,6 @@ export default {
 				stage: Stage,
 				'page-landing': PageLanding,
 				'channel-bbb': ChannelBBB,
-				'channel-roulette': ChannelRoulette,
 				'channel-janus': ChannelJanus,
 				'channel-jitsi': ChannelJitsi,
 				'channel-zoom': ChannelZoom,

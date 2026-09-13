@@ -49,7 +49,6 @@ Each component extends the base models with specialized functionality:
 * Room, RoomView, Channel
 * BBBServer, JanusServer, JitsiServer, TurnServer
 * Poll
-* RouletteRequest (networking)
 
 Shared Services
 ~~~~~~~~~~~~~~~

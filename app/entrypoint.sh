@@ -39,6 +39,17 @@ python manage.py migrate
 python manage.py compilemessages -i .venv
 find /usr/src/app/eventyay/locale -name "*.mo" -exec sh -c 'chown --reference="${1%.mo}.po" "$1" 2>/dev/null || true' _ {} \;
 
+# Sync local video test servers only in development when VIDEO_SERVER_TEST_MODE is explicitly set
+if [ "$EVY_RUNNING_ENVIRONMENT" != "production" ]; then
+  if [ "$VIDEO_SERVER_TEST_MODE" = "1" ]; then
+    echo "VIDEO_SERVER_TEST_MODE=1 — enabling local video test servers..."
+    python manage.py sync_video_test_servers --enable
+  elif [ "$VIDEO_SERVER_TEST_MODE" = "0" ]; then
+    echo "VIDEO_SERVER_TEST_MODE=0 — deactivating local video test servers..."
+    python manage.py sync_video_test_servers --disable
+  fi
+fi
+
 # Start Vite dev servers for live frontend development when EVY_NPM_DEV=1
 if [ "$EVY_NPM_DEV" = "1" ]; then
   echo "EVY_NPM_DEV=1 — starting Vite dev servers for live frontend development..."

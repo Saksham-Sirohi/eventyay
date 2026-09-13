@@ -95,7 +95,6 @@ from .resource import Resource, ResourceKind
 from .review import Review, ReviewPhase, ReviewScore, ReviewScoreCategory
 from .room import Reaction, Room, RoomView
 from .roomquestion import QuestionVote, RoomQuestion
-from .roulette import RoulettePairing, RouletteRequest
 from .schedule import Schedule
 from .seating import Seat, SeatCategoryMapping, SeatingPlan
 from .settings import GlobalSettings
@@ -208,9 +207,7 @@ __all__ = [
     'Room',
     'RoomQuestion',
     'RoomView',
-    'RoulettePairing',
     'StreamSchedule',
-    'RouletteRequest',
     'Schedule',
     'Seat',
     'SeatCategoryMapping',

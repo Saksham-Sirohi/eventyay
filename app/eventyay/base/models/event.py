@@ -106,7 +106,6 @@ def event_logo_path(instance, filename):
 
 FEATURE_FLAGS = [
     'schedule-control',
-    'roulette',
     'muxdata',
     'page.landing',
     'zoom',

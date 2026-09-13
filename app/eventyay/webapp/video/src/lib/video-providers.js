@@ -68,8 +68,7 @@ export const MODULE_TYPE_TO_PROVIDER = {
 	'call.jitsi': 'jitsi',
 	'call.janus': 'janus',
 	'call.loungemesh': 'loungemesh',
-	'call.zoom': 'zoom',
-	'networking.roulette': 'janus'
+	'call.zoom': 'zoom'
 }
 
 export function isVideoProviderEnabled(provider, isFeatureEnabled, videoProvidersConfig) {

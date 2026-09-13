@@ -180,7 +180,7 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
                 "name": _("Janus WebRTC"),
                 "icon": "fa-users",
                 "badge": f"{janus_qs.filter(active=True).count()} / {janus_qs.count()} " + str(_("servers")),
-                "description": _("Low-latency WebRTC video streaming and speed-networking roulette powered by Janus."),
+                "description": _("Low-latency WebRTC video conferencing and room calls powered by Janus."),
                 "enabled": visibility.get("janus", {}).get("organizer", True) and visibility.get("janus", {}).get("attendee", True),
                 "organizer": visibility.get("janus", {}).get("organizer", True),
                 "attendee": visibility.get("janus", {}).get("attendee", True),

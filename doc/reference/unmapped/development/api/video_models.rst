@@ -66,12 +66,3 @@ Interactive Features
 .. autoclass:: eventyay.base.models.QuestionVote
    :members:
 
-Networking
-----------
-
-.. autoclass:: eventyay.base.models.RouletteRequest
-   :members:
-
-.. autoclass:: eventyay.base.models.RoulettePairing
-   :members:
-

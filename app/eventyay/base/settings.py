@@ -120,7 +120,6 @@ MODULE_TYPE_TO_PROVIDER = {
     'call.janus': 'janus',
     'call.loungemesh': 'loungemesh',
     'call.zoom': 'zoom',
-    'networking.roulette': 'janus',
 }
 
 

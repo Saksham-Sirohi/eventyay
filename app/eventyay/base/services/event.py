@@ -252,7 +252,6 @@ _MEDIA_MODULE_TYPES = frozenset({
     'call.janus',
     'call.zoom',
     'call.jitsi',
-    'networking.roulette',
     'page.landing',
 })
 
@@ -329,7 +328,6 @@ def get_room_config(room, permissions, *, current_stream=_UNSET):
                 cfg.pop("webhook_hmac_secret", None)
             channel = getattr(room, "channel", None)
             if not channel:
-                from eventyay.base.models import Channel
                 channel = Channel.objects.filter(room=room).first()
                 if not channel:
                     channel, _ = Channel.objects.get_or_create(event=room.event, room=room)

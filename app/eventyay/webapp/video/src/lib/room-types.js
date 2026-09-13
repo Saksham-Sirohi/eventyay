@@ -53,15 +53,6 @@ const ROOM_TYPES = [{
 	startingModule: 'chat.native',
 	managementArea: 'chat'
 }, {
-	id: 'channel-roulette',
-	icon: 'webcam',
-	name: 'Random video calls',
-	description: 'Connect your attendees for short video calls in random combinations.',
-	startingModule: 'networking.roulette',
-	inferModules: ['networking.roulette'],
-	sidebarGroup: 'networking',
-	behindFeatureFlag: 'roulette'
-}, {
 	id: 'page-landing',
 	icon: 'text-box-outline',
 	name: 'Landing Page',
@@ -77,7 +68,7 @@ export const CHAT_CHANNEL_TYPE_ID = 'channel-text'
 export function isChatChannel(roomOrConfig) {
 	const modules = roomOrConfig?.module_config || roomOrConfig?.modules || []
 	if (!Array.isArray(modules) || !modules.length) return false
-	return modules.some(m => m.type === 'chat.native') && !modules.some(m => ['livestream.native', 'livestream.youtube', 'livestream.vimeo', 'call.bigbluebutton', 'call.janus', 'call.zoom', 'call.jitsi', 'call.loungemesh', 'networking.roulette', 'page.landing'].includes(m.type))
+	return modules.some(m => m.type === 'chat.native') && !modules.some(m => ['livestream.native', 'livestream.youtube', 'livestream.vimeo', 'call.bigbluebutton', 'call.janus', 'call.zoom', 'call.jitsi', 'call.loungemesh', 'page.landing'].includes(m.type))
 }
 
 export function isChatManagedRoom(roomOrConfig) {
@@ -126,10 +117,6 @@ export function localizeRoomType(t, type) {
 		'channel-text': {
 			name: t('Chat Channel'),
 			description: t('A chat channel for text communication between attendees. Managed separately from rooms.'),
-		},
-		'channel-roulette': {
-			name: t('Random video calls'),
-			description: t('Connect your attendees for short video calls in random combinations.'),
 		},
 		'page-landing': {
 			name: t('Landing Page'),

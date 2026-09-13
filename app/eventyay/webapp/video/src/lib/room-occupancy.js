@@ -11,7 +11,6 @@ const MEDIA_MODULE_TYPES = new Set([
 	'call.zoom',
 	'call.jitsi',
 	'call.loungemesh',
-	'networking.roulette',
 	'page.landing',
 ])
 

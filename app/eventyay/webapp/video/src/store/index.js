@@ -7,7 +7,6 @@ import announcement from './announcement'
 import chat from './chat'
 import question from './question'
 import poll from './poll'
-import roulette from './roulette'
 import schedule from './schedule'
 import notifications from './notifications'
 import moment from 'lib/timetravelMoment'
@@ -576,7 +575,6 @@ export default new Vuex.Store({
 		question,
 		poll,
 		schedule,
-		roulette,
 		notifications
 	}
 })

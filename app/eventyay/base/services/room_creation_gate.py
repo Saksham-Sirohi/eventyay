@@ -13,7 +13,6 @@ SERVER_BACKED_ROOM_CREATE_PERMISSIONS = {
     "call.janus": Permission.EVENT_ROOMS_CREATE_BBB,
     "call.jitsi": Permission.EVENT_ROOMS_CREATE_JITSI,
     "call.zoom": Permission.EVENT_ROOMS_CREATE_BBB,
-    "networking.roulette": Permission.EVENT_ROOMS_CREATE_BBB,
 }
 SERVER_BACKED_ROOM_MODULE_TYPES = frozenset(SERVER_BACKED_ROOM_CREATE_PERMISSIONS)
 

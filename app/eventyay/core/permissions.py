@@ -43,7 +43,6 @@ class Permission(Enum):
     ROOM_QUESTION_ASK = "room:question.ask"
     ROOM_QUESTION_VOTE = "room:question.vote"
     ROOM_QUESTION_MODERATE = "room:question.moderate"
-    ROOM_ROULETTE_JOIN = "room:roulette.join"
     ROOM_POLL_READ = "room:poll.read"
     ROOM_POLL_EARLY_RESULTS = "room:poll.early_results"
     ROOM_POLL_VOTE = "room:poll.vote"
@@ -199,7 +198,6 @@ def default_roles():
         Permission.ROOM_QUESTION_VOTE,
         Permission.ROOM_POLL_READ,
         Permission.ROOM_POLL_VOTE,
-        Permission.ROOM_ROULETTE_JOIN,
         Permission.ROOM_BBB_JOIN,
         Permission.ROOM_JANUSCALL_JOIN,
         Permission.ROOM_JITSI_JOIN,

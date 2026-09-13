@@ -25,7 +25,6 @@
 			reactions-bar(:expanded="true", @expand="activeStageTool = 'reaction'")
 	.stage(v-else-if="modules['call.janus'] || modules['call.bigbluebutton'] || modules['call.zoom'] || modules['call.jitsi'] || modules['call.loungemesh']")
 		media-source-placeholder
-	roulette(v-else-if="modules['networking.roulette'] && $features.enabled('roulette')", :module="modules['networking.roulette']", :room="room")
 	landing-page(v-else-if="modules['page.landing']", :module="modules['page.landing']")
 	markdown-page(v-else-if="modules['page.markdown']", :module="modules['page.markdown']")
 	chat(v-else-if="room.modules.length === 1 && modules['chat.native']", :room="room", :module="modules['chat.native']", mode="standalone", :key="room.id")
@@ -47,7 +46,6 @@ import LandingPage from 'components/LandingPage'
 import MarkdownPage from 'components/MarkdownPage'
 import ReactionsBar from 'components/ReactionsBar'
 import ReactionsOverlay from 'components/ReactionsOverlay'
-import Roulette from 'components/Roulette'
 import Polls from 'components/Polls'
 import Questions from 'components/Questions'
 import MediaSourcePlaceholder from 'components/MediaSourcePlaceholder'
@@ -68,7 +66,6 @@ export default {
 		MarkdownPage,
 		ReactionsBar,
 		ReactionsOverlay,
-		Roulette,
 		Polls,
 		Questions,
 		MediaSourcePlaceholder,

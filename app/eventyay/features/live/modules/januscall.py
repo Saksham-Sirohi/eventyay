@@ -19,7 +19,6 @@ from eventyay.base.services.janus import (
     videoroom_kick,
     videoroom_moderate,
 )
-from eventyay.base.services.roulette import is_member_of_roulette_call
 from eventyay.base.services.user import get_public_user
 from eventyay.core.permissions import Permission
 from eventyay.core.utils.redis import aredis
@@ -604,14 +603,6 @@ class JanusCallModule(BaseModule):
         if not await self.consumer.user.is_member_of_channel_async(channel_id):
             raise ConsumerException("janus.denied")
         room_data = await self._get_or_create_janus_room(f"channel:{channel_id}")
-        await self.consumer.send_success(room_data)
-
-    @command("roulette_url")
-    async def roulette_url(self, body):
-        call_id = body.get("call_id")
-        if not await is_member_of_roulette_call(call_id, self.consumer.user):
-            raise ConsumerException("janus.denied")
-        room_data = await self._get_or_create_janus_room(f"roulette:{call_id}")
         await self.consumer.send_success(room_data)
 
     async def _add_pending_admission(self):

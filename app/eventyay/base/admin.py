@@ -7,7 +7,7 @@ from .models import (
     billing, Channel, ChatEvent, checkin, choices, Device, devices, event,
     SystemLog, fields, Gate, GiftCard, GiftCardAcceptance,
     GiftCardTransaction, giftcards, Invoice, invoices, JanusServer, JitsiServer, log, notifications, Order, OrderPayment, OrderRefund,
-    orders, organizer, page, Poll, roomquestion, Quota, Room, roulette,
+    orders, organizer, page, Poll, roomquestion, Quota, Room,
     seating, tax, Team, TeamInvite, TurnServer, vouchers,
     WaitingListEntry, waitinglist, room, poll, chat
 )
@@ -98,10 +98,6 @@ admin.site.register(ChatEvent)
 admin.site.register(chat.ChatEventReaction)
 admin.site.register(chat.ChatEventNotification)
 admin.site.register(chat.Membership)
-
-# Roulette
-admin.site.register(roulette.RouletteRequest)
-admin.site.register(roulette.RoulettePairing)
 
 # Servers and Infrastructure
 admin.site.register(BBBServer)
