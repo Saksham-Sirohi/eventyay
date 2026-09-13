@@ -139,7 +139,7 @@ class VideoSPAView(View):
 
             injected = {
                 'isOrganizerArea': self.is_organizer,
-                'hasOrganiserPermissions': can_manage if self.is_organizer else False,
+                'hasOrganiserPermissions': can_manage,
                 'publicVideoUrl': f'/{event.organizer.slug}/{event.slug}/video',
                 'homeUrl': safe_reverse('eventyay_common:event.index', organizer=event.organizer.slug, event=event.slug),
                 'ticketUrl': safe_reverse('control:event.index', organizer=event.organizer.slug, event=event.slug) if has_ticket_access else None,

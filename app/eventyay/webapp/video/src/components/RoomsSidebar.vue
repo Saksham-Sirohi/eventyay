@@ -148,7 +148,7 @@ aside.c-rooms-sidebar(
 			.buffer
 
 			.sidebar-footer-action(v-if="hasOrganiserPermissions")
-				a.btn-manage-video(:href="manageVideoUrl", @click="onNavClick")
+				a.btn-manage-video(:href="manageVideoUrl", @click="onManageClick")
 					i.fa.fa-cog(aria-hidden="true")
 					span {{ $t('Manage') }}
 
@@ -253,24 +253,16 @@ export default {
 			return this.$router.resolve({ name: 'organizer' }).href
 		},
 		hasOrganiserPermissions() {
-			if (!window.eventyay?.isOrganizerArea) return false
-			const hasToken = Boolean(this.$store.state.token)
-			if (hasToken) {
-				const tokenPayload = this.$store.getters.tokenPayload
-				const traits = Array.isArray(tokenPayload?.traits) ? tokenPayload.traits : []
-				return Boolean(
-					hasOrganizerTraits(traits) ||
-					this.hasPermission('world:update') ||
-					this.hasPermission('world:users.list') ||
-					this.hasPermission('world:announce') ||
-					this.hasPermission('world:rooms.create.stage') ||
-					this.hasPermission('world:rooms.create.bbb') ||
-					this.hasPermission('world:kiosks.manage')
-				)
-			}
+			const isJwtLogin = sessionStorage.getItem('video_auth_mode') === 'jwt' || Boolean(this.$store.state.token)
+			if (isJwtLogin) return false
+
 			return Boolean(
 				window.eventyay?.hasOrganiserPermissions ||
+				window.eventyay?.hasStaffSession ||
+				window.eventyay?.isStaff ||
+				window.eventyay?.isOrganizerArea ||
 				this.isAdminMode ||
+				hasOrganizerTraits(this.$store.state.user?.traits) ||
 				(Array.isArray(this.$store.state.user?.traits) && this.$store.state.user.traits.includes('admin')) ||
 				this.hasPermission('world:update') ||
 				this.hasPermission('world:users.list') ||
@@ -374,6 +366,13 @@ export default {
 			if (this.$mq?.below?.m) {
 				this.$emit('close')
 			}
+		},
+		onManageClick() {
+			try {
+				sessionStorage.setItem('video_auth_mode', 'organizer')
+				localStorage.removeItem('token')
+			} catch (e) {}
+			this.onNavClick()
 		},
 		hasUnreadMessages(channelId) {
 			return this.notificationCount ? this.notificationCount(channelId) > 0 : false
