@@ -197,7 +197,7 @@ def test_meeting_view_allows_iframe_embedding(event, user):
         }
     )
     client = Client()
-    resp = client.get(f"/zoom/meeting/?data={data}", HTTP_HOST="localhost:8000")
+    resp = client.get(f"/zoom/meeting/?data={data}")
     assert resp.status_code == 200
     # Must not have X-Frame-Options: DENY so it can embed inside the video room iframe
     assert resp.headers.get("X-Frame-Options") is None
@@ -209,7 +209,7 @@ def test_meeting_ended_view_returns_to_attendee_dashboard(event):
     from django.test import Client
 
     client = Client()
-    resp = client.get("/zoom/ended/", HTTP_HOST="localhost:8000")
+    resp = client.get("/zoom/ended/")
     assert resp.status_code == 200
     content = resp.content.decode("utf-8")
     assert "Meeting Ended" in content

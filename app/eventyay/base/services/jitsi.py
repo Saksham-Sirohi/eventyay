@@ -61,7 +61,8 @@ def _choose_preferred_server(servers, event, prefer_server):
 
 def _is_meet_jitsi_server(url):
     norm = normalize_server_url(url)
-    return "meet.jit.si" in (norm["host"] if norm else (url or "").lower())
+    domain = (norm.get("domain") or norm.get("host") or "") if norm else (url or "").lower()
+    return "meet.jit.si" in domain
 
 
 def _choose_any_available_server(servers, event):
@@ -150,6 +151,7 @@ def normalize_server_url(url):
         normalized = url.strip("/").lower()
         return {
             "domain": normalized,
+            "host": normalized,
             "url": f"https://{normalized}",
             "protocol": "https:",
         }
@@ -163,6 +165,7 @@ def normalize_server_url(url):
     protocol = f"{scheme}:"
     return {
         "domain": domain,
+        "host": domain,
         "url": f"{scheme}://{domain}",
         "protocol": protocol,
     }
