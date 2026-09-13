@@ -1744,12 +1744,28 @@ class Event(
 
         if hasattr(user, "has_event_permission"):
             try:
-                if user.has_event_permission(
-                    self.organizer,
-                    self,
-                    ["can_change_event_settings", "can_change_items", "can_change_submissions"],
-                ):
+                # can_change_event_settings grants administrative control over video & rooms
+                if user.has_event_permission(self.organizer, self, "can_change_event_settings"):
                     return True
+
+                # Non-settings team permissions (submissions/items) cannot pass sensitive operations
+                sensitive_perms = {
+                    Permission.EVENT_SECRETS,
+                    Permission.EVENT_UPDATE,
+                    Permission.ROOM_DELETE,
+                    Permission.EVENT_API,
+                    Permission.EVENT_USERS_MANAGE,
+                }
+                sensitive_str = {p.value if hasattr(p, "value") else str(p) for p in sensitive_perms}
+                req_perms_str = {p.value if hasattr(p, "value") else str(p) for p in permission}
+
+                if not req_perms_str.intersection(sensitive_str):
+                    if user.has_event_permission(
+                        self.organizer,
+                        self,
+                        ["can_change_submissions", "can_change_items"],
+                    ):
+                        return True
             except Exception:
                 pass
 
@@ -2415,6 +2431,7 @@ class Event(
         self.janusserver_set.update(event_exclusive=None)
         self.jitsiserver_set.update(event_exclusive=None)
         self.turnserver_set.update(event_exclusive=None)
+        self.loungemeshserver_set.update(event_exclusive=None)
 
         self.vouchers.all().delete()
         self.products.all().delete()

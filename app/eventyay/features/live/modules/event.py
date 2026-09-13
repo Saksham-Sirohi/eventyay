@@ -129,14 +129,11 @@ class EventModule(BaseModule):
             ):
                 allowed_keys.add("bbb_defaults")
                 allowed_keys.add("zoom_defaults")
+                allowed_keys.add("janus_defaults")
             if await self.consumer.event.has_permission_async(
                 user=self.consumer.user, permission=Permission.EVENT_ROOMS_CREATE_JITSI
             ):
                 allowed_keys.add("jitsi_defaults")
-            if await self.consumer.event.has_permission_async(
-                user=self.consumer.user, permission=Permission.EVENT_ROOMS_CREATE_CHAT
-            ):
-                allowed_keys.add("janus_defaults")
             body = {k: v for k, v in body.items() if k in allowed_keys}
 
         if "track_video_event_views" in body and "track_event_views" not in body:

@@ -60,7 +60,7 @@ class LoungeMeshModule(BaseModule):
             Permission.ROOM_UPDATE,
             Permission.EVENT_UPDATE,
         ],
-        module_required="call.loungemesh",
+        module_required=("call.loungemesh", "channel.loungemesh"),
     )
     async def room_url(self, body):
         is_moderator = await self.can_moderate_room()

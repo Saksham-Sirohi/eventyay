@@ -131,6 +131,7 @@ export default {
 			joinedWithMicMuted: true,
 			joinedWithCameraOff: false,
 			apiMessageHandler: null,
+			isDestroyed: false,
 		}
 	},
 	async created() {
@@ -144,6 +145,9 @@ export default {
 	mounted() {
 		this.apiMessageHandler = this.onApiMessage.bind(this)
 		api.on('message', this.apiMessageHandler)
+	},
+	beforeUnmount() {
+		this.isDestroyed = true
 	},
 	unmounted() {
 		if (this.apiMessageHandler) {
@@ -186,7 +190,7 @@ export default {
 			this.error = null
 			this.roomUrlPromise = api.call('januscall.room_url', { room: this.room.id })
 				.then((response) => {
-					if (!this.$el || this._isDestroyed) return
+					if (!this.$el || this.isDestroyed) return
 					if (response.status === 'pending') {
 						this.waitingForAdmission = true
 						return

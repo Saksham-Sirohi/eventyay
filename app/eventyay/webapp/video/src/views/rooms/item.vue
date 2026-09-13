@@ -107,9 +107,13 @@ export default {
 				this.$store.commit('setActiveRoomSidebarTab', tab)
 			}
 		},
+		rooms() {
+			return this.$store.state.rooms
+		},
 		roomIsDisabled() {
 			if (!this.room) return false
 			if (this.room.is_disabled) return true
+			if (this.hasOrganiserPermissions) return false
 			return !isRoomVisibleToAttendee(this.room, this.$store.state.world?.video_providers)
 		},
 		roomDisabledReason() {
@@ -267,7 +271,7 @@ export default {
 			}
 		},
 		checkDirectAccess() {
-			if (!this.rooms || this.rooms.length === 0) return
+			if (!this.rooms) return
 			if (!this.hasOrganiserPermissions) {
 				const roomId = this.roomId || this.$route.params.roomId
 				if (roomId && (!this.room || this.roomIsDisabled)) {

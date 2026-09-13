@@ -52,6 +52,13 @@ export default {
 	},
 	mounted() {
 		this.messageHandler = (event) => {
+			if (!this.$refs.iframeEl || event.source !== this.$refs.iframeEl.contentWindow) return
+			if (this.joinUrl) {
+				try {
+					const expectedOrigin = new URL(this.joinUrl, window.location.href).origin
+					if (expectedOrigin !== 'null' && event.origin !== expectedOrigin) return
+				} catch (e) {}
+			}
 			if (event.data?.type === 'hangup' || event.data === 'hangup') {
 				this.$emit('hangup')
 			}

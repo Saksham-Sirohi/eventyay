@@ -71,8 +71,8 @@ class ZoomModule(BaseModule):
                 "ui": str(self.consumer.user.pk),
                 "dc": self.module_config.get("disable_chat", False),
                 "event_id": str(self.consumer.event.id),
+                "room_id": str(self.room.pk),
                 "client_id": client_id,
-                "client_secret": client_secret,
             }
         )
         domain = (getattr(self.consumer.event, "domain", None) or "").strip()

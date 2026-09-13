@@ -59,13 +59,18 @@ def _choose_preferred_server(servers, event, prefer_server):
     return None
 
 
+def _is_meet_jitsi_server(url):
+    norm = normalize_server_url(url)
+    return "meet.jit.si" in (norm["host"] if norm else (url or "").lower())
+
+
 def _choose_any_available_server(servers, event):
     querysets = filter_servers_for_event(servers, event)
     for qs in querysets:
         available_servers = list(qs)
         if available_servers:
             self_hosted = [
-                s for s in available_servers if "meet.jit.si" not in (s.url or "")
+                s for s in available_servers if not _is_meet_jitsi_server(s.url)
             ]
             if self_hosted:
                 return random.choice(self_hosted)
@@ -87,7 +92,7 @@ def choose_server_for_room(room, prefer_server=None):
         if not preferred_url:
             continue
         # Avoid routing to meet.jit.si when self-hosted servers exist to prevent external authentication barrier
-        if "meet.jit.si" in preferred_url and servers.exclude(url__icontains="meet.jit.si").exists():
+        if _is_meet_jitsi_server(preferred_url) and servers.exclude(url__icontains="meet.jit.si").exists():
             continue
         server = _choose_preferred_server(servers, locked_room.event, preferred_url)
         if server:

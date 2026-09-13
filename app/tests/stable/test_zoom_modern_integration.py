@@ -47,6 +47,8 @@ async def test_zoom_module_url_parsing_and_token(event, user):
 
     # 1. Plain meeting ID with spaces
     module = ZoomModule(consumer=consumer)
+    module.room = MagicMock()
+    module.room.pk = "test-room-uuid"
     module.module_config = {
         "meeting_number": "123 456 7890",
         "password": "pass",
@@ -62,6 +64,7 @@ async def test_zoom_module_url_parsing_and_token(event, user):
     assert payload["pw"] == "pass"
     assert payload["dc"] is True
     assert payload["event_id"] == str(event.id)
+    assert payload["room_id"] == "test-room-uuid"
 
     # 2. Full Zoom URL with embedded meeting ID and passcode
     module.module_config = {
@@ -84,9 +87,9 @@ async def test_zoom_module_url_parsing_and_token(event, user):
 
 
 @pytest.mark.django_db
-def test_meeting_view_with_modern_join_links(event, user):
+def test_meeting_view_with_modern_join_links(event, user, settings):
+    settings.ZOOM_SECRET = "test_sdk_secret_with_32_bytes_length_here!"
     rf = RequestFactory()
-    secret = "test_sdk_secret_with_32_bytes_length_here!"
 
     data = signing.dumps(
         {
@@ -98,7 +101,6 @@ def test_meeting_view_with_modern_join_links(event, user):
             "dc": False,
             "event_id": str(event.id),
             "client_id": "test_sdk_key",
-            "client_secret": secret,
         }
     )
 

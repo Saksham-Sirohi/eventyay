@@ -38,17 +38,37 @@ def extract_api_secret(request, body: dict) -> str | None:
     return None
 
 
+def extract_room_features(room) -> dict:
+    room_features = dict(DEFAULT_FEATURES)
+    for mod in (room.module_config or []):
+        if isinstance(mod, dict) and mod.get("type") in ("call.loungemesh", "channel.loungemesh"):
+            cfg = mod.get("config", {}) or {}
+            if isinstance(cfg.get("features"), dict):
+                room_features.update(cfg["features"])
+            if "enable_notes" in cfg:
+                room_features["notes"] = bool(cfg["enable_notes"])
+            if "enable_whiteboard" in cfg:
+                room_features["whiteboard"] = bool(cfg["enable_whiteboard"])
+            if "enable_spatial_chat" in cfg:
+                room_features["spatial_chat"] = bool(cfg["enable_spatial_chat"])
+    return room_features
+
+
 @method_decorator(csrf_exempt, name="dispatch")
 class LoungeMeshTokenExchangeView(View):
     def post(self, request, *args, **kwargs):
         try:
             body = json.loads(request.body.decode("utf-8") or "{}")
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             return JsonResponse({"error": "invalid_json"}, status=400)
 
-        token_str = body.get("token", "").strip()
-        if not token_str:
+        if not isinstance(body, dict):
+            return JsonResponse({"error": "invalid_json"}, status=400)
+
+        raw_token = body.get("token")
+        if not isinstance(raw_token, str) or not raw_token.strip():
             return JsonResponse({"error": "token_required"}, status=400)
+        token_str = raw_token.strip()
 
         token_obj = verify_loungemesh_token(token_str)
         if not token_obj:
@@ -73,12 +93,7 @@ class LoungeMeshTokenExchangeView(View):
 
         room = token_obj.room
         user = token_obj.user
-
-        # Extract features from room config
-        room_features = dict(DEFAULT_FEATURES)
-        for mod in (room.module_config or []):
-            if isinstance(mod, dict) and mod.get("type") in ("call.loungemesh", "channel.loungemesh"):
-                room_features.update(mod.get("config", {}).get("features", {}))
+        room_features = extract_room_features(room)
 
         display_name = "Attendee"
         avatar = ""
@@ -124,20 +139,20 @@ class LoungeMeshTokenRefreshView(View):
     def post(self, request, *args, **kwargs):
         try:
             body = json.loads(request.body.decode("utf-8") or "{}")
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
             return JsonResponse({"error": "invalid_json"}, status=400)
 
-        token_str = body.get("token", "").strip()
-        if not token_str:
+        if not isinstance(body, dict):
+            return JsonResponse({"error": "invalid_json"}, status=400)
+
+        raw_token = body.get("token")
+        if not isinstance(raw_token, str) or not raw_token.strip():
             return JsonResponse({"error": "token_required"}, status=400)
+        token_str = raw_token.strip()
 
         token_obj = verify_loungemesh_token(token_str)
         if not token_obj:
             return JsonResponse({"error": "invalid_or_expired_token"}, status=403)
-
-        # Extend expiry
-        token_obj.expires = now() + timedelta(hours=2)
-        token_obj.save(update_fields=["expires"])
 
         event = token_obj.event
         if not is_video_provider_enabled_for_attendee("loungemesh") or not loungemesh_is_available(event):
@@ -156,8 +171,13 @@ class LoungeMeshTokenRefreshView(View):
                     status=401,
                 )
 
+        # Extend expiry after verifying permissions and server
+        token_obj.expires = now() + timedelta(hours=2)
+        token_obj.save(update_fields=["expires"])
+
         room = token_obj.room
         user = token_obj.user
+        room_features = extract_room_features(room)
 
         display_name = "Attendee"
         avatar = ""
@@ -167,15 +187,17 @@ class LoungeMeshTokenRefreshView(View):
                 display_name = user.profile.get("display_name", "")
             if hasattr(user, "profile") and isinstance(user.profile, dict):
                 avatar = user.profile.get("avatar_url", "")
+            if not display_name:
+                display_name = str(getattr(user, "email", "Attendee")).split("@")[0]
 
         jitsi_room = f"lms-{event.slug}-{room.pk}"
-        server = get_loungemesh_server(event)
         jitsi_jwt = None
         if server and server.jitsi_app_secret:
             jitsi_jwt = issue_jitsi_jwt(
                 display_name=display_name,
                 jitsi_room=jitsi_room,
                 moderator=token_obj.moderator,
+                features=room_features,
                 app_id=server.jitsi_app_id,
                 app_secret=server.jitsi_app_secret,
                 avatar=avatar,
@@ -186,8 +208,10 @@ class LoungeMeshTokenRefreshView(View):
                 "status": "refreshed",
                 "jwt": jitsi_jwt,
                 "display_name": display_name,
+                "avatar": avatar,
                 "jitsi_room": jitsi_room,
                 "moderator": bool(token_obj.moderator),
+                "features": room_features,
                 "expires_at": token_obj.expires.isoformat(),
             }
         )

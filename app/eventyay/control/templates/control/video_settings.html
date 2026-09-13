@@ -89,6 +89,7 @@
                                     <div style="display: flex; align-items: center; gap: 8px;">
                                         <label class="video-server-toggle" title="{% if p.enabled %}{% trans 'Enabled' %}{% else %}{% trans 'Disabled' %}{% endif %}">
                                             <span class="sr-only">{% blocktrans with name=p.name %}Toggle availability for {{ name }}{% endblocktrans %}</span>
+                                            <input type="hidden" name="video_provider_{{ p.id }}_submitted" value="1">
                                             <input
                                                 type="checkbox"
                                                 name="video_provider_{{ p.id }}"

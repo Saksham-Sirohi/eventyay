@@ -223,9 +223,15 @@ class RoomModule(BaseModule):
     @command("enter")
     @room_action(permission_required=Permission.ROOM_VIEW)
     async def enter_room(self, body):
-        if not await self.consumer.event.has_permission_async(
-            user=self.consumer.user, permission=Permission.ROOM_UPDATE
-        ):
+        is_orga = (
+            await self.consumer.event.has_permission_async(
+                user=self.consumer.user, room=self.room, permission=Permission.ROOM_UPDATE
+            )
+            or await self.consumer.event.has_permission_async(
+                user=self.consumer.user, permission=Permission.EVENT_UPDATE
+            )
+        )
+        if not is_orga:
             if not await is_room_visible_for_attendee_async(self.room):
                 raise ConsumerException("room.disabled", "This room is currently not available.")
 
@@ -406,6 +412,18 @@ class RoomModule(BaseModule):
             )
 
         if body.get("context") == "januscall":
+            redis_debounce_key = f"reactions:{self.consumer.event.id}:{body['room']}:{reaction}:{self.consumer.user.id}:januscall"
+            async with aredis(redis_debounce_key) as redis:
+                debounce = await redis.set(
+                    redis_debounce_key,
+                    "1",
+                    ex=2,
+                    nx=True,
+                )
+                if not debounce:
+                    await self.consumer.send_success({})
+                    return
+
             await self.consumer.send_success({})
             await self.consumer.channel_layer.group_send(
                 GROUP_ROOM.format(id=self.room.pk),

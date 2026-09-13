@@ -65,6 +65,11 @@ def test_setup():
                             "enable_notes": True,
                             "enable_whiteboard": True,
                             "enable_spatial_chat": True,
+                            "features": {
+                                "notes": True,
+                                "whiteboard": True,
+                                "spatial_chat": True,
+                            },
                         },
                     }
                 ],

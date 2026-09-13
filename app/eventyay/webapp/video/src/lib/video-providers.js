@@ -73,8 +73,9 @@ export const MODULE_TYPE_TO_PROVIDER = {
 }
 
 export function isVideoProviderEnabled(provider, isFeatureEnabled, videoProvidersConfig) {
-	if (videoProvidersConfig && videoProvidersConfig[provider.id]) {
-		if (videoProvidersConfig[provider.id].organizer === false) {
+	if (videoProvidersConfig) {
+		const conf = videoProvidersConfig[provider.id]
+		if (conf === false || (conf && conf.organizer === false)) {
 			return false
 		}
 	}

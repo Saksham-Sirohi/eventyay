@@ -36,8 +36,12 @@ class TurnServer(models.Model):
     def get_ice_servers(self):
         username, credential = self.generate_credentials()
         raw_host = (self.hostname or "").strip()
-        if ":" in raw_host:
+        if raw_host.startswith("[") and "]" in raw_host:
+            host = raw_host[: raw_host.index("]") + 1]
+        elif ":" in raw_host and raw_host.count(":") == 1:
             host, _ = raw_host.split(":", 1)
+        elif ":" in raw_host:
+            host = f"[{raw_host}]"
         else:
             host = raw_host
 

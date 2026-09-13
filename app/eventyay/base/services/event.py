@@ -697,10 +697,12 @@ async def get_room_config_for_user(room: str, event_id: str, user):
     room = await get_room(id=room, event_id=event_id)
     permissions = await database_sync_to_async(room.event.get_all_permissions)(user)
     effective_permissions = permissions[room] | permissions[room.event]
+    permission_values = {
+        p.value if hasattr(p, "value") else str(p)
+        for p in effective_permissions
+    }
     is_orga = bool(
-        "room:update" in effective_permissions
-        or "event:update" in effective_permissions
-        or "world:update" in effective_permissions
+        {"room:update", "event:update", "world:update"} & permission_values
     )
     if not is_orga:
         visible = await database_sync_to_async(is_room_visible_for_attendee)(room)

@@ -89,6 +89,7 @@ import ChannelJanus from 'views/admin/rooms/types-edit/channel-janus'
 import ChannelJitsi from 'views/admin/rooms/types-edit/channel-jitsi'
 import ChannelZoom from 'views/admin/rooms/types-edit/channel-zoom'
 import ChannelRoulette from 'views/admin/rooms/types-edit/channel-roulette'
+import ChannelLoungeMesh from 'views/admin/rooms/types-edit/channel-loungemesh'
 import PageLanding from 'views/admin/rooms/types-edit/page-landing'
 import SidebarAddons from 'views/admin/rooms/types-edit/SidebarAddons'
 import {
@@ -98,6 +99,7 @@ import {
 } from 'lib/interpretation-language-streams'
 
 export default {
+	name: 'RoomEditPrompt',
 	components: { Prompt, SidebarAddons },
 	provide () {
 		return {
@@ -144,6 +146,7 @@ export default {
 				'channel-janus': ChannelJanus,
 				'channel-jitsi': ChannelJitsi,
 				'channel-zoom': ChannelZoom,
+				'channel-loungemesh': ChannelLoungeMesh,
 			})
 		}
 	},
@@ -301,7 +304,7 @@ export default {
 			try {
 				const roomId = this.config.id
 				let moduleConfig = this.config.module_config || []
-				if (this.inferredType?.videoChannel) {
+				if (['channel-bbb', 'channel-jitsi'].includes(this.inferredType?.id)) {
 					moduleConfig = moduleConfig.filter(
 						m => !['chat.native', 'question', 'poll'].includes(m.type)
 					)

@@ -230,7 +230,7 @@ export default {
 					}))
 				}
 				let moduleConfig = this.config.module_config || []
-				if (this.inferredType?.videoChannel) {
+				if (['channel-bbb', 'channel-jitsi'].includes(this.inferredType?.id)) {
 					moduleConfig = moduleConfig.filter(
 						m => !['chat.native', 'question', 'poll'].includes(m.type)
 					)
@@ -247,7 +247,11 @@ export default {
 				Object.assign(this.config, updated)
 
 				if (openScheduleAfterCreate && streamScheduleDraft) {
-					sessionStorage.setItem(`streamScheduleDraft:${roomId}`, JSON.stringify(streamScheduleDraft))
+					try {
+						sessionStorage.setItem(`streamScheduleDraft:${roomId}`, JSON.stringify(streamScheduleDraft))
+					} catch (e) {
+						console.warn('Failed to store streamScheduleDraft in sessionStorage:', e)
+					}
 				}
 
 				if (this.$refs.settings?.saveStreamSchedules) {

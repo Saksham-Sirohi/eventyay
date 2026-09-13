@@ -126,10 +126,11 @@
             }
             input.checked = payload.enabled;
             if (statusLabel) {
+                const statusText = payload.status || (payload.enabled ? "Enabled" : "Disabled");
                 statusLabel.innerHTML = payload.enabled
-                    ? '<span class="text-success"><span class="fa fa-check"></span> Enabled</span>'
-                    : '<span class="text-danger"><span class="fa fa-ban"></span> Disabled</span>';
-                if (toggle) toggle.setAttribute("title", payload.enabled ? "Enabled" : "Disabled");
+                    ? `<span class="text-success"><span class="fa fa-check"></span> ${statusText}</span>`
+                    : `<span class="text-danger"><span class="fa fa-ban"></span> ${statusText}</span>`;
+                if (toggle) toggle.setAttribute("title", statusText);
             }
         } catch (error) {
             input.checked = previous;

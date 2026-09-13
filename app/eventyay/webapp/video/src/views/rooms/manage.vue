@@ -211,6 +211,7 @@
 
 import {mapGetters, mapState} from 'vuex'
 import { createPopper } from '@popperjs/core'
+import api from 'lib/api'
 import CopyableText from 'components/CopyableText'
 import DashboardLayout from 'components/dashboard-layout'
 import Panel from 'components/dashboard-layout/Panel'
@@ -716,7 +717,7 @@ export default {
 			}
 		},
 		async toggleConfigSetting(item) {
-			if (!this.canManageSettings || this.isSavingConfig) return
+			if (!this.canManageSettings || this.isSavingConfig || item?.readOnly) return
 			const mod = this.serverStreamModule
 			if (!mod) return
 			this.isSavingConfig = true

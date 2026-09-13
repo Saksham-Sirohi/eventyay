@@ -136,15 +136,35 @@ class MeetingView(ZoomViewMixin, TemplateView):
         passcode = str(inp.get("pw", "")).strip()
         user_name = str(inp.get("un", "Attendee")).strip()
         role = int(bool(inp.get("ho", False)))
+        if role == 1 and not inp.get("zak"):
+            role = 0
 
+        room_id = inp.get("room_id")
+        module_client_id = None
+        module_client_secret = None
+        if room_id and self.event:
+            room = self.event.rooms.filter(id=room_id).first()
+            if room:
+                for m in (room.module_config or []):
+                    if m.get("type") == "call.zoom":
+                        cfg = m.get("config") or {}
+                        module_client_id = cfg.get("client_id")
+                        module_client_secret = cfg.get("client_secret")
+                        break
+
+        zoom_defaults = getattr(self.event, "zoom_defaults", None) or {}
         client_id = (
             inp.get("client_id")
+            or module_client_id
+            or zoom_defaults.get("client_id")
             or getattr(settings, "ZOOM_KEY", "")
             or ""
         )
         client_secret = (
-            inp.get("client_secret")
+            module_client_secret
+            or zoom_defaults.get("client_secret")
             or getattr(settings, "ZOOM_SECRET", "")
+            or inp.get("client_secret")
             or ""
         )
 

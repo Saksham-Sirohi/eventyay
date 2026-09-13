@@ -39,7 +39,9 @@ export default {
 			jitsiApi: null,
 			isDestroyed: false,
 			conferenceJoined: false,
-			userHungUp: false
+			userHungUp: false,
+			hasEmittedConnected: false,
+			normalLeave: false
 		}
 	},
 	async mounted() {
@@ -56,6 +58,8 @@ export default {
 			this.errorMsg = null
 			this.conferenceJoined = false
 			this.userHungUp = false
+			this.hasEmittedConnected = false
+			this.normalLeave = false
 			this.cleanupMedia()
 			await this.$nextTick()
 
@@ -182,14 +186,16 @@ export default {
 				setTimeout(() => {
 					if (!this.isDestroyed) {
 						this.loading = false
-						this.$emit('connected')
 					}
 				}, 400)
 
 				this.jitsiApi.addListener('videoConferenceJoined', () => {
 					this.loading = false
 					this.conferenceJoined = true
-					this.$emit('connected')
+					if (!this.hasEmittedConnected) {
+						this.hasEmittedConnected = true
+						this.$emit('connected')
+					}
 					if (config.roomDisplayName) {
 						try {
 							this.jitsiApi.executeCommand('subject', config.roomDisplayName)
@@ -217,9 +223,11 @@ export default {
 
 				this.jitsiApi.addListener('videoConferenceLeft', () => {
 					this.conferenceJoined = false
+					this.normalLeave = true
 				})
 
 				this.jitsiApi.addListener('readyToClose', () => {
+					this.normalLeave = true
 					this.hangup()
 				})
 

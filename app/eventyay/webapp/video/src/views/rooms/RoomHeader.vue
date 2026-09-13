@@ -126,7 +126,7 @@ export default {
 			// Home ('/') will always show the first available room.
 			if (this.roomId === undefined) return
 			// Wait until rooms have loaded.
-			if (!this.rooms || this.rooms.length === 0) return
+			if (!this.rooms) return
 			// If user is attendee, prevent direct URL access to disabled rooms
 			if (!this.hasOrganiserPermissions) {
 				if (!this.room || this.room.is_disabled || !isRoomVisibleToAttendee(this.room, this.$store.state.world?.video_providers)) {

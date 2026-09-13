@@ -43,13 +43,14 @@ class VersionedModel(models.Model):
     def save(self, *args, **kwargs):
         if "update_fields" in kwargs and kwargs["update_fields"] is not None:
             update_fields = kwargs["update_fields"]
+            if not isinstance(update_fields, (list, set)):
+                update_fields = list(update_fields)
+                kwargs["update_fields"] = update_fields
             if "version" not in update_fields:
                 if isinstance(update_fields, set):
                     update_fields.add("version")
-                elif isinstance(update_fields, list):
-                    update_fields.append("version")
                 else:
-                    kwargs["update_fields"] = list(update_fields) + ["version"]
+                    update_fields.append("version")
         self.version += 1
         r = super().save(*args, **kwargs)
         transaction.on_commit(self._set_cache_version_sync)

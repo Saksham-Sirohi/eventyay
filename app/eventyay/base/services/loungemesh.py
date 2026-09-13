@@ -47,10 +47,12 @@ def get_loungemesh_server(event=None, prefer_server=None) -> LoungeMeshServer | 
         if s:
             return s
 
-    return servers.first()
+    return None
 
 
 def loungemesh_is_available(event=None) -> bool:
+    if event is not None:
+        return get_loungemesh_server(event=event) is not None
     return LoungeMeshServer.objects.filter(active=True).exists()
 
 

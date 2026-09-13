@@ -217,19 +217,13 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
         gs = GlobalSettingsObject()
         changed = []
         for p in SUPPORTED_VIDEO_PROVIDERS:
+            sub_key = f"video_provider_{p}_submitted"
             key_single = f"video_provider_{p}"
             org_key = f"video_provider_{p}_organizer"
             att_key = f"video_provider_{p}_attendee"
 
             # Check if submitted with single unified toggle or role-specific toggles
-            if key_single in request.POST or (org_key not in request.POST and att_key not in request.POST):
-                is_enabled = request.POST.get(key_single) in ("true", "1", "on")
-                for r_key, r_name in [(org_key, "organizer"), (att_key, "attendee")]:
-                    prev = gs.settings.get(r_key, as_type=bool, default=True)
-                    if is_enabled != prev:
-                        gs.settings.set(r_key, is_enabled)
-                        changed.append(f"{p} {r_name}: {is_enabled}")
-            else:
+            if f"{org_key}_submitted" in request.POST or (org_key in request.POST and key_single not in request.POST):
                 new_org = request.POST.get(org_key) in ("true", "1", "on")
                 new_att = request.POST.get(att_key) in ("true", "1", "on")
                 prev_org = gs.settings.get(org_key, as_type=bool, default=True)
@@ -241,6 +235,13 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
                 if new_att != prev_att:
                     gs.settings.set(att_key, new_att)
                     changed.append(f"{p} attendee: {new_att}")
+            elif sub_key in request.POST or key_single in request.POST:
+                is_enabled = request.POST.get(key_single) in ("true", "1", "on")
+                for r_key, r_name in [(org_key, "organizer"), (att_key, "attendee")]:
+                    prev = gs.settings.get(r_key, as_type=bool, default=True)
+                    if is_enabled != prev:
+                        gs.settings.set(r_key, is_enabled)
+                        changed.append(f"{p} {r_name}: {is_enabled}")
 
         if changed:
             LogEntry.objects.create(
@@ -260,7 +261,10 @@ class VideoProviderToggleVisibility(AdministratorPermissionRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         try:
             payload = json.loads(request.body.decode() or "{}")
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return JsonResponse({"ok": False, "error": _("Invalid JSON payload.")}, status=400)
+
+        if not isinstance(payload, dict):
             return JsonResponse({"ok": False, "error": _("Invalid JSON payload.")}, status=400)
 
         provider = payload.get("provider")

@@ -352,7 +352,7 @@ class JanusCallModule(BaseModule):
         await self._subscribe_room_events()
         state = self._normalize_media_state(body)
         if self.module_config.get("disable_cam") and not await self._can_moderate_room():
-            state["video"] = False
+            state["cameraOn"] = False
         user_id = str(self.consumer.user.pk)
         state, states = await self._set_media_state(self.room.pk, state)
         self.media_state_rooms[str(self.room.pk)] = self.room
