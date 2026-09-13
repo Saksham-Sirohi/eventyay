@@ -269,10 +269,11 @@ class RoomModule(BaseModule):
                     self.consumer.channel_name,
                 )
 
+        event_config = self.consumer.event.config or {}
         self.current_views[self.room], actual_view_count = await start_view(
             self.room,
             self.consumer.user,
-            delete=not self.consumer.event.config.get("track_room_views", True),
+            delete=not event_config.get("track_room_views", True),
         )
         await self._update_view_count(self.room, actual_view_count)
 
@@ -281,7 +282,7 @@ class RoomModule(BaseModule):
             {
                 "type": "room.viewer.added",
                 "user": self.consumer.user.serialize_public(
-                    trait_badges_map=self.consumer.event.config.get(
+                    trait_badges_map=event_config.get(
                         "trait_badges_map"
                     )
                 ),
@@ -347,7 +348,7 @@ class RoomModule(BaseModule):
         if room in self.current_views:
             actual_view_count, is_last = await end_view(
                 self.current_views[room],
-                delete=not self.consumer.event.config.get("track_room_views", True),
+                delete=not (self.consumer.event.config or {}).get("track_room_views", True),
             )
             del self.current_views[room]
             await self._update_view_count(room, actual_view_count)
