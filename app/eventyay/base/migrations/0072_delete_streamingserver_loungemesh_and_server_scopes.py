@@ -10,7 +10,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('base', '0069_taxrule_tax_rate_bounds'),
+        ('base', '0071_global_plugin_config_classification'),
     ]
 
     operations = [
@@ -38,36 +38,6 @@ class Migration(migrations.Migration):
                 ('jitsi_app_secret', models.CharField(blank=True, max_length=300)),
                 ('cost', models.IntegerField(default=0)),
             ],
-        ),
-        migrations.RenameIndex(
-            model_name='gmailoauthcredential',
-            new_name='base_gmailo_event_i_133776_idx',
-            old_name='base_gmailo_event_i_6f0d0d_idx',
-        ),
-        migrations.RenameIndex(
-            model_name='gmailoauthcredential',
-            new_name='base_gmailo_is_acti_22cf9d_idx',
-            old_name='base_gmailo_is_acti_0d8f8f_idx',
-        ),
-        migrations.AlterField(
-            model_name='invoicevoucher',
-            name='budget',
-            field=models.DecimalField(blank=True, decimal_places=2, help_text='Maximum monetary amount that will be waived using this voucher across all usages. Leave empty for no budget limit.', max_digits=10, null=True, verbose_name='Maximum fee waiver budget'),
-        ),
-        migrations.AlterField(
-            model_name='invoicevoucher',
-            name='max_usages',
-            field=models.PositiveIntegerField(default=1, help_text='How many times this voucher can be redeemed.', verbose_name='Maximum redemptions'),
-        ),
-        migrations.AlterField(
-            model_name='invoicevoucher',
-            name='price_mode',
-            field=models.CharField(choices=[('none', 'No effect'), ('set', 'Set product price to'), ('subtract', 'Subtract from product price'), ('percent', 'Reduce product price by (%)')], default='none', max_length=100, verbose_name='Waiver type'),
-        ),
-        migrations.AlterField(
-            model_name='invoicevoucher',
-            name='value',
-            field=models.DecimalField(blank=True, decimal_places=2, max_digits=10, null=True, verbose_name='Fee waiver value'),
         ),
         migrations.AlterField(
             model_name='streamschedule',
