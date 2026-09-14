@@ -41,9 +41,10 @@ services:
     platform: linux/amd64
     container_name: eventyay-next-worker
     # Dev: one worker on all queues. Production uses worker + worker-heavy (deployment/docker-compose.yml).
-    entrypoint: celery -A eventyay worker -l info -Q default,notifications,longrunning,background
+    command: celery -A eventyay worker -l info -Q default,notifications,longrunning,background
     volumes:
       - ./app/eventyay:/usr/src/app/eventyay
+      - ./app/entrypoint.sh:/usr/src/app/entrypoint.sh
       - ./plugins:/usr/src/plugins
       - /usr/src/app/eventyay/static.dist
       - /usr/src/app/eventyay/static/video
@@ -64,9 +65,11 @@ services:
     build: *app-build
     platform: linux/amd64
     container_name: eventyay-next-beat
-    entrypoint: celery -A eventyay beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    command: celery -A eventyay beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     volumes:
       - ./app/eventyay:/usr/src/app/eventyay
+      - ./app/entrypoint.sh:/usr/src/app/entrypoint.sh
+      - ./plugins:/usr/src/plugins
       - /usr/src/app/eventyay/static.dist
       - /usr/src/app/eventyay/static/video
       - /usr/src/app/eventyay/static/schedule-editor
