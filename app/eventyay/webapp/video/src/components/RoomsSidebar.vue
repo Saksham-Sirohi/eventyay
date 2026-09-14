@@ -241,7 +241,7 @@ export default {
 				chat_rooms: false,
 				kiosks: false,
 				direct_messaging: false,
-				announcements: true
+				announcements: false
 			}, this.world?.live_features || window.eventyay?.liveFeatures || {})
 		},
 		hasChatChannels() {
@@ -796,7 +796,7 @@ export default {
 
 	.sidebar-footer-action
 		border-top: 1px solid #e7e7e7
-		padding: 12px 15px
+		padding: 12px 15px 35px
 		background: #f8f8f8
 
 		.btn-manage-video

@@ -161,6 +161,11 @@ class AuthModule(BaseModule):
 
         self.consumer.user = login_result.user
         self._current_view = login_result.view
+
+        live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+        if self.consumer.user.type == User.UserType.KIOSK and not live_features.get("kiosks", False):
+            await self.consumer.send_error(code="kiosks.disabled", message="Kiosks are currently disabled.")
+            return
         if settings.SENTRY_DSN:
             with configure_scope() as scope:
                 scope.user = {"id": str(self.consumer.user.id)}
@@ -464,6 +469,11 @@ class AuthModule(BaseModule):
     @require_event_permission(Permission.EVENT_USERS_LIST)
     async def list(self, body):
         body = body or {}
+        if body.get("type") == User.UserType.KIOSK:
+            live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+            if not live_features.get("kiosks", False):
+                await self.consumer.send_error(code="kiosks.disabled", message="Kiosks are currently disabled.")
+                return
         users = await get_public_users(
             self.consumer.event.pk,
             include_admin_info=await self._include_admin_user_info(),
@@ -631,6 +641,11 @@ class AuthModule(BaseModule):
     @command("kiosk.create")
     @require_event_permission(Permission.EVENT_KIOSKS_MANAGE)
     async def kiosk_create(self, body):
+        live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+        if not live_features.get("kiosks", False):
+            await self.consumer.send_error(code="kiosks.disabled", message="Kiosks are currently disabled.")
+            return
+
         uid = str(uuid.uuid4())
 
         @database_sync_to_async
@@ -655,6 +670,11 @@ class AuthModule(BaseModule):
     @command("kiosk.fetch")
     @require_event_permission(Permission.EVENT_KIOSKS_MANAGE)
     async def kiosk_fetch(self, body):
+        live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+        if not live_features.get("kiosks", False):
+            await self.consumer.send_error(code="kiosks.disabled", message="Kiosks are currently disabled.")
+            return
+
         @database_sync_to_async
         def get_user(uid):
             user = get_user_by_id(self.consumer.event.pk, uid)
@@ -699,6 +719,11 @@ class AuthModule(BaseModule):
     @require_event_permission(Permission.EVENT_KIOSKS_MANAGE)
     async def kiosk_update(self, body):
         """Update a kiosk user profile (slides, room, display name, etc.)."""
+        live_features = (getattr(self.consumer.event, "config", None) or {}).get("live_features", {})
+        if not live_features.get("kiosks", False):
+            await self.consumer.send_error(code="kiosks.disabled", message="Kiosks are currently disabled.")
+            return
+
         kiosk_id = body.get("id")
         profile = body.get("profile")
         if not kiosk_id or not isinstance(profile, dict):

@@ -154,7 +154,7 @@ aside.c-organiser-sidebar(
 						span.sidebar-text {{ $t('Users') }}
 
 				//- 7. Announcements
-				li(v-if="(hasPermission('world:announce') || isAdminMode) && liveFeatures.announcements !== false")
+				li(v-if="(hasPermission('world:announce') || isAdminMode) && Boolean(liveFeatures.announcements)")
 					router-link.nav-link(:to="{name: 'admin:announcements'}", @click="onNavClick")
 						span.fa.mdi.mdi-bullhorn-outline(aria-hidden="true")
 						span.sidebar-text {{ $t('Announcements') }}
@@ -243,7 +243,7 @@ export default {
 				chat_rooms: false,
 				kiosks: false,
 				direct_messaging: false,
-				announcements: true
+				announcements: false
 			}, this.world?.live_features || window.eventyay?.liveFeatures || {})
 		},
 		eventDateSubtitle() {
@@ -796,7 +796,7 @@ export default {
 
 	.sidebar-footer-action
 		border-top: 1px solid #e7e7e7
-		padding: 12px 15px
+		padding: 12px 15px 35px
 		background: #f8f8f8
 
 		.btn-public-view

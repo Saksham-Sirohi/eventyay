@@ -81,6 +81,12 @@ export function isVideoProviderEnabled(provider, isFeatureEnabled, videoProvider
 	return !provider.featureFlag || Boolean(isFeatureEnabled ? isFeatureEnabled(provider.featureFlag) : true)
 }
 
+export function isVideoProviderDisabled(providerId, videoProvidersConfig) {
+	if (!videoProvidersConfig || !providerId) return false
+	const conf = videoProvidersConfig[providerId]
+	return conf === false || (conf && (conf.organizer === false || conf.available === false))
+}
+
 export function isVideoProviderPermitted(provider, hasPermission, isAdminMode = false) {
 	if (isRoomTypeAvailable(provider.roomTypeId, hasPermission, isAdminMode)) {
 		return true

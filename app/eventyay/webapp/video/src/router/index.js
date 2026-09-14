@@ -241,16 +241,41 @@ const router = createRouter({
 
 export function checkRoutePermission(to) {
 	if (!store.state.permissions) return true
-	if (store.getters.isAdminMode) return true
 	const name = typeof to.name === 'string' ? to.name : ''
 	const hasPerm = store.getters.hasPermission
+	const isAdmin = Boolean(store.getters.isAdminMode)
 	const liveFeatures = Object.assign({
 		chat_rooms: false,
 		kiosks: false,
 		direct_messaging: false,
-		announcements: true
+		announcements: false
 	}, store.state.world?.live_features || window.eventyay?.liveFeatures || {})
 
+	if (name.startsWith('admin:announcements')) {
+		if (!liveFeatures.announcements) return false
+		return isAdmin || hasPerm('world:announce')
+	}
+	if (name.startsWith('admin:kiosks') || name === 'standalone:kiosk') {
+		if (!liveFeatures.kiosks) return false
+		return name === 'standalone:kiosk' || isAdmin || hasPerm('world:kiosks.manage')
+	}
+	if (name.startsWith('admin:chat')) {
+		if (!liveFeatures.chat_rooms) return false
+		return isAdmin || hasPerm('room:update') || hasPerm('world:rooms.create.chat')
+	}
+	if (name === 'channel') {
+		if (!liveFeatures.direct_messaging) return false
+		return isAdmin || hasPerm('world:chat.direct')
+	}
+	if (name === 'room' && to.params?.roomId) {
+		const room = store.state.rooms?.find(r => r.id === to.params.roomId)
+		if (room && !liveFeatures.chat_rooms) {
+			const isChatRoom = (room.modules?.length === 1 && room.modules[0].type === 'chat.native') ||
+				room.modules?.some(module => ['channel.janus', 'channel.zoom', 'channel.jitsi'].includes(module.type))
+			if (isChatRoom) return false
+		}
+	}
+	if (isAdmin) return true
 	if (name === 'admin:config') {
 		return hasPerm('world:update') || hasPerm('world:rooms.create.stage') || hasPerm('world:rooms.create.bbb')
 	}
@@ -263,28 +288,8 @@ export function checkRoutePermission(to) {
 	if (name.startsWith('admin:users') || name === 'admin:user') {
 		return hasPerm('world:users.list')
 	}
-	if (name.startsWith('admin:announcements')) {
-		return liveFeatures.announcements !== false && hasPerm('world:announce')
-	}
-	if (name.startsWith('admin:kiosks')) {
-		return liveFeatures.kiosks && hasPerm('world:kiosks.manage')
-	}
-	if (name.startsWith('admin:chat')) {
-		return liveFeatures.chat_rooms && (hasPerm('room:update') || hasPerm('world:rooms.create.chat'))
-	}
 	if (name.startsWith('admin:rooms') || name === 'room:manage') {
 		return hasPerm('room:update') || hasPerm('world:rooms.create.stage') || hasPerm('world:rooms.create.bbb') || hasPerm('world:rooms.create.jitsi')
-	}
-	if (name === 'channel') {
-		return Boolean(liveFeatures.direct_messaging) && hasPerm('world:chat.direct')
-	}
-	if (name === 'room' && to.params?.roomId) {
-		const room = store.state.rooms?.find(r => r.id === to.params.roomId)
-		if (room && !liveFeatures.chat_rooms) {
-			const isChatRoom = (room.modules?.length === 1 && room.modules[0].type === 'chat.native') ||
-				room.modules?.some(module => ['channel.janus', 'channel.zoom', 'channel.jitsi'].includes(module.type))
-			if (isChatRoom) return false
-		}
 	}
 	return true
 }

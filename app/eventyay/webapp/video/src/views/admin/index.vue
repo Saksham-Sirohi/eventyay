@@ -38,7 +38,7 @@
 			.stat-content
 				.stat-value {{ totalViewersCount }}
 				.stat-label {{ $t('Active Viewers') }}
-		.stat-card(v-if="(hasPermission('world:announce') || isAdminMode) && liveFeatures.announcements !== false")
+		.stat-card(v-if="(hasPermission('world:announce') || isAdminMode) && Boolean(liveFeatures.announcements)")
 			.stat-icon.announcements
 				i.mdi.mdi-bullhorn
 			.stat-content
@@ -55,7 +55,7 @@
 				.card-details
 					.card-title {{ $t('Rooms & Stages') }}
 					.card-desc {{ $t('Create, configure and manage video rooms') }}
-			router-link.action-card(:to="{name: 'admin:announcements'}", v-if="(hasPermission('world:announce') || isAdminMode) && liveFeatures.announcements !== false")
+			router-link.action-card(:to="{name: 'admin:announcements'}", v-if="(hasPermission('world:announce') || isAdminMode) && Boolean(liveFeatures.announcements)")
 				.card-icon
 					i.mdi.mdi-bullhorn
 				.card-details
@@ -130,10 +130,10 @@
 				p {{ $t('No rooms created yet.') }}
 				router-link.btn-primary(:to="{name: 'admin:rooms:index'}", v-if="hasPermission('room:update') || hasPermission('world:rooms.create.stage') || isAdminMode") {{ $t('Create First Room') }}
 
-	.section-block(v-if="announcementsList.length && (hasPermission('world:announce') || isAdminMode) && liveFeatures.announcements !== false")
+	.section-block(v-if="announcementsList.length && (hasPermission('world:announce') || isAdminMode) && Boolean(liveFeatures.announcements)")
 		.section-header
 			h2 {{ $t('Recent Announcements') }}
-			router-link.section-link(:to="{name: 'admin:announcements'}", v-if="(hasPermission('world:announce') || isAdminMode) && liveFeatures.announcements !== false")
+			router-link.section-link(:to="{name: 'admin:announcements'}", v-if="(hasPermission('world:announce') || isAdminMode) && Boolean(liveFeatures.announcements)")
 				span {{ $t('Manage announcements') }}
 				i.mdi.mdi-chevron-right(aria-hidden="true")
 		.announcements-card
@@ -160,7 +160,7 @@ export default {
 				chat_rooms: false,
 				kiosks: false,
 				direct_messaging: false,
-				announcements: true
+				announcements: false
 			}, this.world?.live_features || window.eventyay?.liveFeatures || {})
 		},
 		allRooms() {

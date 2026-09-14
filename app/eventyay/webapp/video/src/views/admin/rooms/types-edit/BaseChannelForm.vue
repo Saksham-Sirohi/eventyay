@@ -3,8 +3,8 @@
 	.provider-disabled-warning(v-if="isProviderDisabled")
 		i.mdi.mdi-alert-circle-outline
 		.warning-text
-			strong {{ $t('Feature Disabled') }}
-			p {{ $t('This feature is no longer available. Please contact system administrator.') }}
+			strong {{ $t('Provider Disabled by System Administrator') }}
+			p {{ $t('This video provider has been disabled by the system administrator. Attendees cannot access this room. Contact your platform admin to re-enable it.') }}
 
 	.provider-overview-card
 		.provider-icon-wrapper(:class="providerId")
@@ -17,6 +17,8 @@
 		slot
 </template>
 <script>
+import { isVideoProviderDisabled } from 'lib/video-providers'
+
 export default {
 	name: 'BaseChannelForm',
 	props: {
@@ -51,10 +53,7 @@ export default {
 	},
 	computed: {
 		isProviderDisabled() {
-			const providers = this.$store?.state?.world?.video_providers
-			if (!providers || !this.providerId) return false
-			const config = providers[this.providerId]
-			return config && config.available === false
+			return isVideoProviderDisabled(this.providerId, this.$store?.state?.world?.video_providers)
 		}
 	}
 }

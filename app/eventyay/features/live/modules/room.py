@@ -617,7 +617,7 @@ class RoomModule(BaseModule):
     @command("config.list")
     @require_event_permission(Permission.ROOM_UPDATE)
     async def rooms_list(self, body):
-        rooms = await database_sync_to_async(get_rooms)(self.consumer.event, user=None)
+        rooms = await database_sync_to_async(get_rooms)(self.consumer.event, user=self.consumer.user)
         await self.consumer.send_success(await database_sync_to_async(serialize_room_config)(rooms, many=True))
 
     @command("config.get")
