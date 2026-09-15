@@ -58,14 +58,14 @@ Standalone Docker Compose deployment for Eventyay video services:
 |---|---|---|---|
 | `proxy` | `caddy` | `80`, `443` | Reverse proxy routing `/janus`, `/janus-ws`, and `/` |
 | `janus` | `janus` | `8188`, `8088`, `7088`, `20000-20050/udp` | Janus WebRTC gateway |
-| `turn` | `coturn` | `3478`, `5349` (host mode) | Coturn STUN/TURN server |
+| `turn` | `coturn` | `3478`, `5349`, `49152-49200/udp` (host mode) | Coturn STUN/TURN server |
 | `jitsi` | `jitsi-prosody`, `jitsi-jicofo`, `jitsi-jvb`, `jitsi-web` | `10001/udp`, `8443` | Full Jitsi Meet stack |
 
 ---
 
 ## Environment Variables
 
-Refer to [`env.sample`](file:///Users/sirohi/projects/open-source/eventyay/deployment/video-servers/env.sample) for all options:
+Refer to [`env.sample`](env.sample) for all options:
 
 - `COMPOSE_PROFILES`: Comma-separated list of service profiles to activate (`proxy,janus,turn,jitsi`).
 - `PUBLIC_IP`: Public IP of the host. If left empty, containers auto-detect the external IP at startup.

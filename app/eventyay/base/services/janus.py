@@ -4,6 +4,7 @@ import json
 import logging
 import random
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit, urlunsplit
 
 import websockets
 from django.utils.crypto import get_random_string
@@ -48,8 +49,10 @@ async def _janus_websocket(server):
         raise JanusConfigurationError("No active Janus server configured")
 
     urls_to_try = [server.url]
-    if "localhost" in server.url or "127.0.0.1" in server.url:
-        container_url = server.url.replace("://localhost:", "://janus:").replace("://127.0.0.1:", "://janus:")
+    parsed = urlsplit(server.url)
+    if parsed.hostname in ("localhost", "127.0.0.1"):
+        netloc = f"janus:{parsed.port}" if parsed.port else "janus"
+        container_url = urlunsplit(parsed._replace(netloc=netloc))
         if container_url not in urls_to_try:
             urls_to_try.append(container_url)
 
@@ -57,14 +60,11 @@ async def _janus_websocket(server):
     if getattr(server, "disable_ssl", False):
         import ssl
         ssl_context = ssl._create_unverified_context()
-        if server.url.startswith("wss://"):
-            ws_url = server.url.replace("wss://", "ws://")
-            if ws_url not in urls_to_try:
-                urls_to_try.append(ws_url)
-            if "localhost" in server.url or "127.0.0.1" in server.url:
-                container_ws_url = container_url.replace("wss://", "ws://")
-                if container_ws_url not in urls_to_try:
-                    urls_to_try.append(container_ws_url)
+        for candidate in list(urls_to_try):
+            if candidate.startswith("wss://"):
+                ws_variant = candidate.replace("wss://", "ws://", 1)
+                if ws_variant not in urls_to_try:
+                    urls_to_try.append(ws_variant)
 
     last_exception = None
     for url in urls_to_try:
