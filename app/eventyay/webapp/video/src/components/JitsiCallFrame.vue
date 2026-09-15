@@ -68,6 +68,9 @@ export default {
 				if (this.isDestroyed) return
 
 				const isHttp = (config.protocol && config.protocol.startsWith('http:')) || (config.url && config.url.startsWith('http:'))
+				if (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && isHttp) {
+					throw new Error('Jitsi server must use HTTPS when Eventyay is served over HTTPS')
+				}
 				const scheme = isHttp ? 'http' : 'https'
 				const wsScheme = isHttp ? 'ws' : 'wss'
 				const serverUrl = config.url || `${scheme}://${config.domain}`
@@ -283,12 +286,12 @@ export default {
 			this.$emit('hangup')
 		},
 		async loadJitsiExternalApi(config) {
-			if (window.JitsiMeetExternalAPI) {
-				return window.JitsiMeetExternalAPI
-			}
 			const baseUrl = config.url || (String(config.protocol).startsWith('http:') ? `http://${config.domain}` : `https://${config.domain}`)
 			if (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && baseUrl.startsWith('http:')) {
 				throw new Error('Jitsi server must use HTTPS when Eventyay is served over HTTPS')
+			}
+			if (window.JitsiMeetExternalAPI) {
+				return window.JitsiMeetExternalAPI
 			}
 			const scriptUrl = `${baseUrl.replace(/\/+$/, '')}/external_api.js`
 
