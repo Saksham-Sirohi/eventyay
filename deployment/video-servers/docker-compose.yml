@@ -57,8 +57,12 @@ services:
 
         exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     depends_on:
-      - janus
-      - jitsi-web
+      janus:
+        condition: service_started
+        required: false
+      jitsi-web:
+        condition: service_started
+        required: false
     volumes:
       - caddy_data:/data
       - caddy_config:/config
