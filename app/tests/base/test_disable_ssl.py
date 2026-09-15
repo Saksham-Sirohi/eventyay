@@ -73,13 +73,14 @@ def test_jitsi_normalize_server_url_http():
 @pytest.mark.asyncio
 @pytest.mark.django_db
 async def test_janus_websocket_disable_ssl_urls():
+    import ssl
     server = await database_sync_to_async(JanusServer.objects.create)(
         url="wss://janus.local/janus-ws", disable_ssl=True
     )
-    attempted_urls = []
+    attempted_calls = []
 
     def fake_connect(url, **kwargs):
-        attempted_urls.append(url)
+        attempted_calls.append((url, kwargs.get("ssl")))
         cm = AsyncMock()
         cm.__aenter__.side_effect = OSError("Connection refused mock")
         return cm
@@ -91,13 +92,19 @@ async def test_janus_websocket_disable_ssl_urls():
         except Exception:
             pass
 
-    assert "wss://janus.local/janus-ws" in attempted_urls
-    assert "ws://janus.local/janus-ws" in attempted_urls
+    urls = [call[0] for call in attempted_calls]
+    assert "wss://janus.local/janus-ws" in urls
+    assert "ws://janus.local/janus-ws" not in urls
+    # Verify unverified SSLContext was used
+    ctx = attempted_calls[0][1]
+    assert isinstance(ctx, ssl.SSLContext)
+    assert ctx.check_hostname is False
+    assert ctx.verify_mode == ssl.CERT_NONE
 
     server_local = await database_sync_to_async(JanusServer.objects.create)(
         url="wss://localhost:8188", disable_ssl=True
     )
-    attempted_urls.clear()
+    attempted_calls.clear()
     with patch("websockets.connect", side_effect=fake_connect):
         try:
             async with _janus_websocket(server_local):
@@ -105,8 +112,12 @@ async def test_janus_websocket_disable_ssl_urls():
         except Exception:
             pass
 
-    assert "wss://janus:8188" in attempted_urls
-    assert "ws://janus:8188" in attempted_urls
+    urls_local = [call[0] for call in attempted_calls]
+    assert "wss://localhost:8188" in urls_local
+    assert "wss://janus:8188" in urls_local
+    assert "ws://janus:8188" not in urls_local
+    for _, ssl_arg in attempted_calls:
+        assert isinstance(ssl_arg, ssl.SSLContext)
 
 
 @pytest.mark.asyncio

@@ -12,6 +12,8 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      - PUBLIC_IP=${PUBLIC_IP:-}
     entrypoint:
       - /bin/sh
       - -c
@@ -104,7 +106,6 @@ services:
           --realm="$${COTURN_REALM:-$$EXT_IP}" \
           --external-ip="$$EXT_IP" \
           --listening-port=3478 \
-          --tls-listening-port=5349 \
           --min-port=49152 \
           --max-port=49200 \
           --stale-nonce \

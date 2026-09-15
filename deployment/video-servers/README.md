@@ -13,7 +13,7 @@ Standalone Docker Compose deployment for Eventyay video services:
 > **DO NOT deploy or run these video services alongside the main Eventyay deployment on the same host or VM.**
 >
 > - **Port Conflicts**: This stack binds directly to ports `80` and `443` for TLS reverse proxying, conflicting with Eventyay's primary web server/reverse proxy.
-> - **Host Networking**: Coturn runs with `network_mode: host` to properly advertise public ICE candidates, requiring exclusive control of TURN ports (`3478`, `5349`).
+> - **Host Networking**: Coturn runs with `network_mode: host` to properly advertise public ICE candidates, requiring exclusive control of TURN port `3478` and UDP relay range `49152-49200`.
 > - **Resource Isolation**: WebRTC audio/video encoding and media relay are network and CPU intensive. Running them on a dedicated server prevents media traffic spikes from impacting Eventyay's core ticketing, database, and API operations.
 
 ---
@@ -58,7 +58,7 @@ Standalone Docker Compose deployment for Eventyay video services:
 |---|---|---|---|
 | `proxy` | `caddy` | `80`, `443` | Reverse proxy routing `/janus`, `/janus-ws`, and `/` |
 | `janus` | `janus` | `8188`, `8088`, `7088`, `20000-20050/udp` | Janus WebRTC gateway |
-| `turn` | `coturn` | `3478`, `5349`, `49152-49200/udp` (host mode) | Coturn STUN/TURN server |
+| `turn` | `coturn` | `3478`, `49152-49200/udp` (host mode) | Coturn STUN/TURN server |
 | `jitsi` | `jitsi-prosody`, `jitsi-jicofo`, `jitsi-jvb`, `jitsi-web` | `10001/udp`, `8443` | Full Jitsi Meet stack |
 
 ---

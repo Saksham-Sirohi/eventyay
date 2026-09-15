@@ -60,11 +60,6 @@ async def _janus_websocket(server):
     if getattr(server, "disable_ssl", False):
         import ssl
         ssl_context = ssl._create_unverified_context()
-        for candidate in list(urls_to_try):
-            if candidate.startswith("wss://"):
-                ws_variant = candidate.replace("wss://", "ws://", 1)
-                if ws_variant not in urls_to_try:
-                    urls_to_try.append(ws_variant)
 
     last_exception = None
     for url in urls_to_try:

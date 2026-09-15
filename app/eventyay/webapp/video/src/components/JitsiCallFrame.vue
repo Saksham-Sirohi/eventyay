@@ -287,6 +287,9 @@ export default {
 				return window.JitsiMeetExternalAPI
 			}
 			const baseUrl = config.url || (String(config.protocol).startsWith('http:') ? `http://${config.domain}` : `https://${config.domain}`)
+			if (typeof window !== 'undefined' && window.location && window.location.protocol === 'https:' && baseUrl.startsWith('http:')) {
+				throw new Error('Jitsi server must use HTTPS when Eventyay is served over HTTPS')
+			}
 			const scriptUrl = `${baseUrl.replace(/\/+$/, '')}/external_api.js`
 
 			return new Promise((resolve, reject) => {
