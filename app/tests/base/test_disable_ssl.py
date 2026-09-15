@@ -94,6 +94,20 @@ async def test_janus_websocket_disable_ssl_urls():
     assert "wss://janus.local/janus-ws" in attempted_urls
     assert "ws://janus.local/janus-ws" in attempted_urls
 
+    server_local = await database_sync_to_async(JanusServer.objects.create)(
+        url="wss://localhost:8188", disable_ssl=True
+    )
+    attempted_urls.clear()
+    with patch("websockets.connect", side_effect=fake_connect):
+        try:
+            async with _janus_websocket(server_local):
+                pass
+        except Exception:
+            pass
+
+    assert "wss://janus:8188" in attempted_urls
+    assert "ws://janus:8188" in attempted_urls
+
 
 @pytest.mark.asyncio
 async def test_bbb_service_disable_ssl():

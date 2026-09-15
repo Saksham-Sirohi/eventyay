@@ -438,7 +438,14 @@ class BBBService:
             for server in servers
         ]
         responses = await asyncio.gather(
-            *(self._get(url, timeout=10) for url in recording_urls)
+            *(
+                self._get(
+                    url,
+                    timeout=10,
+                    disable_ssl=getattr(server, "disable_ssl", False),
+                )
+                for url, server in zip(recording_urls, servers)
+            )
         )
         for server, recordings_url, root in zip(servers, recording_urls, responses):
             try:

@@ -101,13 +101,7 @@ export default {
 					hideConferenceTimer: false,
 					...(config.domain && !config.domain.includes('meet.jit.si') ? {
 						bosh: `${scheme}://${config.domain}/http-bind`,
-						websocket: `${wsScheme}://${config.domain}/xmpp-websocket`,
-						hosts: {
-							domain: 'meet.jitsi',
-							muc: 'muc.meet.jitsi',
-							anonymousdomain: 'guest.meet.jitsi',
-							authdomain: 'auth.meet.jitsi'
-						}
+						websocket: `${wsScheme}://${config.domain}/xmpp-websocket`
 					} : {}),
 					...(config.configOverwrite || {})
 				}

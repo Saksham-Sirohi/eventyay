@@ -61,6 +61,10 @@ async def _janus_websocket(server):
             ws_url = server.url.replace("wss://", "ws://")
             if ws_url not in urls_to_try:
                 urls_to_try.append(ws_url)
+            if "localhost" in server.url or "127.0.0.1" in server.url:
+                container_ws_url = container_url.replace("wss://", "ws://")
+                if container_ws_url not in urls_to_try:
+                    urls_to_try.append(container_ws_url)
 
     last_exception = None
     for url in urls_to_try:
