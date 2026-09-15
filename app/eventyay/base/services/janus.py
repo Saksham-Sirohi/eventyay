@@ -47,16 +47,38 @@ async def _janus_websocket(server):
     if not server:
         raise JanusConfigurationError("No active Janus server configured")
 
-    try:
-        async with websockets.connect(
-            server.url,
-            subprotocols=["janus-protocol"],
-            open_timeout=JANUS_CONNECT_TIMEOUT,
-            close_timeout=5,
-        ) as websocket:
-            yield websocket
-    except (TimeoutError, OSError, WebSocketException) as e:
-        raise JanusError(f"Could not connect to Janus server {server.url}: {e}") from e
+    urls_to_try = [server.url]
+    if "localhost" in server.url or "127.0.0.1" in server.url:
+        container_url = server.url.replace("://localhost:", "://janus:").replace("://127.0.0.1:", "://janus:")
+        if container_url not in urls_to_try:
+            urls_to_try.append(container_url)
+
+    ssl_context = True
+    if getattr(server, "disable_ssl", False):
+        import ssl
+        ssl_context = ssl._create_unverified_context()
+        if server.url.startswith("wss://"):
+            ws_url = server.url.replace("wss://", "ws://")
+            if ws_url not in urls_to_try:
+                urls_to_try.append(ws_url)
+
+    last_exception = None
+    for url in urls_to_try:
+        try:
+            async with websockets.connect(
+                url,
+                subprotocols=["janus-protocol"],
+                open_timeout=JANUS_CONNECT_TIMEOUT,
+                close_timeout=5,
+                ssl=ssl_context if url.startswith("wss://") else None,
+            ) as websocket:
+                yield websocket
+                return
+        except (TimeoutError, OSError, WebSocketException) as e:
+            last_exception = e
+            continue
+
+    raise JanusError(f"Could not connect to Janus server {server.url}: {last_exception}") from last_exception
 
 
 async def _recv_response(websocket, transaction):

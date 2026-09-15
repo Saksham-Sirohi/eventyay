@@ -101,7 +101,13 @@ export default {
 					hideConferenceTimer: false,
 					...(config.domain && !config.domain.includes('meet.jit.si') ? {
 						bosh: `${scheme}://${config.domain}/http-bind`,
-						websocket: `${wsScheme}://${config.domain}/xmpp-websocket`
+						websocket: `${wsScheme}://${config.domain}/xmpp-websocket`,
+						hosts: {
+							domain: 'meet.jitsi',
+							muc: 'muc.meet.jitsi',
+							anonymousdomain: 'guest.meet.jitsi',
+							authdomain: 'auth.meet.jitsi'
+						}
 					} : {}),
 					...(config.configOverwrite || {})
 				}
@@ -283,22 +289,8 @@ export default {
 			this.$emit('hangup')
 		},
 		async loadJitsiExternalApi(config) {
-			const patchExternalAPI = (api) => {
-				if (api && api.prototype && !api._patchedForHttp) {
-					const origCreateIFrame = api.prototype._createIFrame
-					api.prototype._createIFrame = function(height, width, sandbox) {
-						if (this._url && location.protocol === 'http:' && this._url.startsWith('https:')) {
-							this._url = this._url.replace(/^https:/, 'http:')
-						}
-						return origCreateIFrame.call(this, height, width, sandbox)
-					}
-					api._patchedForHttp = true
-				}
-				return api
-			}
-
 			if (window.JitsiMeetExternalAPI) {
-				return patchExternalAPI(window.JitsiMeetExternalAPI)
+				return window.JitsiMeetExternalAPI
 			}
 			const baseUrl = config.url || (String(config.protocol).startsWith('http:') ? `http://${config.domain}` : `https://${config.domain}`)
 			const scriptUrl = `${baseUrl.replace(/\/+$/, '')}/external_api.js`
@@ -309,7 +301,7 @@ export default {
 				script.async = true
 				script.onload = () => {
 					if (window.JitsiMeetExternalAPI) {
-						resolve(patchExternalAPI(window.JitsiMeetExternalAPI))
+						resolve(window.JitsiMeetExternalAPI)
 					} else {
 						reject(new Error('JitsiMeetExternalAPI missing on window'))
 					}
