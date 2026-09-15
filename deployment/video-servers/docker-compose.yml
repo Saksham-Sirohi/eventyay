@@ -215,7 +215,7 @@ services:
         [ -z "$$HOST" ] && [ "${USE_SSLIP:-1}" != "0" ] && [ "$$PUB_IP" != "127.0.0.1" ] && HOST="$${PUB_IP}.sslip.io"
         export PUBLIC_URL="$${PUBLIC_URL:-https://$${HOST:-$$PUB_IP}}"
         mkdir -p /config
-        printf "config.bosh = '/http-bind';\nconfig.websocket = 'wss://' + location.host + '/xmpp-websocket';\nconfig.hosts = config.hosts || {};\nconfig.hosts.authdomain = 'auth.meet.jitsi';\nconfig.hosts.anonymousdomain = 'guest.meet.jitsi';\n" > /config/custom-config.js
+        printf "config.bosh = '/http-bind';\nconfig.websocket = 'wss://' + location.host + '/xmpp-websocket';\n" > /config/custom-config.js
         exec /init
     environment:
       - XMPP_DOMAIN=meet.jitsi
@@ -223,7 +223,6 @@ services:
       - XMPP_AUTH_DOMAIN=auth.meet.jitsi
       - XMPP_MUC_DOMAIN=muc.meet.jitsi
       - ENABLE_AUTH=1
-      - ENABLE_AUTH_DOMAIN=0
       - ENABLE_GUESTS=1
       - AUTH_TYPE=jwt
       - JWT_APP_ID=${JWT_APP_ID}
