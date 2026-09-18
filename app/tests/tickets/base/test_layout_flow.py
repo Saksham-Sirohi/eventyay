@@ -256,6 +256,40 @@ def test_badge_renderer_opts_into_implicit_groups():
     assert Renderer.implicit_flow_groups is False
 
 
+def test_layout_for_page_compacts_on_badge_renderer():
+    renderer = BadgeRenderer.__new__(BadgeRenderer)
+    renderer.layout = [
+        _textarea(content='attendee_name', flow_group='', bottom='85', fontsize='16.0', width='80'),
+        _textarea(content='home_wiki', flow_group='', bottom='70', fontsize='10.0', width='40'),
+    ]
+
+    def resolved_text(_op, _order, obj):
+        return '' if obj.get('content') == 'attendee_name' else 'Wiki'
+
+    renderer._cached_text_content = resolved_text
+    packed = renderer.layout_for_page(None, None)
+    assert [obj['content'] for obj in packed] == ['home_wiki']
+    assert packed[0]['bottom'] == '85'
+    assert packed[0]['fontsize'] == '10.0'
+    assert packed[0]['width'] == '40'
+
+
+def test_layout_for_page_does_not_implicitly_pack_tickets():
+    renderer = Renderer.__new__(Renderer)
+    renderer.layout = [
+        _textarea(content='attendee_name', flow_group='', bottom='85', fontsize='16.0'),
+        _textarea(content='home_wiki', flow_group='', bottom='70', fontsize='10.0'),
+    ]
+
+    def resolved_text(_op, _order, obj):
+        return '' if obj.get('content') == 'attendee_name' else 'Wiki'
+
+    renderer._cached_text_content = resolved_text
+    packed = renderer.layout_for_page(None, None)
+    assert [obj['content'] for obj in packed] == ['attendee_name', 'home_wiki']
+    assert packed[1]['bottom'] == '70'
+
+
 def test_empty_value_compacts_like_unselected_field():
     packed = _pack(BadgeLayout().layout_data, ['attendee_name', 'attendee_job_title'])
     text = [obj for obj in packed if obj['type'] == 'textarea']
