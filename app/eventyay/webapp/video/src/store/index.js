@@ -36,6 +36,7 @@ export default new Vuex.Store({
 		permissions: null,
 		activeRoom: null,
 		reactions: null,
+		reactionBurst: null,
 		mediaSourcePlaceholderRect: null,
 		userLocale: null, // only used to force UI render
 		userTimezone: null,
@@ -121,6 +122,9 @@ export default new Vuex.Store({
 		},
 		reportMediaSourcePlaceholderRect(state, rect) {
 			state.mediaSourcePlaceholderRect = rect
+		},
+		spawnReaction(state, emoji) {
+			state.reactionBurst = {emoji, nonce: Date.now() + Math.random()}
 		},
 		setUserLocale(state, locale) {
 			state.userLocale = locale
@@ -458,9 +462,18 @@ export default new Vuex.Store({
 			dispatch('question/changeRoom', room)
 			dispatch('poll/changeRoom', room)
 		},
-		async addReaction({state}, reaction) {
+		async addReaction({state, commit}, reaction) {
 			if (!state.activeRoom || !state.connected) return
-			await api.call('room.react', {room: state.activeRoom.id, reaction})
+			commit('spawnReaction', reaction)
+			try {
+				await api.call('room.react', {room: state.activeRoom.id, reaction})
+			} catch (error) {
+				console.error('Failed to send room reaction', {
+					reaction,
+					roomId: state.activeRoom.id,
+					error
+				})
+			}
 		},
 		async updateRoomSchedule({state}, {room, schedule_data}) {
 			return await api.call('room.schedule', {room: room.id, schedule_data})
@@ -496,8 +509,9 @@ export default new Vuex.Store({
 			}
 		},
 		'api::room.reaction'({state}, {room, reactions}) {
-			if (state.activeRoom.id !== room) return
-			state.reactions = reactions
+			if (!reactions || !state.activeRoom) return
+			if (String(state.activeRoom.id) !== String(room)) return
+			state.reactions = {...reactions}
 		},
 		'api::world.updated'({state, commit, dispatch}, {world, rooms, permissions}) {
 			state.world = world
