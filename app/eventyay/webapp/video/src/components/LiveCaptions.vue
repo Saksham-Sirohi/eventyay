@@ -37,7 +37,8 @@ export default {
 	watch: {
 		wsUrl(newUrl) {
 			this.teardown()
-			this.lines = [] // Clear full history on track switch
+			this.lines = []
+			this.reconnectAttempts = 0
 			if (newUrl) {
 				this.connect()
 			}
@@ -55,7 +56,7 @@ export default {
 		async connect() {
 			this.clearReconnectTimer()
 			if (!this.wsUrl) return
-			
+
 			this.ws = new WebSocket(this.wsUrl)
 			this.ws.onmessage = this.onMessage
 			this.ws.onopen = () => {
@@ -63,7 +64,10 @@ export default {
 			}
 			this.ws.onclose = () => {
 				this.ws = null
-				this.attemptReconnect()
+				// Skip reconnect after teardown / language switch (wsUrl cleared).
+				if (this.wsUrl) {
+					this.attemptReconnect()
+				}
 			}
 			this.ws.onerror = (e) => {
 				console.error('Caption WebSocket error:', e)
@@ -87,37 +91,45 @@ export default {
 				this.reconnectTimeout = null
 			}
 		},
-                attemptReconnect() {
-                        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-                                this.lines = [{ id: this.nextId++, text: this.$t('Captions disconnected') }]
-                                return
-                        }
-                        const backoffMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000)
-                        this.reconnectAttempts++
-                        this.reconnectTimeout = setTimeout(() => {
-                                this.connect()
-                        }, backoffMs)
-                },
-                async onMessage(event) {
-                        try {
-                                if (event.data instanceof Blob) {
-                                        return; // TTS removed for now
-                                }
-                                
-                                const data = JSON.parse(event.data);
-                                
-								if ((data.type === 'caption' || data.type === 'translated_caption') && data.text) {
-                                        this.lines.push({ id: this.nextId++, text: data.text })
-                                        const maxLines = this.docked ? 12 : 2
-                                        if (this.lines.length > maxLines) {
-                                                this.lines = this.lines.slice(-maxLines)
-                                        }
-                                        this.$nextTick(() => {
-                                                if (this.$refs.log) {
-                                                        this.$refs.log.scrollTop = this.$refs.log.scrollHeight
-                                                }
-                                        })
-                                }
+		attemptReconnect() {
+			if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+				this.lines = [{ id: this.nextId++, text: this.$t('Captions disconnected') }]
+				return
+			}
+			const backoffMs = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000)
+			this.reconnectAttempts++
+			this.reconnectTimeout = setTimeout(() => {
+				this.connect()
+			}, backoffMs)
+		},
+		async onMessage(event) {
+			try {
+				if (event.data instanceof Blob) {
+					return
+				}
+
+				const data = JSON.parse(event.data)
+				if (data.type !== 'caption' && data.type !== 'translated_caption') {
+					return
+				}
+				// VoxBento sends {type:'caption', status:'clear'} between utterances.
+				if (data.status === 'clear') {
+					this.lines = []
+					return
+				}
+				const text = typeof data.text === 'string' ? data.text.trim() : ''
+				if (!text) return
+
+				this.lines.push({ id: this.nextId++, text })
+				const maxLines = this.docked ? 12 : 2
+				if (this.lines.length > maxLines) {
+					this.lines = this.lines.slice(-maxLines)
+				}
+				this.$nextTick(() => {
+					if (this.$refs.log) {
+						this.$refs.log.scrollTop = this.$refs.log.scrollHeight
+					}
+				})
 			} catch (e) {
 				console.error('Failed to parse caption message', e)
 			}

@@ -116,7 +116,7 @@ import AudioTranslationDropdown from 'components/AudioTranslationDropdown'
 import LiveCaptions from 'components/LiveCaptions'
 import UpcomingStreamCountdown from 'components/UpcomingStreamCountdown'
 import { normalizeAudioTranslationSource } from 'lib/validators'
-import { pluginLanguageStreams, roomUsesPluginLanguageStreams } from '../../interpretation-streams'
+import { firstCaptionLanguage, pluginLanguageStreams, roomUsesPluginLanguageStreams } from '../../interpretation-streams'
 import { interpretationApiUrl, interpretationAuthHeaders } from 'lib/interpretation-api'
 import { hasOrganizerTraits } from 'lib/traitGrants'
 import { hasEmbeddedSuite, isRoomVisibleToAttendee } from 'lib/video-providers'
@@ -264,10 +264,13 @@ export default {
 		selectedCcWsUrl() {
 			if (!this.ccEnabled) return null
 			const lang = this.pluginLanguages.find(l => l.language === this.selectedCcLanguage)
-			if (lang && lang.caption_ws_url && this.listenerToken) {
-				return `${lang.caption_ws_url}${lang.caption_ws_url.includes('?') ? '&' : '?'}token=${this.listenerToken}`
+			if (!lang?.caption_ws_url) return null
+			// VoxBento caption WS is public; do not require listenerToken (often unavailable with OAuth-only).
+			if (this.listenerToken) {
+				const sep = lang.caption_ws_url.includes('?') ? '&' : '?'
+				return `${lang.caption_ws_url}${sep}token=${this.listenerToken}`
 			}
-			return null
+			return lang.caption_ws_url
 		},
 		usesStreamPolling() {
 			return Boolean(
@@ -403,7 +406,8 @@ export default {
 		toggleCc() {
 			this.ccEnabled = !this.ccEnabled
 			if (this.ccEnabled && !this.isManualCCOverride) {
-				this.selectedCcLanguage = this.selectedPluginLanguage
+				this.selectedCcLanguage =
+					firstCaptionLanguage(this.pluginLanguages) || this.selectedPluginLanguage || 'Original'
 			}
 		},
 		updateActiveTranslation(translationConfig) {
