@@ -955,16 +955,19 @@ def drop_line_emptied_by_placeholder(original_line, resolved_line, emptied_place
     return '{' in (original_line or '')
 
 
-def apply_layout_flow(layout, is_empty):
+def apply_layout_flow(layout, is_empty, implicit_groups=False):
     """Pack flow-group members into remaining designed slots.
 
     Unlocked empty/hidden members are skipped. Remaining visible members map onto
     designed slots in flow order (1st visible → 1st slot). When
     ``flow_adopt_slot_style`` is enabled, the moving field copies the destination
-    slot's typography and width. Stacked textareas without a group are packed
-    implicitly so unselected badge fields do not leave blank gaps.
+    slot's typography and width. Stacked badge textareas without a group are packed
+    when ``implicit_groups`` is enabled.
     """
-    copies = assign_implicit_flow_groups(layout)
+    if implicit_groups:
+        copies = assign_implicit_flow_groups(layout)
+    else:
+        copies = [copy.deepcopy(obj) for obj in layout or []]
     groups = OrderedDict()
     for index, obj in enumerate(copies):
         group_id = obj.get('flow_group')
@@ -1014,6 +1017,8 @@ def apply_layout_flow(layout, is_empty):
 
 
 class Renderer:
+    implicit_flow_groups = False
+
     def __init__(self, event, layout, background_file):
         self.layout = layout
         self.background_file = background_file
@@ -1348,7 +1353,7 @@ class Renderer:
         if not hasattr(self, '_style_cache'):
             self._style_cache = {}
 
-        text_content = self._get_text_content(op, order, o) or ''
+        text_content = self._cached_text_content(op, order, o)
         if not str(text_content).strip():
             return
         font, text_content = resolve_textarea_font(font, text_content)
@@ -1420,16 +1425,22 @@ class Renderer:
             p.drawOn(canvas, 0, -h - ad[1])
         canvas.restoreState()
 
+    def _cached_text_content(self, op: OrderPosition, order: Order, o: dict):
+        key = '_eventyay_resolved_text_content'
+        if key not in o:
+            o[key] = self._get_text_content(op, order, o) or ''
+        return o[key]
+
     def layout_object_is_empty(self, op: OrderPosition, order: Order, obj):
         if obj.get('type') != 'textarea':
             return False
-        text = self._get_text_content(op, order, obj) or ''
-        return not str(text).strip()
+        return not str(self._cached_text_content(op, order, obj)).strip()
 
     def layout_for_page(self, order: Order, op: OrderPosition):
         return apply_layout_flow(
             self.layout,
             lambda obj: self.layout_object_is_empty(op, order, obj),
+            implicit_groups=self.implicit_flow_groups,
         )
 
     def draw_page(self, canvas: Canvas, order: Order, op: OrderPosition, show_page=True):

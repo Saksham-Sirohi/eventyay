@@ -1,4 +1,5 @@
-from eventyay.base.pdf import apply_layout_flow, drop_line_emptied_by_placeholder
+from eventyay.base.pdf import Renderer, apply_layout_flow, drop_line_emptied_by_placeholder
+from eventyay.plugins.badges.exporters import BadgeRenderer
 from eventyay.plugins.badges.models import BadgeLayout
 
 
@@ -34,12 +35,16 @@ def _empty_contents(hidden):
     return is_empty
 
 
+def _pack(layout, hidden, implicit_groups=True):
+    return apply_layout_flow(layout, _empty_contents(hidden), implicit_groups=implicit_groups)
+
+
 def test_stacked_ungrouped_fields_compact_without_adopting_style():
     layout = [
         _textarea(content='attendee_name', flow_group='', bottom='85', fontsize='16.0', width='80'),
         _textarea(content='home_wiki', flow_group='', bottom='70', fontsize='10.0', width='40'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents(['attendee_name']))
+    packed = _pack(layout, ['attendee_name'])
     assert len(packed) == 1
     assert packed[0]['content'] == 'home_wiki'
     assert packed[0]['bottom'] == '85'
@@ -52,7 +57,7 @@ def test_distant_ungrouped_fields_are_not_packed():
         _textarea(content='attendee_name', flow_group='', bottom='85', fontsize='16.0'),
         _textarea(content='event_name', flow_group='', bottom='14', fontsize='12.0'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents(['attendee_name']))
+    packed = _pack(layout, ['attendee_name'])
     assert packed[0]['content'] == 'attendee_name'
     assert packed[1]['content'] == 'event_name'
     assert packed[1]['bottom'] == '14'
@@ -64,7 +69,7 @@ def test_legal_name_and_home_wiki_have_no_blank_gap():
         _textarea(content='attendee_job_title', flow_group='', bottom='76', fontsize='12.0'),
         _textarea(content='home_wiki', flow_group='', bottom='64', fontsize='10.0'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents(['attendee_job_title']))
+    packed = _pack(layout, ['attendee_job_title'])
     assert [obj['content'] for obj in packed] == ['attendee_name', 'home_wiki']
     assert packed[0]['bottom'] == '85'
     assert packed[1]['bottom'] == '76'
@@ -81,7 +86,7 @@ def test_all_visible_ungrouped_stacked_fields_keep_slots():
         _textarea(content='attendee_name', flow_group='', bottom='85', fontsize='16.0'),
         _textarea(content='home_wiki', flow_group='', bottom='70', fontsize='10.0'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents([]))
+    packed = _pack(layout, [])
     assert [obj['content'] for obj in packed] == ['attendee_name', 'home_wiki']
     assert packed[0]['bottom'] == '85'
     assert packed[1]['bottom'] == '70'
@@ -92,7 +97,7 @@ def test_hidden_field_promotes_next_into_first_slot_with_style():
         _textarea(content='attendee_name', bottom='85', fontsize='16.0', bold=True, width='80'),
         _textarea(content='attendee_company', bottom='70', fontsize='10.0', bold=False, width='40'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents(['attendee_name']))
+    packed = _pack(layout, ['attendee_name'])
     assert len(packed) == 1
     assert packed[0]['content'] == 'attendee_company'
     assert packed[0]['bottom'] == '85'
@@ -118,7 +123,7 @@ def test_adopt_slot_style_can_be_disabled():
             flow_adopt_slot_style=False,
         ),
     ]
-    packed = apply_layout_flow(layout, _empty_contents(['attendee_name']))
+    packed = _pack(layout, ['attendee_name'])
     assert packed[0]['content'] == 'attendee_company'
     assert packed[0]['bottom'] == '85'
     assert packed[0]['fontsize'] == '10.0'
@@ -130,7 +135,7 @@ def test_all_visible_fields_keep_order_and_slots():
         _textarea(content='attendee_name', bottom='85', fontsize='16.0'),
         _textarea(content='attendee_company', bottom='70', fontsize='10.0'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents([]))
+    packed = _pack(layout, [])
     assert [obj['content'] for obj in packed] == ['attendee_name', 'attendee_company']
     assert packed[0]['bottom'] == '85'
     assert packed[1]['bottom'] == '70'
@@ -142,7 +147,7 @@ def test_single_visible_field_uses_first_slot():
         _textarea(content='job', bottom='76', fontsize='12.0'),
         _textarea(content='wiki', bottom='64', fontsize='8.0'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents(['attendee_name', 'job']))
+    packed = _pack(layout, ['attendee_name', 'job'])
     assert len(packed) == 1
     assert packed[0]['content'] == 'wiki'
     assert packed[0]['bottom'] == '85'
@@ -155,7 +160,7 @@ def test_middle_hidden_field_promotes_later_field():
         _textarea(content='job', bottom='76', fontsize='12.0'),
         _textarea(content='wiki', bottom='64', fontsize='8.0'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents(['job']))
+    packed = _pack(layout, ['job'])
     assert [obj['content'] for obj in packed] == ['attendee_name', 'wiki']
     assert packed[0]['bottom'] == '85'
     assert packed[1]['bottom'] == '76'
@@ -177,7 +182,7 @@ def test_locked_object_does_not_move():
         },
         _textarea(content='attendee_company', bottom='70', fontsize='10.0'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents(['attendee_name']))
+    packed = _pack(layout, ['attendee_name'])
     barcode = next(obj for obj in packed if obj['type'] == 'barcodearea')
     company = next(obj for obj in packed if obj.get('content') == 'attendee_company')
     assert barcode['bottom'] == '30'
@@ -189,25 +194,71 @@ def test_larger_skipped_slot_is_used_as_destination():
         _textarea(content='title', bottom='90', fontsize='24.0', width='100'),
         _textarea(content='subtitle', bottom='70', fontsize='8.0', width='50'),
     ]
-    packed = apply_layout_flow(layout, _empty_contents(['title']))
+    packed = _pack(layout, ['title'])
     assert packed[0]['fontsize'] == '24.0'
     assert packed[0]['width'] == '100'
 
 
-def test_default_badge_layout_includes_flow_group():
-    layout = BadgeLayout().layout_data
-    text = [obj for obj in layout if obj['type'] == 'textarea']
-    assert {obj['content'] for obj in text} == {'attendee_name', 'attendee_job_title', 'attendee_company'}
-    assert all(obj.get('flow_group') == 'attendee-text' for obj in text)
-    assert all(obj.get('autofit_width') is True for obj in text)
-    assert all(obj.get('flow_adopt_slot_style') is True for obj in text)
-
-
 def test_default_badge_layout_compacts_unselected_fields():
-    packed = apply_layout_flow(BadgeLayout().layout_data, _empty_contents(['attendee_job_title']))
+    packed = apply_layout_flow(
+        BadgeLayout().layout_data,
+        _empty_contents(['attendee_job_title']),
+        implicit_groups=True,
+    )
     text = [obj for obj in packed if obj['type'] == 'textarea']
     assert [obj['content'] for obj in text] == ['attendee_name', 'attendee_company']
     assert text[0]['bottom'] == '85'
     assert text[1]['bottom'] == '83'
+    assert text[1]['fontsize'] == '12.0'
     barcode = next(obj for obj in packed if obj['type'] == 'barcodearea')
     assert barcode['bottom'] == '34'
+
+
+def test_implicit_groups_are_opt_in():
+    layout = [
+        _textarea(content='attendee_name', flow_group='', bottom='85', fontsize='16.0'),
+        _textarea(content='home_wiki', flow_group='', bottom='70', fontsize='10.0'),
+    ]
+    packed = _pack(layout, ['attendee_name'], implicit_groups=False)
+    assert packed[0]['content'] == 'attendee_name'
+    assert packed[1]['content'] == 'home_wiki'
+    assert packed[1]['bottom'] == '70'
+
+
+def test_resolve_layout_text_placeholders_drops_empty_line_keeps_spacing():
+    renderer = Renderer.__new__(Renderer)
+    renderer.variables = {
+        'attendee_name': {
+            'evaluate': lambda op, order, ev: 'Ada Lovelace',
+            'canonical_key': 'attendee_name',
+        },
+        'home_wiki': {
+            'evaluate': lambda op, order, ev: '',
+            'canonical_key': 'home_wiki',
+        },
+    }
+    text = '{attendee_name}\n\n{home_wiki}\nFooter'
+    result = renderer._resolve_layout_text_placeholders(text, None, None, None)
+    assert result == 'Ada Lovelace\n\nFooter'
+
+    hidden = renderer._resolve_layout_text_placeholders(
+        text,
+        None,
+        None,
+        None,
+        hidden_fields={'home_wiki'},
+    )
+    assert hidden == 'Ada Lovelace\n\nFooter'
+
+
+def test_badge_renderer_opts_into_implicit_groups():
+    assert BadgeRenderer.implicit_flow_groups is True
+    assert Renderer.implicit_flow_groups is False
+
+
+def test_empty_value_compacts_like_unselected_field():
+    packed = _pack(BadgeLayout().layout_data, ['attendee_name', 'attendee_job_title'])
+    text = [obj for obj in packed if obj['type'] == 'textarea']
+    assert [obj['content'] for obj in text] == ['attendee_company']
+    assert text[0]['bottom'] == '85'
+    assert text[0]['fontsize'] == '12.0'

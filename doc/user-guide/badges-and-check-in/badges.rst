@@ -16,4 +16,4 @@ free slots instead of leaving a blank gap.
 * **Adapt content to container width** is turned on for fields when they join a flow group, so long text shrinks to the slot width. You can turn it off per field.
 * **Lock position** keeps an object (for example a QR code) in place so it is not used as a packing slot.
 
-New default badge layouts group attendee name, job title, and company with downward flow, slot-style adoption, and width autofit already enabled. Stacked text fields on existing layouts still close empty gaps automatically; they keep their own font size unless you join an explicit flow group and enable slot-style adoption.
+Stacked text fields close empty gaps automatically and keep their own font size. Join an explicit flow group to choose direction, lock objects, turn on slot-style adoption, and enable width autofit.
