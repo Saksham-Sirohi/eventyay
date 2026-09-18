@@ -87,6 +87,32 @@ const activeInterpretation = computed(() => {
 	if (!props.room?.id) return null;
 	return store.state.interpretationStreamsByRoom?.[props.room.id] || store.state.youtubeTranslationsByRoom?.[props.room.id] || null;
 });
+const interpretationVolume = computed(() => store.state.interpretationVolume ?? 1.0);
+
+watch(interpretationVolume, (vol) => {
+	applyInterpretationVolume(vol);
+});
+
+function applyInterpretationVolume(vol) {
+	if (whepAudioEl.value) {
+		whepAudioEl.value.volume = vol;
+	}
+	const iframe = translationIframeEl.value;
+	if (iframe?.contentWindow) {
+		try {
+			iframe.contentWindow.postMessage(
+				JSON.stringify({
+					event: 'command',
+					func: 'setVolume',
+					args: [Math.round(vol * 100)]
+				}),
+				'*'
+			);
+		} catch (error) {
+			console.warn('Failed to set translation iframe volume:', error);
+		}
+	}
+}
 const autoplay = computed(() => store.getters.autoplay);
 const mainPlayerPaused = ref(!autoplay.value);
 
@@ -319,6 +345,7 @@ async function applyInterpretation(interpConfig) {
 			whepClient = client;
 			try {
 				await client.connect();
+				applyInterpretationVolume(interpretationVolume.value);
 				if (updateToken !== interpretationUpdateToken) {
 					client.disconnect();
 					if (whepClient === client) whepClient = null;
@@ -576,6 +603,7 @@ function resetMainPlayerPaused() {
 }
 
 function onTranslationIframeLoaded() {
+	applyInterpretationVolume(interpretationVolume.value);
 	if (mainPlayerPaused.value) {
 		pauseYouTubeTranslationIframe();
 	}
@@ -797,6 +825,8 @@ async function initializeIframe(mute, skipConsentCheck = false) {
 		const iframe = document.createElement('iframe');
 		iframe.src = iframeUrl;
 		iframe.classList.add('iframe-media-source');
+		iframe.setAttribute('frameborder', '0');
+		iframe.style.border = 'none';
 		if (hideIfBackground) {
 			iframe.classList.add('hide-if-background');
 		}
@@ -903,6 +933,7 @@ function getYoutubeUrl(
 	// Enable IFrame API for programmatic control
 	params.append('enablejsapi', '1');
 	params.append('origin', window.location.origin);
+	params.append('cc_load_policy', '0');
 
 	// Only add optional parameters when explicitly enabled
 	if (hideControls) {
@@ -1021,6 +1052,8 @@ defineExpose({ isPlaying });
 		transform: translate(calc(-1 * var(--chatbar-width)), 52px)
 .c-media-source .c-livestream, .c-media-source .iframe-error, iframe.iframe-media-source
 	position: fixed
+	border: none !important
+	outline: none !important
 	&.size-tiny, &.background
 		transition: all .3s ease
 		bottom: calc(var(--vh100) - 48px - 51px)
@@ -1032,6 +1065,11 @@ defineExpose({ isPlaying });
 		left: var(--mediasource-placeholder-left, var(--sidebar-width))
 		width: var(--mediasource-placeholder-width, 100vw)
 		height: var(--mediasource-placeholder-height, var(--mobile-media-height, 40vh))
+		border-radius: 4px
+		overflow: hidden
+		+below('m')
+			left: var(--mediasource-placeholder-left, 0px)
+			border-radius: 4px
 
 .c-media-source .c-video-call-frame
 	position: fixed

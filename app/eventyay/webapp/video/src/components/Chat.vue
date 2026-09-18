@@ -136,12 +136,15 @@ watch(() => props.module?.channel_id, (newChannelId, oldChannelId) => {
 	}
 })
 
+let hasLoadedTimeline = false
 watch(filteredTimeline, async () => {
 	await nextTick()
-	// TODO scroll to bottom when resizing
-	// restore scrollPosition after load
 	refreshScrollbar()
 	syncedScroll.value = true
+	if (!hasLoadedTimeline) {
+		hasLoadedTimeline = true
+		return
+	}
 	emit('change')
 })
 
@@ -214,11 +217,14 @@ async function showUserCard(event, user, placement = 'left-start') {
 	flex: auto
 	background-color: $clr-white
 	display: flex
+	min-width: 0
+	min-height: 0
 	.main-chat
 		flex: auto
 		display: flex
 		flex-direction: column
 		min-width: 0
+		min-height: 0
 	.timeline
 		flex: 1
 	.timeline .scroll-content
@@ -262,8 +268,11 @@ async function showUserCard(event, user, placement = 'left-start') {
 		.bunt-button
 			themed-button-primary()
 			width: calc(100% - 16px)
-	&:not(.standalone)
-		justify-content: flex-end
+	&.compact
+		flex-direction: column
+		justify-content: stretch
+		.timeline
+			min-height: 0
 	&.standalone
 		min-height: 0
 		min-width: 0

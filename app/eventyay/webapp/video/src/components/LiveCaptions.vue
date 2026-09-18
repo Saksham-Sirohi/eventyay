@@ -1,7 +1,10 @@
 <template lang="pug">
-.c-live-captions
+.c-live-captions(:class="[`size-${textSize}`, {'mode-docked': docked}]")
 	.caption-log(ref="log")
 		.caption-line(v-for="(line, index) in lines", :key="line.id || index") {{ line.text }}
+		.caption-placeholder(v-if="docked && lines.length === 0")
+			span.listening-dot
+			span {{ $t('Listening for live speech... Subtitles will stream here in real-time.') }}
 </template>
 
 <script>
@@ -11,6 +14,14 @@ export default {
 		wsUrl: {
 			type: String,
 			default: null
+		},
+		textSize: {
+			type: String,
+			default: 'auto'
+		},
+		docked: {
+			type: Boolean,
+			default: false
 		}
 	},
 	data() {
@@ -97,9 +108,15 @@ export default {
                                 
 								if ((data.type === 'caption' || data.type === 'translated_caption') && data.text) {
                                         this.lines.push({ id: this.nextId++, text: data.text })
-                                        if (this.lines.length > 2) {
-                                                this.lines = this.lines.slice(-2)
+                                        const maxLines = this.docked ? 12 : 2
+                                        if (this.lines.length > maxLines) {
+                                                this.lines = this.lines.slice(-maxLines)
                                         }
+                                        this.$nextTick(() => {
+                                                if (this.$refs.log) {
+                                                        this.$refs.log.scrollTop = this.$refs.log.scrollHeight
+                                                }
+                                        })
                                 }
 			} catch (e) {
 				console.error('Failed to parse caption message', e)
@@ -111,37 +128,123 @@ export default {
 
 <style lang="stylus">
 .c-live-captions
-        position: relative
-        width: 100%
-        margin: 0 auto
-        align-self: center
-        background-color: #000000
-        color: #ffffff
-        padding: 8px 16px
-        box-sizing: border-box
-        flex: none
-        display: flex
-        flex-direction: column
-        align-items: center
-        
-        font-size: clamp(14px, 2.5vh, 22px)
-        line-height: 1.5
-        font-weight: 500
+	position: absolute
+	bottom: 20px
+	left: 50%
+	transform: translateX(-50%)
+	width: calc(100% - 32px)
+	max-width: 800px
+	pointer-events: none
+	z-index: 40
+	display: flex
+	flex-direction: column
+	align-items: center
+	text-align: center
+	box-sizing: border-box
 
-        .caption-log
-                height: calc(3em + 12px)
-                max-height: calc(3em + 12px)
-                overflow-y: hidden
-                text-align: center
-                width: 100%
-                max-width: 800px
-                
-        .caption-line
-                overflow-wrap: anywhere
-                text-shadow: 0px 1px 4px rgba(0,0,0,0.9), 0px 0px 2px rgba(0,0,0,0.8)
-                background-color: rgba(0, 0, 0, 0.4)
-                padding: 2px 8px
-                border-radius: 4px
-                display: inline-block
-                margin-bottom: 2px
+	.caption-log
+		max-height: calc(3em + 12px)
+		overflow-y: hidden
+		text-align: center
+		width: 100%
+
+	.caption-line
+		color: #ffffff
+		font-weight: 600
+		font-size: clamp(14px, 2.2vw, 19px)
+		line-height: 1.4
+		background: rgba(0, 0, 0, 0.82)
+		padding: 4px 12px
+		border-radius: 4px
+		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6)
+		display: inline-block
+		margin-bottom: 4px
+		max-width: 100%
+		overflow-wrap: anywhere
+		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8)
+		letter-spacing: 0.2px
+
+	&.size-normal .caption-line
+		font-size: 15px
+	&.size-large .caption-line
+		font-size: 21px
+
+	&.mode-docked
+		position: relative
+		bottom: auto
+		left: auto
+		transform: none
+		width: 100%
+		max-width: 100%
+		height: 100%
+		min-height: 0
+		pointer-events: auto
+		z-index: auto
+		align-items: stretch
+		text-align: left
+
+		.caption-log
+			flex: 1
+			min-height: 0
+			max-height: 100%
+			overflow-y: auto
+			text-align: left
+			width: 100%
+			padding: 0
+			display: flex
+			flex-direction: column
+			gap: 2px
+
+		.caption-line
+			display: block
+			box-shadow: none
+			text-shadow: none
+			color: var(--clr-text-primary, #1e293b)
+			font-weight: 500
+			font-size: 13px
+			line-height: 1.25
+			padding: 2px 8px
+			border-radius: 4px
+			background-color: var(--clr-grey-50, #f8f9fa)
+			border-left: 3px solid var(--clr-primary, #2185d0)
+			margin-bottom: 0
+
+		.caption-placeholder
+			display: flex
+			align-items: center
+			gap: 8px
+			padding: 4px 8px
+			color: var(--clr-text-secondary, #64748b)
+			font-size: 13px
+			font-style: italic
+			line-height: 1.25
+
+			.listening-dot
+				width: 8px
+				height: 8px
+				border-radius: 50%
+				background-color: var(--clr-primary, #2185d0)
+				animation: pulse-dot 1.5s infinite
+				flex: none
+
+		&.size-auto .caption-line
+			font-size: 13px
+			line-height: 1.25
+		&.size-normal .caption-line
+			font-size: 14px
+			line-height: 1.25
+		&.size-large .caption-line
+			font-size: 16px
+			line-height: 1.25
+
+@keyframes pulse-dot
+	0%
+		opacity: 0.3
+		transform: scale(0.8)
+	50%
+		opacity: 1
+		transform: scale(1.3)
+	100%
+		opacity: 0.3
+		transform: scale(0.8)
 </style>

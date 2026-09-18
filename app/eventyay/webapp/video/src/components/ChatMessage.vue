@@ -294,28 +294,32 @@ export default {
 	.reactions
 		display: flex
 		flex-wrap: wrap
+		gap: 4px
 		.reaction, .btn-emoji-picker
 			display: flex
 			align-items: center
-			border: 1px solid rgba(25,25,25,.04)
-			background-color: rgba(29,29,29,.04)
+			border: 1px solid rgba(140, 140, 140, 0.15)
+			background-color: rgba(140, 140, 140, 0.08)
 			border-radius: 16px
-			padding: 4px
+			padding: 3px 8px
 			margin-right: 4px
 			cursor: pointer
+			transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1)
 			&:hover
 				border: border-separator()
 				background-color: $clr-white
+				transform: scale(1.06)
 			&.reacted-by-me
 				border: 1px solid var(--clr-primary)
 				background-color: var(--clr-primary-alpha-18)
+				box-shadow: 0 0 8px rgba(99, 102, 241, 0.25)
 			.emoji
 				height: 16px
 				width: @height
 				line-height: @height
 			.count
 				font-size: 12px
-				margin: 0 4px 0 8px
+				margin: 0 4px 0 6px
 		.btn-emoji-picker
 			height: 18px
 			width: @height

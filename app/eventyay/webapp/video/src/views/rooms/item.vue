@@ -1,5 +1,5 @@
 <template lang="pug">
-.c-room(v-if="room", :class="{'standalone-chat': modules['chat.native'] && room.modules.length === 1}")
+.c-room(v-if="room", :class="{'standalone-chat': modules['chat.native'] && room.modules.length === 1, 'sidebar-collapsed': isSidebarCollapsed}")
 	.room-feature-disabled(v-if="roomIsDisabled")
 		.disabled-card
 			i.mdi.mdi-alert-circle-outline(aria-hidden="true")
@@ -7,35 +7,98 @@
 			p.disabled-message {{ roomDisabledReason }}
 			router-link.btn-back-dashboard(:to="{name: 'home'}") {{ $t('Back to Dashboard') }}
 	.stage(v-else-if="modules['livestream.native'] || modules['livestream.youtube'] || modules['livestream.vimeo']")
-		media-source-placeholder
-		LiveCaptions(v-if="ccEnabled", :ws-url="selectedCcWsUrl")
-		reactions-overlay(v-if="hasLivestream")
-		upcoming-stream-countdown(:room="room")
+		.stage-canvas-container
+			.media-canvas-wrapper
+				media-source-placeholder
+				reactions-overlay(v-if="hasLivestream")
+				upcoming-stream-countdown(:room="room")
 		.stage-tool-blocker(v-if="activeStageTool !== null", @click="activeStageTool = null")
+		.stage-captions-dock(v-if="hasLivestream && ccEnabled")
+			.docked-captions-card
+				.captions-header
+					.header-left
+						i.mdi.mdi-closed-caption
+						span.title {{ $t('Live Subtitles') }}
+					.header-right
+						button.btn-cc-close(@click="toggleCc", :title="$t('Hide Captions')")
+							i.mdi.mdi-close
+				.captions-scroll-area
+					LiveCaptions(:ws-url="selectedCcWsUrl", :text-size="captionTextSize", :docked="true")
 		.stage-tools(v-if="hasLivestream")
-			.cc-controls(v-if="showPluginLanguageDropdown")
-				.dropdown-wrapper
-					i.mdi.mdi-account-voice
-					AudioTranslationDropdown(:key="`${room.id}-plugin`", :languages="pluginLanguages", :selected-language="selectedPluginLanguage", :label="$t('Interpretation')", @languageChanged="handlePluginLanguageChange")
-				button.stage-tool.cc-toggle(:class="{active: ccEnabled}", @click="toggleCc", :title="$t('Toggle Captions')")
-					i.mdi.mdi-closed-caption
-				.dropdown-wrapper(v-if="ccEnabled")
-					i.mdi.mdi-translate
-					AudioTranslationDropdown(:key="`${room.id}-cc`", :languages="pluginLanguages", :selected-language="selectedCcLanguage", :label="$t('Caption Language')", @languageChanged="handleCcLanguageChange")
-			reactions-bar(:expanded="true", @expand="activeStageTool = 'reaction'")
+			.stage-tools-left
+				.tool-section.captions-section
+					button.stage-tool.cc-toggle(:class="{active: ccEnabled}", @click="toggleCc", :title="$t('Toggle Captions')")
+						i.mdi(:class="ccEnabled ? 'mdi-closed-caption' : 'mdi-closed-caption-outline'")
+						span.cc-label {{ ccEnabled ? $t('Captions On') : $t('Captions Off') }}
+					.size-pills(v-if="ccEnabled")
+						button.size-pill(:class="{active: captionTextSize === 'auto'}", @click="setCaptionSize('auto')") {{ $t('Auto') }}
+						button.size-pill(:class="{active: captionTextSize === 'normal'}", @click="setCaptionSize('normal')") {{ $t('Normal') }}
+						button.size-pill(:class="{active: captionTextSize === 'large'}", @click="setCaptionSize('large')") {{ $t('Large') }}
+					.lang-wrapper(v-if="ccEnabled && pluginLanguages.length > 0")
+						AudioTranslationDropdown(:key="`${room.id}-cc`", :languages="pluginLanguages", :selected-language="selectedCcLanguage", :label="$t('Caption Language')", @languageChanged="handleCcLanguageChange")
+				.tool-section.audio-section
+					.dropdown-wrapper(v-if="showPluginLanguageDropdown")
+						i.mdi.mdi-account-voice
+						AudioTranslationDropdown(:key="`${room.id}-plugin`", :languages="pluginLanguages", :selected-language="selectedPluginLanguage", :label="$t('Interpretation')", @languageChanged="handlePluginLanguageChange")
+					.static-audio-pill(v-else)
+						i.mdi.mdi-volume-high
+						span {{ $t('Original Audio') }}
+					.interp-volume-box(v-if="hasInterpretationActive")
+						button.interp-mute-btn(@click="toggleInterpMute", :title="interpMuted || interpVolume === 0 ? $t('Unmute Interpretation') : $t('Mute Interpretation')")
+							i.mdi(:class="interpMuted || interpVolume === 0 ? 'mdi-volume-off' : 'mdi-volume-high'")
+						input.interp-volume-slider(type="range", min="0", max="1", step="0.05", :value="interpMuted ? 0 : interpVolume", @input="onInterpVolumeInput", :aria-label="$t('Interpretation Volume')", :style="{'--interp-vol': interpMuted ? 0 : interpVolume}")
+						span.vol-pct {{ Math.round((interpMuted ? 0 : interpVolume) * 100) }}%
+			.stage-tools-right
+				reactions-bar
 	.stage(v-else-if="modules['call.janus'] || modules['call.bigbluebutton'] || modules['call.zoom'] || modules['call.jitsi'] || modules['call.loungemesh']")
-		media-source-placeholder
+		.stage-canvas-container
+			.media-canvas-wrapper
+				media-source-placeholder
 	landing-page(v-else-if="modules['page.landing']", :module="modules['page.landing']")
 	markdown-page(v-else-if="modules['page.markdown']", :module="modules['page.markdown']")
 	chat(v-else-if="room.modules.length === 1 && modules['chat.native']", :room="room", :module="modules['chat.native']", mode="standalone", :key="room.id")
-	.room-sidebar(v-if="hasSidebar", :class="unreadTabsClasses", role="complementary")
-		bunt-tabs(v-if="(!!modules['question'] + !!modules['poll'] + !!modules['chat.native']) > 1 && activeSidebarTab", :active-tab="activeSidebarTab")
-			bunt-tab(v-if="modules['chat.native']", id="chat", :header="$t('Chat')", @selected="activeSidebarTab = 'chat'")
-			bunt-tab(v-if="modules['question']", id="questions", :header="$t('Questions')", @selected="activeSidebarTab = 'questions'")
-			bunt-tab(v-if="modules['poll']", id="polls", :header="$t('Polls')", @selected="activeSidebarTab = 'polls'")
-		chat(v-if="modules['chat.native']", v-show="activeSidebarTab === 'chat'", :room="room", :module="modules['chat.native']", mode="compact", :key="room.id", @change="changedTabContent('chat')")
-		questions(v-if="modules['question']", v-show="activeSidebarTab === 'questions'", :module="modules['question']", @change="changedTabContent('questions')")
-		polls(v-if="modules['poll']", v-show="activeSidebarTab === 'polls'", :module="modules['poll']", @change="changedTabContent('polls')")
+	.room-sidebar(v-if="hasSidebar", :class="[unreadTabsClasses, { collapsed: isSidebarCollapsed }]", role="complementary")
+		.sidebar-edge-tab(v-if="isSidebarCollapsed")
+			button.expand-btn(@click.stop="toggleSidebar", :title="$t('Expand Sidebar')")
+				i.mdi.mdi-arrow-expand-left
+			.edge-tab-actions
+				button.edge-item-btn(
+					v-if="modules['chat.native']",
+					:class="{active: activeSidebarTab === 'chat', unread: unreadTabs['chat']}",
+					:title="$t('Chat')",
+					@click.stop="selectTabAndExpand('chat')"
+				)
+					i.mdi.mdi-message-text-outline
+					span.unread-dot(v-if="unreadTabs['chat']")
+				button.edge-item-btn(
+					v-if="modules['question']",
+					:class="{active: activeSidebarTab === 'questions', unread: unreadTabs['questions']}",
+					:title="$t('Questions')",
+					@click.stop="selectTabAndExpand('questions')"
+				)
+					i.mdi.mdi-help-circle-outline
+					span.unread-dot(v-if="unreadTabs['questions']")
+				button.edge-item-btn(
+					v-if="modules['poll']",
+					:class="{active: activeSidebarTab === 'polls', unread: unreadTabs['polls']}",
+					:title="$t('Polls')",
+					@click.stop="selectTabAndExpand('polls')"
+				)
+					i.mdi.mdi-poll
+					span.unread-dot(v-if="unreadTabs['polls']")
+		.sidebar-header(v-if="!isSidebarCollapsed")
+			.sidebar-tabs(v-if="visibleTabsCount > 1")
+				bunt-tabs(:model-value="activeSidebarTab", @update:modelValue="onTabSelect")
+					bunt-tab(v-if="modules['chat.native']", id="chat", :header="$t('Chat')")
+					bunt-tab(v-if="modules['question']", id="questions", :header="$t('Questions')")
+					bunt-tab(v-if="modules['poll']", id="polls", :header="$t('Polls')")
+			.single-tab-title(v-else-if="activeSidebarTab") {{ activeTabTitle }}
+			button.sidebar-collapse-btn(@click="toggleSidebar", :title="$t('Collapse Sidebar')")
+				i.mdi.mdi-arrow-collapse-right
+		.sidebar-body(v-show="!isSidebarCollapsed")
+			chat(v-if="modules['chat.native']", v-show="activeSidebarTab === 'chat'", :room="room", :module="modules['chat.native']", mode="compact", :key="room.id", @change="changedTabContent('chat')")
+			questions(v-if="modules['question']", v-show="activeSidebarTab === 'questions'", :module="modules['question']", @change="changedTabContent('questions')")
+			polls(v-if="modules['poll']", v-show="activeSidebarTab === 'polls'", :module="modules['poll']", @change="changedTabContent('polls')")
 </template>
 <script>
 // TODO
@@ -92,6 +155,8 @@ export default {
 			selectedCcLanguage: 'Original',
 			listenerToken: null,
 			activeTranslationConfig: null,
+			interpMuted: false,
+			prevInterpVolume: 0.8,
 		}
 	},
 	computed: {
@@ -130,26 +195,68 @@ export default {
 		hasEmbeddedCallSuite() {
 			return hasEmbeddedSuite(this.modules)
 		},
-		hasSidebar() {
+		canHaveSidebar() {
 			if (this.roomIsDisabled) return false
 			// Video conference suites (BigBlueButton, Jitsi, Zoom) have their own native in-frame
 			// options for chats, polls, questions, etc.; do not show platform native sidebar for them.
 			// Janus WebRTC uses native platform chat and displays the sidebar when chat.native is attached.
 			if (this.hasEmbeddedCallSuite) return false
 			if (this.room?.modules?.length === 1 && this.modules['chat.native']) return false
-			if (this.$store.state.roomSidebarCollapsedByRoom?.[this.room?.id]) return false
 			return Boolean(
 				this.modules['chat.native'] ||
 				this.modules['question'] ||
 				this.modules['poll']
 			)
 		},
+		hasSidebar() {
+			return this.canHaveSidebar
+		},
+		isSidebarCollapsed() {
+			if (!this.room?.id || !this.canHaveSidebar) return false
+			const stateVal = this.$store.state.roomSidebarCollapsedByRoom?.[this.room.id]
+			return stateVal !== undefined ? Boolean(stateVal) : true
+		},
+		visibleTabsCount() {
+			return (!!this.modules?.['chat.native'] + !!this.modules?.['question'] + !!this.modules?.['poll'])
+		},
+		availableSidebarTabs() {
+			const tabs = []
+			if (this.modules?.['chat.native']) tabs.push({ id: 'chat', label: this.$t('Chat') })
+			if (this.modules?.['question']) tabs.push({ id: 'questions', label: this.$t('Questions') })
+			if (this.modules?.['poll']) tabs.push({ id: 'polls', label: this.$t('Polls') })
+			return tabs
+		},
+		sidebarSummaryText() {
+			const labels = this.availableSidebarTabs.map(t => t.label)
+			return labels.length > 0 ? labels.join(' • ') : this.$t('Sidebar')
+		},
+		sidebarSummaryTooltip() {
+			return `${this.$t('Expand Sidebar')} (${this.sidebarSummaryText})`
+		},
+		activeTabTitle() {
+			if (this.activeSidebarTab === 'chat') return this.$t('Chat')
+			if (this.activeSidebarTab === 'questions') return this.$t('Questions')
+			if (this.activeSidebarTab === 'polls') return this.$t('Polls')
+			return this.$t('Sidebar')
+		},
+		hasAnyUnread() {
+			return Object.values(this.unreadTabs).some(Boolean)
+		},
+		interpVolume() {
+			return this.$store.state.interpretationVolume ?? 1.0
+		},
+		captionTextSize() {
+			return this.$store.state.captionTextSize || 'auto'
+		},
+		hasInterpretationActive() {
+			return Boolean(this.currentInterpretation?.url || (this.selectedPluginLanguage && this.selectedPluginLanguage !== 'Original'))
+		},
 		currentInterpretation() {
 			if (!this.room?.id) return null
 			return this.$store.state.interpretationStreamsByRoom?.[this.room.id] || this.$store.state.youtubeTranslationsByRoom?.[this.room.id] || null
 		},
 		showPluginLanguageDropdown() {
-			return roomUsesPluginLanguageStreams(this.room) && this.pluginLanguages.length > 0
+			return this.pluginLanguages.length > 0
 		},
 		selectedPluginLanguage() {
 			return this.getLanguageForTranslation(this.currentInterpretation, this.pluginLanguages) || 'Original'
@@ -279,7 +386,8 @@ export default {
 			}
 		},
 		changedTabContent(tab) {
-			if (tab === this.activeSidebarTab) return
+			const isViewingTab = !this.isSidebarCollapsed && tab === this.activeSidebarTab
+			if (isViewingTab) return
 			this.unreadTabs[tab] = true
 		},
 		handlePluginLanguageChange(translationConfig) {
@@ -318,7 +426,7 @@ export default {
 		initializeLanguages() {
 			this.pluginLanguages = roomUsesPluginLanguageStreams(this.room)
 				? pluginLanguageStreams(this.room)
-				: []
+				: [{ language: 'Original', url: null, youtube_id: null, use_video: false }]
 			this.clearStaleTranslation()
 		},
 		getLanguageForTranslation(translationConfig, languages) {
@@ -339,6 +447,54 @@ export default {
 					interpretation: null
 				})
 			}
+		},
+		toggleSidebar() {
+			if (!this.room?.id) return
+			const nextState = !this.isSidebarCollapsed
+			this.$store.commit('setRoomSidebarCollapsed', {
+				roomId: this.room.id,
+				collapsed: nextState
+			})
+			if (!nextState && this.activeSidebarTab) {
+				this.unreadTabs[this.activeSidebarTab] = false
+			}
+			this.$nextTick(() => {
+				window.dispatchEvent(new Event('resize'))
+			})
+		},
+		selectTabAndExpand(tab) {
+			this.activeSidebarTab = tab
+			this.unreadTabs[tab] = false
+			if (this.isSidebarCollapsed) {
+				this.toggleSidebar()
+			}
+		},
+		onTabSelect(tab) {
+			if (!tab) return
+			this.activeSidebarTab = tab
+		},
+		toggleInterpMute() {
+			if (this.interpMuted || this.interpVolume === 0) {
+				this.interpMuted = false
+				this.$store.commit('setInterpretationVolume', this.prevInterpVolume || 0.8)
+			} else {
+				this.prevInterpVolume = this.interpVolume || 0.8
+				this.interpMuted = true
+				this.$store.commit('setInterpretationVolume', 0)
+			}
+		},
+		onInterpVolumeInput(event) {
+			const val = parseFloat(event.target.value)
+			this.interpMuted = val === 0
+			this.$store.commit('setInterpretationVolume', val)
+		},
+		cycleCaptionSize() {
+			const order = ['auto', 'normal', 'large']
+			const next = order[(order.indexOf(this.captionTextSize) + 1) % order.length]
+			this.$store.commit('setCaptionTextSize', next)
+		},
+		setCaptionSize(size) {
+			this.$store.commit('setCaptionTextSize', size)
 		}
 	}
 }
@@ -346,37 +502,456 @@ export default {
 <style lang="stylus">
 .c-room
 	flex: auto
+	height: 100%
 	display: flex
 	min-height: 0
 	min-width: 0
 	max-width: 100%
 	overflow: hidden
+	position: relative
+
 	.stage
 		display: flex
 		flex-direction: column
+		height: 100%
 		min-height: 0
 		min-width: 0
 		max-width: 100%
-		flex: auto
+		flex: 1 1 0
+		width: 0
 		overflow: hidden
 		position: relative
+		background-color: var(--clr-grey-50, #f8f9fa)
+
 		+below('m')
 			height: auto
-	.c-media-source-placeholder
-		flex: auto
+			overflow-y: auto
+
+		.stage-canvas-container
+			flex: 1 1 0
+			min-height: 0
+			min-width: 0
+			display: flex
+			align-items: flex-start
+			justify-content: center
+			position: relative
+			width: 100%
+			overflow: hidden
+			padding: 0
+			box-sizing: border-box
+			container-type: size
+
+			.media-canvas-wrapper
+				position: relative
+				aspect-ratio: 16 / 9
+				width: unquote('min(100cqw, calc(100cqh * 16 / 9))')
+				max-width: 100%
+				max-height: 100%
+				display: flex
+				align-items: center
+				justify-content: center
+				border-radius: 4px
+				overflow: hidden
+				border: none
+				box-shadow: none
+				background-color: transparent
+
+				.c-media-source-placeholder
+					position: absolute
+					top: 0
+					left: 0
+					width: 100%
+					height: 100%
+					min-height: 0
+					min-width: 0
+
+		.stage-tools
+			flex: none
+			min-height: 0
+			height: auto
+			display: flex
+			align-items: center
+			justify-content: space-between
+			width: 100%
+			box-sizing: border-box
+			padding: 6px 12px
+			background-color: var(--clr-surface, #ffffff)
+			border-top: 1px solid var(--clr-grey-200, #e2e8f0)
+			border-bottom: 1px solid var(--clr-grey-200, #e2e8f0)
+			user-select: none
+			color: var(--clr-text-primary, #1e293b)
+			z-index: 10
+			gap: 12px
+
+			.stage-tools-left
+				display: flex
+				flex-direction: column
+				align-items: flex-start
+				justify-content: center
+				gap: 4px
+				min-width: 0
+				flex: 1 1 auto
+
+				.tool-section
+					display: inline-flex
+					align-items: center
+					gap: 6px
+					flex-wrap: wrap
+					padding: 3px 5px
+					border: 1px solid var(--clr-grey-200, #e2e8f0)
+					border-radius: 6px
+					background: var(--clr-grey-50, #f8f9fa)
+					width: fit-content
+
+				.static-audio-pill
+					display: inline-flex
+					align-items: center
+					gap: 4px
+					height: 26px
+					padding: 0 8px
+					border-radius: 13px
+					background: var(--clr-grey-100, #f1f5f9)
+					color: var(--clr-text-secondary, #64748b)
+					font-size: 11px
+					font-weight: 500
+					.mdi
+						font-size: 14px
+						color: var(--clr-primary, #2185d0)
+
+				.interp-volume-box
+					display: inline-flex
+					align-items: center
+					gap: 4px
+					height: 26px
+					padding: 0 6px
+					border-radius: 6px
+					background: var(--clr-grey-100, #f1f5f9)
+					.interp-mute-btn
+						display: flex
+						align-items: center
+						justify-content: center
+						width: 20px
+						height: 20px
+						border: none
+						background: transparent
+						color: var(--clr-text-primary, #1e293b)
+						cursor: pointer
+						padding: 0
+						.mdi
+							font-size: 14px
+					.interp-volume-slider
+						width: 56px
+						height: 3px
+						accent-color: var(--clr-primary, #2185d0)
+						cursor: pointer
+					.vol-pct
+						font-size: 11px
+						font-weight: 600
+						color: var(--clr-text-secondary, #64748b)
+						min-width: 28px
+
+				.dropdown-wrapper
+					display: flex
+					align-items: center
+					gap: 4px
+					color: var(--clr-text-secondary, #64748b)
+					.mdi
+						font-size: 16px
+						color: var(--clr-primary, #2185d0)
+
+				.stage-tool.cc-toggle
+					display: inline-flex
+					align-items: center
+					gap: 4px
+					height: 26px
+					padding: 0 8px
+					border-radius: 5px
+					border: 1px solid var(--clr-grey-300, #cbd5e1)
+					background: var(--clr-surface, #ffffff)
+					color: var(--clr-text-secondary, #64748b)
+					font-size: 11px
+					font-weight: 500
+					cursor: pointer
+					transition: all 0.15s ease
+					&:hover
+						border-color: var(--clr-primary, #2185d0)
+						color: var(--clr-primary, #2185d0)
+					&.active
+						background-color: var(--clr-primary-alpha-18, rgba(33, 133, 208, 0.12))
+						border-color: var(--clr-primary, #2185d0)
+						color: var(--clr-primary, #2185d0)
+						font-weight: 600
+					.mdi
+						font-size: 15px
+
+				.size-pills
+					display: inline-flex
+					border: 1px solid var(--clr-grey-300, #cbd5e1)
+					border-radius: 5px
+					overflow: hidden
+					height: 26px
+
+					.size-pill
+						border: none
+						background: var(--clr-surface, #ffffff)
+						padding: 0 8px
+						font-size: 11px
+						font-weight: 500
+						color: var(--clr-text-secondary, #64748b)
+						cursor: pointer
+						transition: all 0.15s ease
+						border-right: 1px solid var(--clr-grey-200, #e2e8f0)
+						&:last-child
+							border-right: none
+						&:hover
+							background-color: var(--clr-grey-100, #f1f5f9)
+							color: var(--clr-primary, #2185d0)
+						&.active
+							background-color: var(--clr-primary, #2185d0)
+							color: #ffffff
+							font-weight: 600
+
+			.stage-tools-right
+				display: flex
+				align-items: center
+				gap: 8px
+				flex: none
+
+		.stage-captions-dock
+			flex: none
+			height: 110px
+			display: flex
+			flex-direction: column
+			padding: 4px 16px 8px
+			box-sizing: border-box
+			overflow: hidden
+
+			.docked-captions-card
+				flex: 1
+				min-height: 0
+				display: flex
+				flex-direction: column
+				background: var(--clr-surface, #ffffff)
+				border: 1px solid var(--clr-grey-200, #e2e8f0)
+				border-radius: 6px
+				overflow: hidden
+				box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04)
+
+				.captions-header
+					display: flex
+					align-items: center
+					justify-content: space-between
+					height: 28px
+					padding: 0 10px
+					background-color: var(--clr-grey-100, #f1f5f9)
+					border-bottom: 1px solid var(--clr-grey-200, #e2e8f0)
+					flex: none
+
+					.header-left
+						display: flex
+						align-items: center
+						gap: 6px
+						font-size: 11px
+						font-weight: 600
+						color: var(--clr-text-primary, #1e293b)
+						.mdi
+							font-size: 15px
+							color: var(--clr-primary, #2185d0)
+
+					.header-right
+						.btn-cc-close
+							display: flex
+							align-items: center
+							justify-content: center
+							width: 20px
+							height: 20px
+							border: none
+							background: transparent
+							color: var(--clr-text-secondary, #64748b)
+							cursor: pointer
+							border-radius: 3px
+							&:hover
+								background: var(--clr-grey-200, #e2e8f0)
+								color: var(--clr-text-primary, #1e293b)
+							.mdi
+								font-size: 14px
+
+				.captions-scroll-area
+					flex: 1
+					min-height: 0
+					overflow: hidden
+					padding: 2px 10px
+					display: flex
+					flex-direction: column
+
 	.room-sidebar
 		display: flex
 		flex-direction: column
 		min-height: 0
-		width: var(--chatbar-width)
 		flex: none
+		width: var(--chatbar-width, 285px)
 		border-left: border-separator()
-		> .bunt-tabs
-			tabs-style(active-color: var(--clr-primary), indicator-color: var(--clr-primary), background-color: transparent)
-			margin: 0
+		background-color: var(--clr-surface, #ffffff)
+		overflow: hidden
+
+		&.collapsed
+			width: 44px
+
+			.sidebar-edge-tab
+				display: flex
+				flex-direction: column
+				align-items: center
+				justify-content: flex-start
+				height: 100%
+				width: 44px
+				padding: 8px 0
+				box-sizing: border-box
+				user-select: none
+				background-color: var(--clr-surface, #ffffff)
+
+				.expand-btn
+					display: flex
+					align-items: center
+					justify-content: center
+					width: 32px
+					height: 32px
+					border-radius: 4px
+					border: none
+					background: transparent
+					color: var(--clr-text-secondary, #757575)
+					cursor: pointer
+					margin-bottom: 8px
+					transition: all 0.15s ease
+					&:hover
+						background: var(--clr-grey-100, #f5f5f5)
+						color: var(--clr-primary, #2185d0)
+					.mdi
+						font-size: 20px
+
+				.edge-tab-actions
+					display: flex
+					flex-direction: column
+					align-items: center
+					gap: 6px
+					width: 100%
+
+					.edge-item-btn
+						position: relative
+						display: flex
+						align-items: center
+						justify-content: center
+						width: 32px
+						height: 32px
+						border-radius: 4px
+						border: 1px solid transparent
+						background: transparent
+						color: var(--clr-text-secondary, #757575)
+						cursor: pointer
+						transition: all 0.15s ease
+						&:hover
+							background-color: var(--clr-grey-100, #f5f5f5)
+							color: var(--clr-primary, #2185d0)
+						&.active
+							color: var(--clr-primary, #2185d0)
+							background-color: var(--clr-primary-alpha-18, rgba(33, 133, 208, 0.12))
+							border-color: var(--clr-primary, #2185d0)
+						.mdi
+							font-size: 20px
+
+						.unread-dot
+							position: absolute
+							top: 2px
+							right: 2px
+							width: 7px
+							height: 7px
+							border-radius: 50%
+							background-color: $clr-danger
+							animation: pulse 2s infinite
+
+		.sidebar-header
+			display: flex
+			align-items: center
+			justify-content: space-between
+			height: 48px
 			border-bottom: border-separator()
-			.bunt-tabs-header-items
+			background-color: var(--clr-surface, #ffffff)
+			padding: 0 4px 0 8px
+			box-sizing: border-box
+			flex: none
+
+			.sidebar-tabs
+				flex: 1
+				min-width: 0
+				height: 100%
+				overflow: hidden
+
+				.bunt-tabs
+					tabs-style(active-color: var(--clr-primary, #2185d0), indicator-color: var(--clr-primary, #2185d0), background-color: transparent)
+					width: 100%
+					margin: 0
+					height: 100%
+
+				.bunt-tabs-header
+					height: 100%
+					background: transparent
+
+				.bunt-tabs-header-items
+					height: 100%
+					justify-content: flex-start
+
+				.bunt-tabs-body
+					display: none
+
+				.bunt-tab-header-item
+					height: 48px
+					min-width: 64px
+					padding: 0 10px
+					font-size: 13px
+					font-weight: 600
+					text-transform: uppercase
+
+			.single-tab-title
+				font-size: 15px
+				font-weight: 600
+				color: var(--clr-text-primary, #212121)
+				padding-left: 8px
+				flex: 1
+
+			.sidebar-collapse-btn
+				flex: none
+				display: flex
+				align-items: center
 				justify-content: center
+				width: 32px
+				height: 32px
+				border-radius: 4px
+				border: none
+				background: transparent
+				color: var(--clr-text-secondary, #757575)
+				cursor: pointer
+				transition: all 0.15s ease
+				&:hover
+					background: var(--clr-grey-100, #f5f5f5)
+					color: var(--clr-primary, #2185d0)
+				.mdi
+					font-size: 20px
+
+		.sidebar-body
+			flex: 1 1 0
+			min-height: 0
+			min-width: 0
+			display: flex
+			flex-direction: column
+			overflow: hidden
+
+			> .c-chat,
+			> .c-questions,
+			> .c-polls
+				flex: 1 1 0
+				min-height: 0
+				min-width: 0
+				width: 100%
+
 		for tab in chat questions polls
 			&.tab-{tab}-unread [aria-controls="{tab}"] .bunt-tab-header-item-text
 				position: relative
@@ -386,65 +961,11 @@ export default {
 					top: -2px
 					right: -8px
 					display: block
-					height: 5px
-					width: 5px
+					height: 6px
+					width: 6px
 					border-radius: 50%
 					background-color: $clr-danger
-	.stage-tools
-		flex: none
-		display: flex
-		min-height: 40px
-		justify-content: space-between
-		align-items: center
-		width: 100%
-		box-sizing: border-box
-		margin: 0 auto
-		flex-wrap: wrap
-		gap: 6px
-		padding: 4px 16px
-		user-select: none
-		.stage-tool
-			font-size: 16px
-			color: $clr-secondary-text-light
-			margin-right: 16px
-			cursor: pointer
-			padding: 8px
-			position: relative
-			&:hover
-				border-radius: 4px
-				background-color: $clr-grey-100
-			&.active::before
-				position: absolute
-				bottom: 6px
-				left: 50%
-				transform: translateX(-50%)
-				content: ''
-				display: block
-				height: 2px
-				width: calc(100% - 16px)
-				background-color: var(--clr-primary)
-		.cc-controls
-			display: flex
-			align-items: center
-			gap: 8px
-			flex-wrap: wrap
-			flex-shrink: 0
-			.dropdown-wrapper
-				display: flex
-				align-items: center
-				gap: 4px
-				.mdi
-					font-size: 20px
-					color: var(--clr-secondary-text-light)
-			.cc-toggle
-				margin: 0
-				padding: 4px
-				display: flex
-				align-items: center
-				.mdi
-					font-size: 22px
-		+below('m')
-			justify-content: space-between
+
 	.stage-tool-blocker
 		position: fixed
 		top: 0
@@ -452,26 +973,60 @@ export default {
 		width: 100vw
 		height: var(--vh100)
 		z-index: 800
+
 	&.standalone-chat
 		flex: auto
 	&:not(.standalone-chat)
 		.c-chat
 			min-height: 0
+			flex-direction: column
+
 	+below('m')
 		flex-direction: column
 		.stage
 			flex: none
-		.room-sidebar
 			width: 100%
+			.stage-canvas-container
+				height: var(--mobile-media-height, 56.25vw)
+				flex: none
+				.media-canvas-wrapper
+					width: 100%
+					height: 100%
+					max-width: 100%
+					border-radius: 4px
+		.room-sidebar
 			flex: auto
-		.c-media-source-placeholder
-			height: var(--mobile-media-height)
-			flex: none
+			width: 100%
+			min-height: 0
+			&.collapsed
+				flex: none
+				height: 44px
+				width: 100%
+				border-left: none
+				border-top: border-separator()
+
+				.sidebar-edge-tab
+					flex-direction: row
+					justify-content: flex-start
+					align-items: center
+					width: 100%
+					height: 44px
+					padding: 0 8px
+					gap: 8px
+
+					.expand-btn
+						margin-bottom: 0
+
+					.edge-tab-actions
+						flex-direction: row
+						gap: 12px
+						width: auto
 		&:not(.standalone-chat)
 			.c-chat
 				flex: auto
 				width: 100%
 				min-height: 0
+
 	.room-feature-disabled
 		display: flex
 		flex-direction: column
@@ -524,4 +1079,15 @@ export default {
 				&:hover
 					background-color: #286090
 					text-decoration: none
+
+@keyframes pulse
+	0%
+		transform: scale(0.95)
+		box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7)
+	70%
+		transform: scale(1)
+		box-shadow: 0 0 0 6px rgba(239, 68, 68, 0)
+	100%
+		transform: scale(0.95)
+		box-shadow: 0 0 0 0 rgba(239, 68, 68, 0)
 </style>

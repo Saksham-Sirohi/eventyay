@@ -55,7 +55,11 @@ export default new Vuex.Store({
 		interpretationStreamsByRoom: {},
 		youtubeTranslationsByRoom: {},
 		activeRoomSidebarTab: null,
-		roomSidebarCollapsedByRoom: {}
+		roomSidebarCollapsedByRoom: {},
+		interpretationVolume: localStorage.getItem('venueless-interpretation-volume') !== null
+			? parseFloat(localStorage.getItem('venueless-interpretation-volume'))
+			: 1.0,
+		captionTextSize: localStorage.getItem('venueless-caption-text-size') || 'auto'
 	},
 	getters: {
 		hasPermission(state) {
@@ -184,7 +188,8 @@ export default new Vuex.Store({
 		},
 		toggleRoomSidebar(state, { roomId, tab = 'chat' } = {}) {
 			if (!roomId) return
-			const isCurrentlyCollapsed = Boolean(state.roomSidebarCollapsedByRoom[roomId])
+			const val = state.roomSidebarCollapsedByRoom[roomId]
+			const isCurrentlyCollapsed = val !== undefined ? Boolean(val) : true
 			if (isCurrentlyCollapsed) {
 				state.roomSidebarCollapsedByRoom = {
 					...state.roomSidebarCollapsedByRoom,
@@ -207,6 +212,22 @@ export default new Vuex.Store({
 			state.roomSidebarCollapsedByRoom = {
 				...state.roomSidebarCollapsedByRoom,
 				[roomId]: Boolean(collapsed)
+			}
+		},
+		setInterpretationVolume(state, volume) {
+			state.interpretationVolume = volume
+			try {
+				localStorage.setItem('venueless-interpretation-volume', String(volume))
+			} catch (e) {
+				console.warn('Failed to save interpretation volume', e)
+			}
+		},
+		setCaptionTextSize(state, size) {
+			state.captionTextSize = size
+			try {
+				localStorage.setItem('venueless-caption-text-size', size)
+			} catch (e) {
+				console.warn('Failed to save caption text size', e)
 			}
 		}
 	},
