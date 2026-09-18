@@ -9,7 +9,10 @@ function syncRequiredAskUser(form, enabled) {
     if (!askUser) {
       return;
     }
-    if (required.checked) {
+    if (!enabled) {
+      required.checked = false;
+      askUser.checked = false;
+    } else if (required.checked) {
       askUser.checked = true;
     }
     askUser.disabled = !enabled || required.checked;
