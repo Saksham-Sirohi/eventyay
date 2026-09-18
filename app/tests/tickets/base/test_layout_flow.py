@@ -1,4 +1,4 @@
-from eventyay.base.pdf import apply_layout_flow, collapse_empty_resolved_lines
+from eventyay.base.pdf import apply_layout_flow, drop_line_emptied_by_placeholder
 from eventyay.plugins.badges.models import BadgeLayout
 
 
@@ -71,10 +71,9 @@ def test_legal_name_and_home_wiki_have_no_blank_gap():
 
 
 def test_placeholder_blank_lines_are_removed_when_fields_are_empty():
-    text = '{attendee_name}\n\n{home_wiki}'
-    resolved = 'Ada Lovelace\n\n'
-    assert collapse_empty_resolved_lines(resolved, True) == 'Ada Lovelace'
-    assert collapse_empty_resolved_lines(text, False) == text
+    assert drop_line_emptied_by_placeholder('{home_wiki}', '', True) is True
+    assert drop_line_emptied_by_placeholder('', '', False) is False
+    assert drop_line_emptied_by_placeholder('{attendee_name}', 'Ada Lovelace', True) is False
 
 
 def test_all_visible_ungrouped_stacked_fields_keep_slots():

@@ -226,13 +226,21 @@ var editor = {
         }
         var existing = [];
         objs.forEach(function (o) {
-            if (o.flow_group) {
+            if (o.flow_group && existing.indexOf(o.flow_group) === -1) {
                 existing.push(o.flow_group);
             }
         });
         var gid = existing.length ? existing[0] : editor._new_flow_group_id();
+        var members = objs.slice();
+        if (existing.length && editor.fabric) {
+            editor.fabric.getObjects().forEach(function (o) {
+                if (o.flow_group && existing.indexOf(o.flow_group) !== -1 && members.indexOf(o) === -1) {
+                    members.push(o);
+                }
+            });
+        }
         var direction = $("#toolbox-flow-direction").find("button.active").attr("data-flow-direction") || 'down';
-        objs.forEach(function (o) {
+        members.forEach(function (o) {
             o.flow_group = gid;
             o.flow_direction = direction;
             o.flow_adopt_slot_style = $("#toolbox-flow-adopt").prop("checked");
@@ -274,7 +282,7 @@ var editor = {
         $("#toolbox").attr("data-in-flow", inFlow ? "1" : "0");
         $("#toolbox-flow-join").toggle(objs.length > 1 && !allFlow);
         $("#toolbox-flow-leave").toggle(inFlow);
-        $("#toolbox-flow-lock").closest(".flow-lock-row").toggle(objs.length === 1 && inFlow);
+        $("#toolbox-flow-lock").closest(".flow-lock-row").toggle(inFlow);
         if (objs.length) {
             var direction = objs[0].flow_direction || 'down';
             $("#toolbox-flow-direction").find("button").removeClass("active");
@@ -283,9 +291,7 @@ var editor = {
                 return !o.flow_group || editor._parse_flow_bool(o.flow_adopt_slot_style, true);
             });
             $("#toolbox-flow-adopt").prop("checked", adopt);
-            if (objs.length === 1) {
-                $("#toolbox-flow-lock").prop("checked", !!objs[0].flow_lock);
-            }
+            $("#toolbox-flow-lock").prop("checked", objs.every(function (o) { return !!o.flow_lock; }));
         }
         editor._toolbox_update_in_progress = previous;
     },
@@ -304,9 +310,7 @@ var editor = {
         objs.forEach(function (o) {
             o.flow_direction = direction;
             o.flow_adopt_slot_style = adopt;
-            if (objs.length === 1) {
-                o.flow_lock = lock;
-            }
+            o.flow_lock = lock;
         });
         editor.dirty = true;
         editor._create_savepoint();

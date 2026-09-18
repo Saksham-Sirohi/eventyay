@@ -949,10 +949,10 @@ def assign_implicit_flow_groups(layout):
     return copies
 
 
-def collapse_empty_resolved_lines(text, drop_blank_lines):
-    if not drop_blank_lines or text is None:
-        return text
-    return '\n'.join(line for line in str(text).splitlines() if line.strip())
+def drop_line_emptied_by_placeholder(original_line, resolved_line, emptied_placeholder):
+    if not emptied_placeholder or str(resolved_line).strip():
+        return False
+    return '{' in (original_line or '')
 
 
 def apply_layout_flow(layout, is_empty):
@@ -1191,22 +1191,29 @@ class Renderer:
             return text
 
         hidden_fields = hidden_fields or set()
-        replaced_empty = False
+        resolved_lines = []
 
-        def replace(match):
-            nonlocal replaced_empty
-            key = match.group(1).strip()
-            if self._canonical_layout_variable_key(key) in hidden_fields:
-                replaced_empty = True
-                return ''
-            value = self._evaluate_layout_variable(key, op, order, ev)
-            if value is None or not str(value).strip():
-                replaced_empty = True
-                return ''
-            return str(value)
+        for original_line in text.splitlines():
+            emptied_placeholder = False
 
-        resolved = LAYOUT_TEXT_PLACEHOLDER_RE.sub(replace, text)
-        return collapse_empty_resolved_lines(resolved, replaced_empty)
+            def replace(match):
+                nonlocal emptied_placeholder
+                key = match.group(1).strip()
+                if self._canonical_layout_variable_key(key) in hidden_fields:
+                    emptied_placeholder = True
+                    return ''
+                value = self._evaluate_layout_variable(key, op, order, ev)
+                if value is None or not str(value).strip():
+                    emptied_placeholder = True
+                    return ''
+                return str(value)
+
+            resolved_line = LAYOUT_TEXT_PLACEHOLDER_RE.sub(replace, original_line)
+            if drop_line_emptied_by_placeholder(original_line, resolved_line, emptied_placeholder):
+                continue
+            resolved_lines.append(resolved_line)
+
+        return '\n'.join(resolved_lines)
 
     def _get_text_content(self, op: OrderPosition, order: Order, o: dict, inner=False):
         if o.get('locale', None) and not inner:
