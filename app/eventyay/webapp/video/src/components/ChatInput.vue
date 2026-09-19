@@ -5,7 +5,9 @@
 		.editor(ref="editorRef")
 		.composer-actions
 			upload-button#btn-file(accept="image/png, image/jpg, image/gif, application/pdf, .png, .jpg, .gif, .jpeg, .pdf", icon="paperclip", multiple=true, :tooltip="$t('Attach a file')", @change="attachFiles")
-			bunt-icon-button#btn-send(:tooltip="$t('Send')", tooltip-placement="top-end", @click="send") send
+			bunt-icon-button#btn-send(:tooltip="$t('Send')", tooltip-placement="top-end", @click="send")
+				svg(viewBox="0 0 24 24")
+					path(fill="currentColor", d="M2,21L23,12L2,3V10L17,12L2,14V21Z")
 	.files-preview(v-if="files.length > 0 || uploading")
 		template(v-for="file in files")
 			.chat-file(v-if="file === null")
@@ -596,13 +598,14 @@ export default {
 		height: 32px
 		width: 32px
 		border-radius: 50%
-		background: var(--clr-primary, #2185d0)
+		background-color: var(--clr-primary, #2185d0)
 		transition: filter 0.15s ease, transform 0.15s ease
 		.bunt-icon
 			font-size: 18px
 			height: 18px
 			line-height: 18px
 		&:hover
+			background-color: var(--clr-primary, #2185d0)
 			filter: brightness(1.08)
 			transform: scale(1.04)
 

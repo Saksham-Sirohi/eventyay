@@ -22,11 +22,17 @@ export default {
 	emits: ['expand'],
 	computed: {
 		availableReactions() {
-			return ['👏', '❤️', '🎉', '👍', '🔥', '😂', '😮', '😢', '🙌', '💯', '🤔', '👎'].map(emoji => ({
-				emoji,
-				url: nativeEmojiToUrl(emoji),
-				label: getEmojiDataFromNative(emoji).short_names[0],
-			}))
+			return ['👏', '❤️', '🎉', '👍', '🔥', '😂', '😮', '😢', '🙌', '💯', '🤔', '👎'].map(emoji => {
+				let label = getEmojiDataFromNative(emoji).short_names[0]
+				label = label.replace(/_/g, ' ')
+				if (label === '+1') label = 'thumbs up'
+				else if (label === '-1') label = 'thumbs down'
+				return {
+					emoji,
+					url: nativeEmojiToUrl(emoji),
+					label,
+				}
+			})
 		}
 	},
 	methods: {
