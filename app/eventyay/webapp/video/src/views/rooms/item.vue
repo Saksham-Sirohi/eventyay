@@ -13,7 +13,7 @@
 				reactions-overlay(v-if="hasLivestream")
 				upcoming-stream-countdown(:room="room")
 		.stage-tool-blocker(v-if="activeStageTool !== null", @click="activeStageTool = null")
-		.stage-captions-dock(v-if="hasLivestream && ccEnabled")
+		.stage-captions-dock(v-if="hasLivestream", :class="{open: ccEnabled}")
 			.docked-captions-card
 				.captions-header
 					.header-left
@@ -30,10 +30,24 @@
 					button.stage-tool.cc-toggle(:class="{active: ccEnabled}", @click="toggleCc", :title="$t('Toggle Captions')")
 						i.mdi(:class="ccEnabled ? 'mdi-closed-caption' : 'mdi-closed-caption-outline'")
 						span.cc-label {{ ccEnabled ? $t('Captions On') : $t('Captions Off') }}
-					.size-pills(v-if="ccEnabled")
-						button.size-pill(:class="{active: captionTextSize === 'auto'}", @click="setCaptionSize('auto')") {{ $t('Auto') }}
-						button.size-pill(:class="{active: captionTextSize === 'normal'}", @click="setCaptionSize('normal')") {{ $t('Normal') }}
-						button.size-pill(:class="{active: captionTextSize === 'large'}", @click="setCaptionSize('large')") {{ $t('Large') }}
+					.caption-size-stepper(v-if="ccEnabled")
+						button.size-step(
+							type="button",
+							:disabled="captionTextSize <= 12",
+							:title="$t('Smaller captions')",
+							:aria-label="$t('Smaller captions')",
+							@click="adjustCaptionSize(-1)"
+						)
+							i.mdi.mdi-minus
+						span.size-sign(aria-hidden="true") A
+						button.size-step(
+							type="button",
+							:disabled="captionTextSize >= 18",
+							:title="$t('Larger captions')",
+							:aria-label="$t('Larger captions')",
+							@click="adjustCaptionSize(1)"
+						)
+							i.mdi.mdi-plus
 					.lang-wrapper(v-if="ccEnabled && pluginLanguages.length > 0")
 						AudioTranslationDropdown(:key="`${room.id}-cc`", :languages="pluginLanguages", :selected-language="selectedCcLanguage", :label="$t('Caption Language')", @languageChanged="handleCcLanguageChange")
 				.tool-section.audio-section
@@ -58,7 +72,7 @@
 	markdown-page(v-else-if="modules['page.markdown']", :module="modules['page.markdown']")
 	chat(v-else-if="room.modules.length === 1 && modules['chat.native']", :room="room", :module="modules['chat.native']", mode="standalone", :key="room.id")
 	.room-sidebar(v-if="hasSidebar", :class="[unreadTabsClasses, { collapsed: isSidebarCollapsed }]", role="complementary")
-		.sidebar-edge-tab(v-if="isSidebarCollapsed")
+		.sidebar-edge-tab(v-if="isSidebarCollapsed && !isMobileLayout")
 			button.expand-btn(@click.stop="toggleSidebar", :title="$t('Expand Sidebar')")
 				i.mdi.mdi-arrow-expand-left
 			.edge-tab-actions
@@ -86,16 +100,16 @@
 				)
 					i.mdi.mdi-poll
 					span.unread-dot(v-if="unreadTabs['polls']")
-		.sidebar-header(v-if="!isSidebarCollapsed")
+		.sidebar-header(v-show="!isSidebarCollapsed")
 			.sidebar-tabs(v-if="visibleTabsCount > 1")
 				bunt-tabs(:model-value="activeSidebarTab", @update:modelValue="onTabSelect")
 					bunt-tab(v-if="modules['chat.native']", id="chat", :header="$t('Chat')")
 					bunt-tab(v-if="modules['question']", id="questions", :header="$t('Questions')")
 					bunt-tab(v-if="modules['poll']", id="polls", :header="$t('Polls')")
 			.single-tab-title(v-else-if="activeSidebarTab") {{ activeTabTitle }}
-			button.sidebar-collapse-btn(@click="toggleSidebar", :title="$t('Collapse Sidebar')")
+			button.sidebar-collapse-btn(v-if="!isMobileLayout", @click="toggleSidebar", :title="$t('Collapse Sidebar')")
 				i.mdi.mdi-arrow-collapse-right
-		.sidebar-body(v-show="!isSidebarCollapsed")
+		.sidebar-body(v-show="!isSidebarCollapsed || isMobileLayout")
 			chat(v-if="modules['chat.native']", v-show="activeSidebarTab === 'chat'", :room="room", :module="modules['chat.native']", mode="compact", :key="room.id", @change="changedTabContent('chat')")
 			questions(v-if="modules['question']", v-show="activeSidebarTab === 'questions'", :module="modules['question']", @change="changedTabContent('questions')")
 			polls(v-if="modules['poll']", v-show="activeSidebarTab === 'polls'", :module="modules['poll']", @change="changedTabContent('polls')")
@@ -208,10 +222,14 @@ export default {
 				this.modules['poll']
 			)
 		},
+		isMobileLayout() {
+			return Boolean(this.$mq?.below?.m)
+		},
 		hasSidebar() {
 			return this.canHaveSidebar
 		},
 		isSidebarCollapsed() {
+			if (this.isMobileLayout) return false
 			if (!this.room?.id || !this.canHaveSidebar) return false
 			const stateVal = this.$store.state.roomSidebarCollapsedByRoom?.[this.room.id]
 			return stateVal !== undefined ? Boolean(stateVal) : true
@@ -246,7 +264,7 @@ export default {
 			return this.$store.state.interpretationVolume ?? 1.0
 		},
 		captionTextSize() {
-			return this.$store.state.captionTextSize || 'auto'
+			return Number(this.$store.state.captionTextSize) || 13
 		},
 		hasInterpretationActive() {
 			return Boolean(this.currentInterpretation?.url || (this.selectedPluginLanguage && this.selectedPluginLanguage !== 'Original'))
@@ -453,7 +471,7 @@ export default {
 			}
 		},
 		toggleSidebar() {
-			if (!this.room?.id) return
+			if (!this.room?.id || this.isMobileLayout) return
 			const nextState = !this.isSidebarCollapsed
 			this.$store.commit('setRoomSidebarCollapsed', {
 				roomId: this.room.id,
@@ -462,9 +480,6 @@ export default {
 			if (!nextState && this.activeSidebarTab) {
 				this.unreadTabs[this.activeSidebarTab] = false
 			}
-			this.$nextTick(() => {
-				window.dispatchEvent(new Event('resize'))
-			})
 		},
 		selectTabAndExpand(tab) {
 			this.activeSidebarTab = tab
@@ -492,13 +507,8 @@ export default {
 			this.interpMuted = val === 0
 			this.$store.commit('setInterpretationVolume', val)
 		},
-		cycleCaptionSize() {
-			const order = ['auto', 'normal', 'large']
-			const next = order[(order.indexOf(this.captionTextSize) + 1) % order.length]
-			this.$store.commit('setCaptionTextSize', next)
-		},
-		setCaptionSize(size) {
-			this.$store.commit('setCaptionTextSize', size)
+		adjustCaptionSize(delta) {
+			this.$store.commit('setCaptionTextSize', this.captionTextSize + delta)
 		}
 	}
 }
@@ -574,7 +584,7 @@ export default {
 			min-height: 0
 			height: auto
 			display: flex
-			align-items: center
+			align-items: flex-start
 			justify-content: space-between
 			width: 100%
 			box-sizing: border-box
@@ -590,22 +600,66 @@ export default {
 			.stage-tools-left
 				display: flex
 				flex-direction: column
-				align-items: flex-start
-				justify-content: center
+				align-items: stretch
+				justify-content: flex-start
 				gap: 4px
 				min-width: 0
-				flex: 1 1 auto
+				flex: 0 1 auto
+				width: max-content
+				min-width: 156px
+				max-width: calc(100% - 196px)
 
 				.tool-section
-					display: inline-flex
+					display: flex
 					align-items: center
 					gap: 6px
 					flex-wrap: wrap
-					padding: 3px 5px
+					padding: 4px 6px
 					border: 1px solid var(--clr-grey-200, #e2e8f0)
 					border-radius: 6px
 					background: var(--clr-grey-50, #f8f9fa)
-					width: fit-content
+					width: 100%
+					box-sizing: border-box
+
+				.captions-section
+					display: grid
+					grid-template-columns: auto 1fr
+					align-items: center
+					column-gap: 6px
+					row-gap: 4px
+					.stage-tool.cc-toggle
+						grid-column: 1
+						grid-row: 1
+					.caption-size-stepper
+						grid-column: 2
+						grid-row: 1
+						justify-self: stretch
+						width: 100%
+						justify-content: space-between
+					.lang-wrapper
+						grid-column: 1 / -1
+						grid-row: 2
+						width: 100%
+
+				.lang-wrapper,
+				.dropdown-wrapper
+					display: flex
+					align-items: center
+					gap: 4px
+					min-width: 0
+					width: 100%
+					color: var(--clr-text-secondary, #64748b)
+					.mdi
+						font-size: 16px
+						flex: none
+						color: var(--clr-primary, #2185d0)
+					.c-audio-translation
+						flex: 1
+						min-width: 0
+						width: 100%
+						.field-shell
+							width: 100%
+							min-width: 0
 
 				.static-audio-pill
 					display: inline-flex
@@ -654,15 +708,6 @@ export default {
 						color: var(--clr-text-secondary, #64748b)
 						min-width: 28px
 
-				.dropdown-wrapper
-					display: flex
-					align-items: center
-					gap: 4px
-					color: var(--clr-text-secondary, #64748b)
-					.mdi
-						font-size: 16px
-						color: var(--clr-primary, #2185d0)
-
 				.stage-tool.cc-toggle
 					display: inline-flex
 					align-items: center
@@ -688,47 +733,73 @@ export default {
 					.mdi
 						font-size: 15px
 
-				.size-pills
+				.caption-size-stepper
 					display: inline-flex
+					align-items: center
+					height: 26px
 					border: 1px solid var(--clr-grey-300, #cbd5e1)
 					border-radius: 5px
 					overflow: hidden
-					height: 26px
+					background: var(--clr-surface, #ffffff)
+					flex: none
 
-					.size-pill
+					.size-step
+						display: flex
+						align-items: center
+						justify-content: center
+						width: 22px
+						height: 26px
+						padding: 0
 						border: none
-						background: var(--clr-surface, #ffffff)
-						padding: 0 8px
-						font-size: 11px
-						font-weight: 500
+						background: transparent
 						color: var(--clr-text-secondary, #64748b)
 						cursor: pointer
-						transition: all 0.15s ease
-						border-right: 1px solid var(--clr-grey-200, #e2e8f0)
-						&:last-child
-							border-right: none
-						&:hover
+						&:hover:not(:disabled)
 							background-color: var(--clr-grey-100, #f1f5f9)
 							color: var(--clr-primary, #2185d0)
-						&.active
-							background-color: var(--clr-primary, #2185d0)
-							color: #ffffff
-							font-weight: 600
+						&:disabled
+							opacity: 0.35
+							cursor: default
+						.mdi
+							font-size: 14px
+
+					.size-sign
+						display: flex
+						align-items: center
+						justify-content: center
+						width: 18px
+						font-size: 13px
+						font-weight: 700
+						line-height: 1
+						color: var(--clr-text-primary, #1e293b)
+						pointer-events: none
 
 			.stage-tools-right
 				display: flex
-				align-items: center
+				align-items: flex-start
+				justify-content: flex-end
 				gap: 8px
 				flex: none
+				padding-top: 0
 
 		.stage-captions-dock
 			flex: none
-			height: 110px
 			display: flex
 			flex-direction: column
-			padding: 4px 16px 8px
 			box-sizing: border-box
 			overflow: hidden
+			height: 0
+			max-height: 0
+			padding: 0 16px
+			pointer-events: none
+			transition: height 0.22s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s cubic-bezier(0.4, 0, 0.2, 1)
+			@media (prefers-reduced-motion: reduce)
+				transition: none
+			&.open
+				height: 110px
+				max-height: 110px
+				padding: 4px 16px 8px
+				pointer-events: auto
 
 			.docked-captions-card
 				flex: 1
@@ -788,89 +859,101 @@ export default {
 					display: flex
 					flex-direction: column
 
+					.c-live-captions
+						flex: 1
+						min-height: 0
+
 	.room-sidebar
 		display: flex
 		flex-direction: column
 		min-height: 0
 		flex: none
+		position: relative
 		width: var(--chatbar-width, 285px)
 		border-left: border-separator()
 		background-color: var(--clr-surface, #ffffff)
 		overflow: hidden
+		transition: width 0.2s cubic-bezier(0.4, 0, 0.2, 1)
+		@media (prefers-reduced-motion: reduce)
+			transition: none
 
-		&.collapsed
+		.sidebar-edge-tab
+			position: absolute
+			top: 0
+			left: 0
+			z-index: 2
+			display: flex
+			flex-direction: column
+			align-items: center
+			justify-content: flex-start
+			height: 100%
 			width: 44px
+			padding: 8px 0
+			box-sizing: border-box
+			user-select: none
+			background-color: var(--clr-surface, #ffffff)
 
-			.sidebar-edge-tab
+			.expand-btn
+				display: flex
+				align-items: center
+				justify-content: center
+				width: 32px
+				height: 32px
+				border-radius: 4px
+				border: none
+				background: transparent
+				color: var(--clr-text-secondary, #757575)
+				cursor: pointer
+				margin-bottom: 8px
+				transition: background-color 0.15s ease, color 0.15s ease
+				&:hover
+					background: var(--clr-grey-100, #f5f5f5)
+					color: var(--clr-primary, #2185d0)
+				.mdi
+					font-size: 20px
+
+			.edge-tab-actions
 				display: flex
 				flex-direction: column
 				align-items: center
-				justify-content: flex-start
-				height: 100%
-				width: 44px
-				padding: 8px 0
-				box-sizing: border-box
-				user-select: none
-				background-color: var(--clr-surface, #ffffff)
+				gap: 6px
+				width: 100%
 
-				.expand-btn
+				.edge-item-btn
+					position: relative
 					display: flex
 					align-items: center
 					justify-content: center
 					width: 32px
 					height: 32px
 					border-radius: 4px
-					border: none
+					border: 1px solid transparent
 					background: transparent
 					color: var(--clr-text-secondary, #757575)
 					cursor: pointer
-					margin-bottom: 8px
-					transition: all 0.15s ease
+					transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease
 					&:hover
-						background: var(--clr-grey-100, #f5f5f5)
+						background-color: var(--clr-grey-100, #f5f5f5)
 						color: var(--clr-primary, #2185d0)
+					&.active
+						color: var(--clr-primary, #2185d0)
+						background-color: var(--clr-primary-alpha-18, rgba(33, 133, 208, 0.12))
+						border-color: var(--clr-primary, #2185d0)
 					.mdi
 						font-size: 20px
 
-				.edge-tab-actions
-					display: flex
-					flex-direction: column
-					align-items: center
-					gap: 6px
-					width: 100%
+					.unread-dot
+						position: absolute
+						top: 2px
+						right: 2px
+						width: 7px
+						height: 7px
+						border-radius: 50%
+						background-color: $clr-danger
+						animation: pulse 2s infinite
 
-					.edge-item-btn
-						position: relative
-						display: flex
-						align-items: center
-						justify-content: center
-						width: 32px
-						height: 32px
-						border-radius: 4px
-						border: 1px solid transparent
-						background: transparent
-						color: var(--clr-text-secondary, #757575)
-						cursor: pointer
-						transition: all 0.15s ease
-						&:hover
-							background-color: var(--clr-grey-100, #f5f5f5)
-							color: var(--clr-primary, #2185d0)
-						&.active
-							color: var(--clr-primary, #2185d0)
-							background-color: var(--clr-primary-alpha-18, rgba(33, 133, 208, 0.12))
-							border-color: var(--clr-primary, #2185d0)
-						.mdi
-							font-size: 20px
-
-						.unread-dot
-							position: absolute
-							top: 2px
-							right: 2px
-							width: 7px
-							height: 7px
-							border-radius: 50%
-							background-color: $clr-danger
-							animation: pulse 2s infinite
+		&.collapsed
+			width: 44px
 
 		.sidebar-header
 			display: flex
@@ -990,6 +1073,32 @@ export default {
 		.stage
 			flex: none
 			width: 100%
+			.stage-tools
+				align-items: flex-start
+				padding: 8px
+				gap: 8px
+				.stage-tools-left
+					min-width: 148px
+					max-width: calc(100% - 172px)
+				.stage-tool.cc-toggle
+					padding: 0
+					width: 26px
+					justify-content: center
+					.cc-label
+						display: none
+				.stage-tools-right
+					.c-reactions-bar .actions
+						grid-template-columns: repeat(6, 24px)
+						grid-auto-rows: 24px
+						gap: 1px
+						padding: 3px
+					.c-reactions-bar .bunt-icon-button
+						height: 24px !important
+						width: 24px !important
+						min-width: 24px !important
+					.c-reactions-bar .emoji
+						height: 16px
+						width: @height
 			.stage-canvas-container
 				height: var(--mobile-media-height, 56.25vw)
 				flex: none
@@ -1002,29 +1111,23 @@ export default {
 			flex: auto
 			width: 100%
 			min-height: 0
-			&.collapsed
-				flex: none
-				height: 44px
-				width: 100%
-				border-left: none
-				border-top: border-separator()
+			border-left: none
+			border-top: border-separator()
 
-				.sidebar-edge-tab
-					flex-direction: row
-					justify-content: flex-start
-					align-items: center
-					width: 100%
-					height: 44px
-					padding: 0 8px
-					gap: 8px
+			.sidebar-header
+				.sidebar-tabs
+					.bunt-tabs-header-items
+						width: 100%
+						justify-content: stretch
+					.bunt-tab-header-item
+						flex: 1
+						min-width: 0
+						padding: 0 8px
+						justify-content: center
 
-					.expand-btn
-						margin-bottom: 0
-
-					.edge-tab-actions
-						flex-direction: row
-						gap: 12px
-						width: auto
+			.sidebar-body
+				flex: 1 1 auto
+				min-height: 0
 		&:not(.standalone-chat)
 			.c-chat
 				flex: auto

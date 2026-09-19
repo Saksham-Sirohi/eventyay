@@ -20,6 +20,24 @@ import {
 	usesHttpStreamFallback,
 } from './streamPolling'
 
+const CAPTION_SIZE_MIN = 12
+const CAPTION_SIZE_MAX = 18
+const CAPTION_SIZE_DEFAULT = 13
+const CAPTION_SIZE_PRESETS = {
+	auto: 13,
+	small: 12,
+	normal: 14,
+	large: 16
+}
+
+function parseCaptionTextSize(raw) {
+	if (raw == null || raw === '') return CAPTION_SIZE_DEFAULT
+	if (CAPTION_SIZE_PRESETS[raw] != null) return CAPTION_SIZE_PRESETS[raw]
+	const n = parseInt(raw, 10)
+	if (!Number.isFinite(n)) return CAPTION_SIZE_DEFAULT
+	return Math.min(CAPTION_SIZE_MAX, Math.max(CAPTION_SIZE_MIN, n))
+}
+
 export default new Vuex.Store({
 	state: {
 		token: null,
@@ -60,7 +78,7 @@ export default new Vuex.Store({
 		interpretationVolume: localStorage.getItem('venueless-interpretation-volume') !== null
 			? parseFloat(localStorage.getItem('venueless-interpretation-volume'))
 			: 1.0,
-		captionTextSize: localStorage.getItem('venueless-caption-text-size') || 'auto'
+		captionTextSize: parseCaptionTextSize(typeof localStorage !== 'undefined' ? localStorage.getItem('venueless-caption-text-size') : null)
 	},
 	getters: {
 		hasPermission(state) {
@@ -227,9 +245,9 @@ export default new Vuex.Store({
 			}
 		},
 		setCaptionTextSize(state, size) {
-			state.captionTextSize = size
+			state.captionTextSize = parseCaptionTextSize(size)
 			try {
-				localStorage.setItem('venueless-caption-text-size', size)
+				localStorage.setItem('venueless-caption-text-size', String(state.captionTextSize))
 			} catch (e) {
 				console.warn('Failed to save caption text size', e)
 			}
@@ -340,7 +358,13 @@ export default new Vuex.Store({
 			const previousStreamUrl = room.currentStream?.url || null
 			const currentStreamUrl = currentStream?.url || null
 
-			if (previousStreamId !== streamId || previousStreamUrl !== currentStreamUrl) {
+			const previousConfig = JSON.stringify(room.currentStream?.config || {})
+			const currentConfig = JSON.stringify(currentStream?.config || {})
+			if (
+				previousStreamId !== streamId ||
+				previousStreamUrl !== currentStreamUrl ||
+				previousConfig !== currentConfig
+			) {
 				commit('setRoomCurrentStream', { roomId, stream: currentStream })
 			}
 			if (state.lastKnownStreamId !== streamId) {

@@ -1,7 +1,8 @@
 <template lang="pug">
-.c-live-captions(:class="[`size-${textSize}`, {'mode-docked': docked}]")
+.c-live-captions(:class="{'mode-docked': docked}", :style="{ '--caption-font-size': fontSizePx + 'px' }")
 	.caption-log(ref="log")
-		.caption-line(v-for="(line, index) in lines", :key="line.id || index") {{ line.text }}
+		transition-group.caption-lines(name="caption-line", tag="div")
+			.caption-line(v-for="line in lines", :key="line.id") {{ line.text }}
 		.caption-placeholder(v-if="docked && lines.length === 0")
 			span.listening-dot
 			span {{ $t('Listening for live speech... Subtitles will stream here in real-time.') }}
@@ -16,8 +17,8 @@ export default {
 			default: null
 		},
 		textSize: {
-			type: String,
-			default: 'auto'
+			type: [Number, String],
+			default: 13
 		},
 		docked: {
 			type: Boolean,
@@ -32,6 +33,17 @@ export default {
 			maxReconnectAttempts: 5,
 			reconnectTimeout: null,
 			nextId: 1
+		}
+	},
+	computed: {
+		fontSizePx() {
+			const presets = { auto: 13, small: 12, normal: 14, large: 16 }
+			if (typeof this.textSize === 'string' && presets[this.textSize] != null) {
+				return presets[this.textSize]
+			}
+			const n = Number(this.textSize)
+			if (!Number.isFinite(n)) return 13
+			return Math.min(18, Math.max(12, n))
 		}
 	},
 	watch: {
@@ -163,8 +175,8 @@ export default {
 	.caption-line
 		color: #ffffff
 		font-weight: 600
-		font-size: clamp(14px, 2.2vw, 19px)
-		line-height: 1.4
+		font-size: var(--caption-font-size, 13px)
+		line-height: 1.35
 		background: rgba(0, 0, 0, 0.82)
 		padding: 4px 12px
 		border-radius: 4px
@@ -176,10 +188,14 @@ export default {
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8)
 		letter-spacing: 0.2px
 
-	&.size-normal .caption-line
-		font-size: 15px
-	&.size-large .caption-line
-		font-size: 21px
+	.caption-line-enter-active
+		transition: opacity 0.22s ease, transform 0.22s ease
+	.caption-line-enter-from
+		opacity: 0
+		transform: translateY(6px)
+	@media (prefers-reduced-motion: reduce)
+		.caption-line-enter-active
+			transition: none
 
 	&.mode-docked
 		position: relative
@@ -207,13 +223,24 @@ export default {
 			flex-direction: column
 			gap: 2px
 
+		.caption-lines
+			display: flex
+			flex-direction: column
+			gap: 2px
+
+		.caption-line-move
+			transition: transform 0.2s ease
+		@media (prefers-reduced-motion: reduce)
+			.caption-line-move
+				transition: none
+
 		.caption-line
 			display: block
 			box-shadow: none
 			text-shadow: none
 			color: var(--clr-text-primary, #1e293b)
 			font-weight: 500
-			font-size: 13px
+			font-size: var(--caption-font-size, 13px)
 			line-height: 1.25
 			padding: 2px 8px
 			border-radius: 4px
@@ -238,16 +265,6 @@ export default {
 				background-color: var(--clr-primary, #2185d0)
 				animation: pulse-dot 1.5s infinite
 				flex: none
-
-		&.size-auto .caption-line
-			font-size: 13px
-			line-height: 1.25
-		&.size-normal .caption-line
-			font-size: 14px
-			line-height: 1.25
-		&.size-large .caption-line
-			font-size: 16px
-			line-height: 1.25
 
 @keyframes pulse-dot
 	0%

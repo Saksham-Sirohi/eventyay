@@ -259,15 +259,25 @@ async function showUserCard(event, user, placement = 'left-start') {
 			font-family: monospace
 	.chat-input
 		flex: none
-		min-height: 56px
-		padding: 8px 0
+		min-height: 0
+		padding: 10px 12px 12px
 		box-sizing: border-box
 		display: flex
-		justify-content: center
-		align-items: center
+		justify-content: stretch
+		align-items: stretch
+		background: var(--clr-surface, #ffffff)
+		border-top: 1px solid var(--clr-grey-200, #e2e8f0)
+		.no-permission
+			width: 100%
+			padding: 8px 4px
+			font-size: 13px
+			color: var(--clr-text-secondary, #64748b)
+			text-align: center
 		.bunt-button
 			themed-button-primary()
-			width: calc(100% - 16px)
+			width: 100%
+			border-radius: 22px
+			height: 40px
 	&.compact
 		flex-direction: column
 		justify-content: stretch

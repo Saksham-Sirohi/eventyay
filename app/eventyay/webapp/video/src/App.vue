@@ -243,9 +243,10 @@ export default {
 				(this.room?.modules.length > 1 && this.room?.modules.some(module => chatbarModules.includes(module.type))) ||
 				(this.call && this.call.channel === this.$route.params.channelId)
 			)
-			const chatbarWidth = hasChatbar
-				? (isSidebarCollapsed ? '44px' : '285px')
-				: '0px'
+			const isMobileLayout = this.$mq?.below?.m
+			const chatbarWidth = !hasChatbar || isMobileLayout
+				? '0px'
+				: (isSidebarCollapsed ? '44px' : '285px')
 			const style = {
 				'--chatbar-width': chatbarWidth,
 				'--mobile-media-height': this.stageStreamCollapsed ? '56px' : '56.25vw',
