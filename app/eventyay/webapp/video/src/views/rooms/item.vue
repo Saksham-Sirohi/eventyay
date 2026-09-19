@@ -103,19 +103,20 @@
 				)
 					i.mdi.mdi-poll(aria-hidden="true")
 					span.unread-dot(v-if="unreadTabs['polls']", aria-hidden="true")
-		.sidebar-header(v-show="!isSidebarCollapsed || sidebarHovered")
-			.sidebar-tabs(v-if="visibleTabsCount > 1")
-				bunt-tabs(:model-value="activeSidebarTab", @update:modelValue="onTabSelect")
-					bunt-tab(v-if="modules['chat.native']", id="chat", :header="$t('Chat')")
-					bunt-tab(v-if="modules['question']", id="questions", :header="$t('Questions')")
-					bunt-tab(v-if="modules['poll']", id="polls", :header="$t('Polls')")
-			.single-tab-title(v-else-if="activeSidebarTab") {{ activeTabTitle }}
-			button.sidebar-collapse-btn(v-if="!isMobileLayout", @click="toggleSidebar", :title="$t('Collapse Sidebar')")
-				i.mdi.mdi-arrow-collapse-right
-		.sidebar-body(v-show="!isSidebarCollapsed || isMobileLayout || sidebarHovered")
-			chat(v-if="modules['chat.native']", v-show="activeSidebarTab === 'chat'", :room="room", :module="modules['chat.native']", mode="compact", :key="room.id", @change="changedTabContent('chat')")
-			questions(v-if="modules['question']", v-show="activeSidebarTab === 'questions'", :module="modules['question']", @change="changedTabContent('questions')")
-			polls(v-if="modules['poll']", v-show="activeSidebarTab === 'polls'", :module="modules['poll']", @change="changedTabContent('polls')")
+		.sidebar-inner(:class="{'hover-overlay': isSidebarCollapsed && sidebarHovered}", v-show="!isSidebarCollapsed || sidebarHovered || isMobileLayout")
+			.sidebar-header
+				.sidebar-tabs(v-if="visibleTabsCount > 1")
+					bunt-tabs(:model-value="activeSidebarTab", @update:modelValue="onTabSelect")
+						bunt-tab(v-if="modules['chat.native']", id="chat", :header="$t('Chat')")
+						bunt-tab(v-if="modules['question']", id="questions", :header="$t('Questions')")
+						bunt-tab(v-if="modules['poll']", id="polls", :header="$t('Polls')")
+				.single-tab-title(v-else-if="activeSidebarTab") {{ activeTabTitle }}
+				button.sidebar-collapse-btn(v-if="!isMobileLayout", @click="toggleSidebar", :title="$t('Collapse Sidebar')")
+					i.mdi.mdi-arrow-collapse-right
+			.sidebar-body
+				chat(v-if="modules['chat.native']", v-show="activeSidebarTab === 'chat'", :room="room", :module="modules['chat.native']", mode="compact", :key="room.id", @change="changedTabContent('chat')")
+				questions(v-if="modules['question']", v-show="activeSidebarTab === 'questions'", :module="modules['question']", @change="changedTabContent('questions')")
+				polls(v-if="modules['poll']", v-show="activeSidebarTab === 'polls'", :module="modules['poll']", @change="changedTabContent('polls')")
 </template>
 <script>
 // TODO
@@ -582,7 +583,7 @@ export default {
 		max-width: 100%
 		flex: 1 1 0
 		width: 0
-		overflow: hidden
+		overflow: visible
 		position: relative
 		background-color: var(--clr-grey-50, #f8f9fa)
 
@@ -1006,19 +1007,24 @@ export default {
 			width: 44px
 			overflow: visible
 
-		&.hover-expanded
-			position: absolute
-			top: 0
-			right: 0
-			bottom: 0
-			width: 285px
-			box-shadow: -2px 0 12px rgba(0, 0, 0, 0.14)
-			z-index: 20
-			overflow: hidden
-
-			.sidebar-header,
-			.sidebar-body
-				display: flex
+		.sidebar-inner
+			flex: 1
+			display: flex
+			flex-direction: column
+			min-height: 0
+			min-width: 0
+			
+			&.hover-overlay
+				position: absolute
+				top: 0
+				right: 0
+				bottom: 0
+				width: 285px
+				background-color: var(--clr-surface, #ffffff)
+				box-shadow: -2px 0 12px rgba(0, 0, 0, 0.14)
+				border-left: border-separator()
+				z-index: 20
+				overflow: hidden
 
 		.sidebar-header
 			display: flex
