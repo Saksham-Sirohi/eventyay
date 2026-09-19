@@ -133,7 +133,7 @@ export default {
 				if (!text) return
 
 				this.lines.push({ id: this.nextId++, text })
-				const maxLines = this.docked ? 12 : 2
+				const maxLines = this.docked ? 24 : 2
 				if (this.lines.length > maxLines) {
 					this.lines = this.lines.slice(-maxLines)
 				}

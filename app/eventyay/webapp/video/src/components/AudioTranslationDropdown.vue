@@ -1,6 +1,5 @@
 <template lang="pug">
 .c-audio-translation(:class="{open: menuOpen}")
-	.ui-background-blocker(v-if="menuOpen", @click="closeMenu")
 	.field-shell(ref="shell")
 		span.floating-label {{ resolvedLabel }}
 		button.language-toggle(
@@ -15,22 +14,24 @@
 		)
 			span.value {{ internalSelectedLanguage }}
 			i.mdi.mdi-menu-down(aria-hidden="true")
-	ul.language-menu(
-		v-if="menuOpen",
-		ref="menu",
-		:id="menuId",
-		role="listbox",
-		:aria-label="resolvedLabel"
-	)
-		li(
-			v-for="(language, index) of languageOptions",
-			:key="language",
-			role="option",
-			:aria-selected="language === internalSelectedLanguage ? 'true' : 'false'",
-			:class="{active: language === internalSelectedLanguage, highlight: index === highlightedIndex}",
-			@click="selectLanguage(language)",
-			@mouseenter="highlightedIndex = index"
-		) {{ language }}
+	teleport(to="body")
+		template(v-if="menuOpen")
+			.audio-translation-blocker(aria-hidden="true", @click="closeMenu")
+			ul.language-menu(
+				ref="menu",
+				:id="menuId",
+				role="listbox",
+				:aria-label="resolvedLabel"
+			)
+				li(
+					v-for="(language, index) of languageOptions",
+					:key="language",
+					role="option",
+					:aria-selected="language === internalSelectedLanguage ? 'true' : 'false'",
+					:class="{active: language === internalSelectedLanguage, highlight: index === highlightedIndex}",
+					@click="selectLanguage(language)",
+					@mouseenter="highlightedIndex = index"
+				) {{ language }}
 </template>
 <script>
 import { createPopper } from '@popperjs/core'
@@ -127,10 +128,11 @@ export default {
 			}
 			try {
 				this.popper = createPopper(this.$refs.shell, this.$refs.menu, {
-					placement: 'bottom-start',
+					placement: 'top-start',
 					strategy: 'fixed',
 					modifiers: [
 						{ name: 'offset', options: { offset: [0, 4] } },
+						{ name: 'flip', options: { fallbackPlacements: ['bottom-start'] } },
 						{ name: 'preventOverflow', options: { padding: 8 } },
 						{
 							name: 'sameWidth',
@@ -202,10 +204,6 @@ export default {
 	z-index: 1
 	&.open
 		z-index: 1300
-	.ui-background-blocker
-		position: fixed
-		inset: 0
-		z-index: 1298
 	.field-shell
 		position: relative
 		display: inline-flex
@@ -295,4 +293,9 @@ ul.language-menu
 			font-weight: 600
 			color: var(--clr-primary, #2185d0)
 			background-color: var(--clr-primary-alpha-18, rgba(33, 133, 208, 0.12))
+
+.audio-translation-blocker
+	position: fixed
+	inset: 0
+	z-index: 1298
 </style>

@@ -6,9 +6,9 @@
 			h2 {{ $t('Feature No Longer Available') }}
 			p.disabled-message {{ roomDisabledReason }}
 			router-link.btn-back-dashboard(:to="{name: 'home'}") {{ $t('Back to Dashboard') }}
-	.stage(v-else-if="modules['livestream.native'] || modules['livestream.youtube'] || modules['livestream.vimeo']")
-		.stage-canvas-container
-			.media-canvas-wrapper
+	.stage(v-else-if="modules['livestream.native'] || modules['livestream.youtube'] || modules['livestream.vimeo']", :style="{ '--stage-video-gap': videoGapPx + 'px' }")
+		.stage-canvas-container(ref="stageCanvas")
+			.media-canvas-wrapper(ref="mediaCanvas")
 				media-source-placeholder
 				reactions-overlay(v-if="hasLivestream")
 				upcoming-stream-countdown(:room="room")
@@ -174,6 +174,8 @@ export default {
 			activeTranslationConfig: null,
 			interpMuted: false,
 			prevInterpVolume: 0.8,
+			videoGapPx: 0,
+			captionGapObserver: null
 		}
 	},
 	computed: {
@@ -358,6 +360,19 @@ export default {
 				}
 			},
 			immediate: true
+		},
+		ccEnabled() {
+			if (!this.ccEnabled) {
+				this.videoGapPx = 0
+				return
+			}
+			this.videoGapPx = 0
+			this.$nextTick(() => {
+				requestAnimationFrame(() => this.bindCaptionGapObserver())
+			})
+		},
+		isSidebarCollapsed() {
+			this.$nextTick(() => this.updateVideoGap())
 		}
 	},
 	async created() {
@@ -375,8 +390,11 @@ export default {
 	},
 	mounted() {
 		this.checkDirectAccess()
+		this.bindCaptionGapObserver()
 	},
 	beforeUnmount() {
+		this.captionGapObserver?.disconnect()
+		this.captionGapObserver = null
 		this.$store.dispatch('stopStreamPolling')
 	},
 	methods: {
@@ -513,6 +531,32 @@ export default {
 		},
 		adjustCaptionSize(delta) {
 			this.$store.commit('setCaptionTextSize', this.captionTextSize + delta)
+		},
+		bindCaptionGapObserver() {
+			if (typeof ResizeObserver === 'undefined') {
+				this.updateVideoGap()
+				return
+			}
+			if (!this.captionGapObserver) {
+				this.captionGapObserver = new ResizeObserver(() => this.updateVideoGap())
+			}
+			this.captionGapObserver.disconnect()
+			const canvas = this.$refs.stageCanvas
+			const media = this.$refs.mediaCanvas
+			if (canvas) this.captionGapObserver.observe(canvas)
+			if (media) this.captionGapObserver.observe(media)
+			this.updateVideoGap()
+		},
+		updateVideoGap() {
+			const canvas = this.$refs.stageCanvas
+			const media = this.$refs.mediaCanvas
+			if (!this.ccEnabled || this.isMobileLayout || !canvas || !media) {
+				this.videoGapPx = 0
+				return
+			}
+			const next = Math.max(0, Math.round(canvas.clientHeight - media.offsetHeight))
+			if (Math.abs(next - this.videoGapPx) < 2) return
+			this.videoGapPx = next
 		}
 	}
 }
@@ -598,7 +642,7 @@ export default {
 			border-bottom: 1px solid var(--clr-grey-200, #e2e8f0)
 			user-select: none
 			color: var(--clr-text-primary, #1e293b)
-			z-index: 10
+			z-index: 12
 			gap: 12px
 
 			.stage-tools-left
@@ -796,14 +840,13 @@ export default {
 			max-height: 0
 			padding: 0 16px
 			pointer-events: none
-			transition: height 0.22s cubic-bezier(0.4, 0, 0.2, 1), max-height 0.22s cubic-bezier(0.4, 0, 0.2, 1), padding 0.22s cubic-bezier(0.4, 0, 0.2, 1)
-			@media (prefers-reduced-motion: reduce)
-				transition: none
 			&.open
-				height: 110px
-				max-height: 110px
-				padding: 4px 16px 8px
+				height: calc(110px + var(--stage-video-gap, 0px))
+				max-height: calc(110px + var(--stage-video-gap, 0px))
+				margin-top: calc(-1 * var(--stage-video-gap, 0px))
+				padding: 8px 16px
 				pointer-events: auto
+				z-index: 11
 
 			.docked-captions-card
 				flex: 1
