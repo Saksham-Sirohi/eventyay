@@ -265,6 +265,9 @@ export default {
 				background-color: var(--clr-primary, #2185d0)
 				animation: pulse-dot 1.5s infinite
 				flex: none
+			@media (prefers-reduced-motion: reduce)
+				.listening-dot
+					animation: none
 
 @keyframes pulse-dot
 	0%

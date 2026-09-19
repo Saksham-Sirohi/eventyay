@@ -75,9 +75,10 @@ export default new Vuex.Store({
 		youtubeTranslationsByRoom: {},
 		activeRoomSidebarTab: null,
 		roomSidebarCollapsedByRoom: {},
-		interpretationVolume: localStorage.getItem('venueless-interpretation-volume') !== null
-			? parseFloat(localStorage.getItem('venueless-interpretation-volume'))
-			: 1.0,
+		interpretationVolume: (() => {
+			const stored = parseFloat(localStorage.getItem('venueless-interpretation-volume'))
+			return Number.isFinite(stored) ? Math.min(Math.max(stored, 0), 1) : 1.0
+		})(),
 		captionTextSize: parseCaptionTextSize(typeof localStorage !== 'undefined' ? localStorage.getItem('venueless-caption-text-size') : null)
 	},
 	getters: {
@@ -237,9 +238,10 @@ export default new Vuex.Store({
 			}
 		},
 		setInterpretationVolume(state, volume) {
-			state.interpretationVolume = volume
+			const parsed = Number(volume)
+			state.interpretationVolume = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 1.0
 			try {
-				localStorage.setItem('venueless-interpretation-volume', String(volume))
+				localStorage.setItem('venueless-interpretation-volume', String(state.interpretationVolume))
 			} catch (e) {
 				console.warn('Failed to save interpretation volume', e)
 			}

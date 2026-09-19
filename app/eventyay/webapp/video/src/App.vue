@@ -249,7 +249,7 @@ export default {
 				: (isSidebarCollapsed ? '44px' : '285px')
 			const style = {
 				'--chatbar-width': chatbarWidth,
-				'--mobile-media-height': this.stageStreamCollapsed ? '56px' : '56.25vw',
+				'--mobile-media-height': this.stageStreamCollapsed ? '56px' : 'min(56.25vw, 50vh)',
 				'--has-stagetools': hasStageTools ? '1' : '0'
 			}
 			if (this.mediaSourcePlaceholderRect) {

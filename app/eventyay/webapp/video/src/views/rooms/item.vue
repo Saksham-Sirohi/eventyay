@@ -53,7 +53,7 @@
 				.tool-section.audio-section
 					.dropdown-wrapper(v-if="showPluginLanguageDropdown")
 						i.mdi.mdi-account-voice
-						AudioTranslationDropdown(:key="`${room.id}-plugin`", :languages="pluginLanguages", :selected-language="selectedPluginLanguage", :label="$t('Interpretation')", @languageChanged="handlePluginLanguageChange")
+						AudioTranslationDropdown(:key="`${room.id}-plugin`", :languages="interpretationLanguages", :selected-language="selectedPluginLanguage", :label="$t('Interpretation')", @languageChanged="handlePluginLanguageChange")
 					.static-audio-pill(v-else)
 						i.mdi.mdi-volume-high
 						span {{ $t('Original Audio') }}
@@ -80,26 +80,29 @@
 					v-if="modules['chat.native']",
 					:class="{active: activeSidebarTab === 'chat', unread: unreadTabs['chat']}",
 					:title="$t('Chat')",
+					:aria-label="unreadTabs['chat'] ? `${$t('Chat')} (${$t('Unread')})` : $t('Chat')",
 					@click.stop="selectTabAndExpand('chat')"
 				)
-					i.mdi.mdi-message-text-outline
-					span.unread-dot(v-if="unreadTabs['chat']")
+					i.mdi.mdi-message-text-outline(aria-hidden="true")
+					span.unread-dot(v-if="unreadTabs['chat']", aria-hidden="true")
 				button.edge-item-btn(
 					v-if="modules['question']",
 					:class="{active: activeSidebarTab === 'questions', unread: unreadTabs['questions']}",
 					:title="$t('Questions')",
+					:aria-label="unreadTabs['questions'] ? `${$t('Questions')} (${$t('Unread')})` : $t('Questions')",
 					@click.stop="selectTabAndExpand('questions')"
 				)
-					i.mdi.mdi-help-circle-outline
-					span.unread-dot(v-if="unreadTabs['questions']")
+					i.mdi.mdi-help-circle-outline(aria-hidden="true")
+					span.unread-dot(v-if="unreadTabs['questions']", aria-hidden="true")
 				button.edge-item-btn(
 					v-if="modules['poll']",
 					:class="{active: activeSidebarTab === 'polls', unread: unreadTabs['polls']}",
 					:title="$t('Polls')",
+					:aria-label="unreadTabs['polls'] ? `${$t('Polls')} (${$t('Unread')})` : $t('Polls')",
 					@click.stop="selectTabAndExpand('polls')"
 				)
-					i.mdi.mdi-poll
-					span.unread-dot(v-if="unreadTabs['polls']")
+					i.mdi.mdi-poll(aria-hidden="true")
+					span.unread-dot(v-if="unreadTabs['polls']", aria-hidden="true")
 		.sidebar-header(v-show="!isSidebarCollapsed")
 			.sidebar-tabs(v-if="visibleTabsCount > 1")
 				bunt-tabs(:model-value="activeSidebarTab", @update:modelValue="onTabSelect")
@@ -129,7 +132,7 @@ import MediaSourcePlaceholder from 'components/MediaSourcePlaceholder'
 import AudioTranslationDropdown from 'components/AudioTranslationDropdown'
 import LiveCaptions from 'components/LiveCaptions'
 import UpcomingStreamCountdown from 'components/UpcomingStreamCountdown'
-import { normalizeAudioTranslationSource } from 'lib/validators'
+import { isUsableAudioTranslationEntry, normalizeAudioTranslationSource } from 'lib/validators'
 import { firstCaptionLanguage, pluginLanguageStreams, roomUsesPluginLanguageStreams } from '../../interpretation-streams'
 import { interpretationApiUrl, interpretationAuthHeaders } from 'lib/interpretation-api'
 import { hasOrganizerTraits } from 'lib/traitGrants'
@@ -274,10 +277,13 @@ export default {
 			return this.$store.state.interpretationStreamsByRoom?.[this.room.id] || this.$store.state.youtubeTranslationsByRoom?.[this.room.id] || null
 		},
 		showPluginLanguageDropdown() {
-			return this.pluginLanguages.length > 0
+			return roomUsesPluginLanguageStreams(this.room) && this.interpretationLanguages.some(entry => entry.language !== 'Original')
+		},
+		interpretationLanguages() {
+			return (this.pluginLanguages || []).filter(entry => isUsableAudioTranslationEntry(entry))
 		},
 		selectedPluginLanguage() {
-			return this.getLanguageForTranslation(this.currentInterpretation, this.pluginLanguages) || 'Original'
+			return this.getLanguageForTranslation(this.currentInterpretation, this.interpretationLanguages) || 'Original'
 		},
 		selectedCcWsUrl() {
 			if (!this.ccEnabled) return null
@@ -446,9 +452,7 @@ export default {
 			})
 		},
 		initializeLanguages() {
-			this.pluginLanguages = roomUsesPluginLanguageStreams(this.room)
-				? pluginLanguageStreams(this.room)
-				: [{ language: 'Original', url: null, youtube_id: null, use_video: false }]
+			this.pluginLanguages = pluginLanguageStreams(this.room)
 			this.clearStaleTranslation()
 		},
 		getLanguageForTranslation(translationConfig, languages) {

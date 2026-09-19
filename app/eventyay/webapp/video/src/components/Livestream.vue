@@ -25,8 +25,8 @@
 					span.mdi.mdi-volume-off
 					span {{ $t('Interpretation Active') }}
 				bunt-icon-button(v-if="hasAlternativeStreams", @click="showSourceChooser = !showSourceChooser") movie
-				bunt-icon-button(v-if="!offline && !hasActiveInterpretation && textTracks.length > 0", @click="toggleCaptions") {{ textTracks.some(t => t.mode === 'showing') ? 'closed-caption' : 'closed-caption-outline' }}
-				bunt-icon-button(v-else-if="!offline && !hasActiveInterpretation && module.config.subtitle_url", @click="openExternalSubtitles") closed-caption-outline
+				bunt-icon-button(v-if="!offline && textTracks.length > 0", @click="toggleCaptions") {{ textTracks.some(t => t.mode === 'showing') ? 'closed-caption' : 'closed-caption-outline' }}
+				bunt-icon-button(v-else-if="!offline && module.config.subtitle_url", @click="openExternalSubtitles") closed-caption-outline
 				bunt-icon-button(v-if="!offline", @click="showLevelChooser = !showLevelChooser") {{ levelIcon }}
 				bunt-icon-button(v-if="!offline && !hasActiveInterpretation", @click="toggleVolume") {{ muted || volume === 0 ? 'volume_off' : 'volume_high' }}
 				input.volume-slider(v-if="!offline && !hasActiveInterpretation", type="range", step="any", min="0", max="1", :aria-label="$t('Volume')", :value="volume", @input="onVolumeSlider", :style="{'--volume': volume}")

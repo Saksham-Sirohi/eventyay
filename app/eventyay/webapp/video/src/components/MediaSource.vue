@@ -94,8 +94,10 @@ watch(interpretationVolume, (vol) => {
 });
 
 function applyInterpretationVolume(vol) {
+	const parsed = Number(vol);
+	const safe = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 0), 1) : 1;
 	if (whepAudioEl.value) {
-		whepAudioEl.value.volume = vol;
+		whepAudioEl.value.volume = safe;
 	}
 	const iframe = translationIframeEl.value;
 	if (iframe?.contentWindow) {
@@ -104,7 +106,7 @@ function applyInterpretationVolume(vol) {
 				JSON.stringify({
 					event: 'command',
 					func: 'setVolume',
-					args: [Math.round(vol * 100)]
+					args: [Math.round(safe * 100)]
 				}),
 				'*'
 			);
@@ -646,7 +648,17 @@ function resetMainPlayerPaused() {
 }
 
 function onTranslationIframeLoaded() {
-	applyInterpretationVolume(interpretationVolume.value);
+	const iframe = translationIframeEl.value;
+	if (iframe?.contentWindow) {
+		try {
+			iframe.contentWindow.postMessage(
+				JSON.stringify({ event: 'listening', id: 'translation', channel: 'widget' }),
+				'*'
+			);
+		} catch (error) {
+			console.warn('Failed to subscribe to translation iframe events:', error);
+		}
+	}
 	if (mainPlayerPaused.value) {
 		pauseYouTubeTranslationIframe();
 	}
@@ -662,6 +674,17 @@ function onWindowMessage(event) {
 		}
 	}
 	if (!data || typeof data !== 'object') return;
+
+	const fromTranslation = Boolean(
+		translationIframeEl.value?.contentWindow &&
+		event.source === translationIframeEl.value.contentWindow
+	);
+	if (fromTranslation) {
+		if (data.event === 'onReady' || data.event === 'initialDelivery') {
+			applyInterpretationVolume(interpretationVolume.value);
+		}
+		return;
+	}
 
 	if (!iframeEl.value?.contentWindow || event.source !== iframeEl.value.contentWindow) return;
 

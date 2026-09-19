@@ -136,13 +136,13 @@ watch(() => props.module?.channel_id, (newChannelId, oldChannelId) => {
 	}
 })
 
-let hasLoadedTimeline = false
+const hasLoadedTimeline = ref(false)
 watch(filteredTimeline, async () => {
 	await nextTick()
 	refreshScrollbar()
 	syncedScroll.value = true
-	if (!hasLoadedTimeline) {
-		hasLoadedTimeline = true
+	if (!hasLoadedTimeline.value) {
+		hasLoadedTimeline.value = true
 		return
 	}
 	emit('change')
