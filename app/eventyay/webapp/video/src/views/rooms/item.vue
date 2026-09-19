@@ -71,8 +71,8 @@
 	landing-page(v-else-if="modules['page.landing']", :module="modules['page.landing']")
 	markdown-page(v-else-if="modules['page.markdown']", :module="modules['page.markdown']")
 	chat(v-else-if="room.modules.length === 1 && modules['chat.native']", :room="room", :module="modules['chat.native']", mode="standalone", :key="room.id")
-	.room-sidebar(v-if="hasSidebar", :class="[unreadTabsClasses, { collapsed: isSidebarCollapsed }]", role="complementary")
-		.sidebar-edge-tab(v-if="isSidebarCollapsed && !isMobileLayout")
+	.room-sidebar(v-if="hasSidebar", :class="[unreadTabsClasses, { collapsed: isSidebarCollapsed, 'hover-expanded': isSidebarCollapsed && sidebarHovered }]", role="complementary", @mouseenter="sidebarHovered = true", @mouseleave="sidebarHovered = false")
+		.sidebar-edge-tab(v-if="isSidebarCollapsed && !sidebarHovered && !isMobileLayout")
 			button.expand-btn(@click.stop="toggleSidebar", :title="$t('Expand Sidebar')")
 				i.mdi.mdi-arrow-expand-left
 			.edge-tab-actions
@@ -103,7 +103,7 @@
 				)
 					i.mdi.mdi-poll(aria-hidden="true")
 					span.unread-dot(v-if="unreadTabs['polls']", aria-hidden="true")
-		.sidebar-header(v-show="!isSidebarCollapsed")
+		.sidebar-header(v-show="!isSidebarCollapsed || sidebarHovered")
 			.sidebar-tabs(v-if="visibleTabsCount > 1")
 				bunt-tabs(:model-value="activeSidebarTab", @update:modelValue="onTabSelect")
 					bunt-tab(v-if="modules['chat.native']", id="chat", :header="$t('Chat')")
@@ -112,7 +112,7 @@
 			.single-tab-title(v-else-if="activeSidebarTab") {{ activeTabTitle }}
 			button.sidebar-collapse-btn(v-if="!isMobileLayout", @click="toggleSidebar", :title="$t('Collapse Sidebar')")
 				i.mdi.mdi-arrow-collapse-right
-		.sidebar-body(v-show="!isSidebarCollapsed || isMobileLayout")
+		.sidebar-body(v-show="!isSidebarCollapsed || isMobileLayout || sidebarHovered")
 			chat(v-if="modules['chat.native']", v-show="activeSidebarTab === 'chat'", :room="room", :module="modules['chat.native']", mode="compact", :key="room.id", @change="changedTabContent('chat')")
 			questions(v-if="modules['question']", v-show="activeSidebarTab === 'questions'", :module="modules['question']", @change="changedTabContent('questions')")
 			polls(v-if="modules['poll']", v-show="activeSidebarTab === 'polls'", :module="modules['poll']", @change="changedTabContent('polls')")
@@ -160,6 +160,7 @@ export default {
 	data() {
 		return {
 			localActiveSidebarTab: null,
+			sidebarHovered: false,
 			unreadTabs: {
 				chat: false,
 				questions: false,
@@ -644,6 +645,7 @@ export default {
 			color: var(--clr-text-primary, #1e293b)
 			z-index: 12
 			gap: 12px
+			overflow: visible
 
 			.stage-tools-left
 				display: flex
@@ -829,6 +831,7 @@ export default {
 				gap: 8px
 				flex: none
 				padding-top: 0
+				overflow: visible
 
 		.stage-captions-dock
 			flex: none
@@ -1001,6 +1004,21 @@ export default {
 
 		&.collapsed
 			width: 44px
+			overflow: visible
+
+		&.hover-expanded
+			position: absolute
+			top: 0
+			right: 0
+			bottom: 0
+			width: 285px
+			box-shadow: -2px 0 12px rgba(0, 0, 0, 0.14)
+			z-index: 20
+			overflow: hidden
+
+			.sidebar-header,
+			.sidebar-body
+				display: flex
 
 		.sidebar-header
 			display: flex

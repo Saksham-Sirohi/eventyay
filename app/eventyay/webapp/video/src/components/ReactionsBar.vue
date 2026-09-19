@@ -4,9 +4,7 @@
 		bunt-icon-button(
 			v-for="reaction of availableReactions",
 			:key="reaction.emoji",
-			:tooltip="reaction.label",
-			tooltip-placement="top",
-			:tooltip-fixed="true",
+			:tooltip-options="{ text: reaction.label, placement: 'top', fixed: true, boundariesElement: 'window' }",
 			@click.stop="react(reaction.emoji)"
 		)
 			img.emoji(:src="reaction.url", :alt="reaction.label")

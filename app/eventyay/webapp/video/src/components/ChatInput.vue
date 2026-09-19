@@ -594,20 +594,25 @@ export default {
 				color: var(--clr-primary, #2185d0)
 
 	#btn-send
-		icon-button-style(color: #ffffff)
+		icon-button-style(color: #ffffff, style: 'clear')
 		height: 32px
 		width: 32px
 		border-radius: 50%
 		background-color: var(--clr-primary, #2185d0)
-		transition: filter 0.15s ease, transform 0.15s ease
+		transition: background-color 0.15s ease, filter 0.15s ease, transform 0.15s ease
 		.bunt-icon
 			font-size: 18px
 			height: 18px
 			line-height: 18px
-		&:hover
+			color: #ffffff
+		svg
+			fill: #ffffff
+			height: 18px
+			width: 18px
+		&:hover:not(.disabled)
 			background-color: var(--clr-primary, #2185d0)
-			filter: brightness(1.08)
-			transform: scale(1.04)
+			filter: brightness(1.1)
+			transform: scale(1.06)
 
 	#btn-remove-attachment
 		position: absolute
