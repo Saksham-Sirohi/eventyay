@@ -81,7 +81,11 @@ class TolerantDict(dict):
 
 
 class SendMailException(Exception):  # NOQA: N818
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('mail', 'mail.send', OUTCOME_FAILURE, error_code='send_failed')
 
 
 def mail(
@@ -292,6 +296,9 @@ def mail(
                     body_html = renderer.render(content_plain, signature, raw_subject, order)
             except:
                 logger.exception('Could not render HTML body')
+                from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+                log_event('mail', 'mail.template.render', OUTCOME_FAILURE, error_code='html_render', event_id=event.id if event else None, order_id=order.pk if order else None)
                 body_html = None
 
         send_task = mail_send_task.si(
@@ -536,9 +543,10 @@ def mail_send_task(
             email.attach(attach_file_name, attach_file_content, 'application/pdf')
 
         try:
-            logger.info('Try to send email to %s with subject "%s"', to, subject)
-            logger.debug('Email backend: %s', backend)
             backend.send_messages([email])
+            from eventyay.base.operational_logging import OUTCOME_SUCCESS, log_event
+
+            log_event('mail', 'mail.send', OUTCOME_SUCCESS, event_id=event.id if event else None, order_id=order.pk if order else None, mail_type='order' if order else 'transactional')
         except (
             GmailRateLimitError,
             GmailTemporaryError,
@@ -874,9 +882,5 @@ def get_mail_backend(timeout=None):
                 fail_silently=False,
                 timeout=timeout,
             )
-        logger.warning(
-            'Global SMTP %s:%s is not reachable, falling back to system email backend',
-            smtp_host,
-            smtp_port,
-        )
+        logger.warning('Global SMTP %s:%s is not reachable, falling back to system email backend', smtp_host, smtp_port)
     return get_connection(fail_silently=False, timeout=timeout)

@@ -1005,6 +1005,11 @@ LoginResult = namedtuple(
 class AuthError(Exception):
     def __init__(self, code):
         self.code = code
+        if code == 'auth.missing_token':
+            return
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, is_safe_identifier, log_event
+
+        log_event('video', 'live.auth', OUTCOME_FAILURE, error_code=code if is_safe_identifier(code) else 'auth_error')
 
 
 def login(

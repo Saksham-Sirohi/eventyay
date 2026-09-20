@@ -8,6 +8,7 @@ from django.core.mail import EmailMultiAlternatives, get_connection
 from django.core.mail.backends.smtp import EmailBackend
 
 from eventyay.base.models.event import Event
+from eventyay.base.operational_logging import OUTCOME_SUCCESS, log_event
 from eventyay.celery_app import app
 from eventyay.common.exceptions import SendMailException
 
@@ -133,6 +134,7 @@ def mail_send_task(
 
     try:
         backend.send_messages([email])
+        log_event('mail', 'mail.send', OUTCOME_SUCCESS, event_id=event.pk if event else None, mail_type='talk')
     except SMTPResponseException as exception:  # pragma: no cover
         # Retry on external problems: Connection issues (101, 111), timeouts (421), filled-up mailboxes (422),
         # out of memory (431), network issues (442), another timeout (447), or too many mails sent (452)

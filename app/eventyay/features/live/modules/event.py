@@ -1,4 +1,5 @@
 import logging
+import time
 
 from asgiref.sync import sync_to_async
 from celery.result import AsyncResult
@@ -28,8 +29,33 @@ from eventyay.features.analytics.graphs.tasks import (
 from eventyay.features.importers.tasks import conftool_update_schedule
 from eventyay.features.live.decorators import command, event, require_event_permission
 from eventyay.features.live.modules.base import BaseModule
+from eventyay.base.operational_logging import OUTCOME_FAILURE, OUTCOME_SUCCESS, is_safe_identifier, log_event
 
 logger = logging.getLogger(__name__)
+
+CLIENT_LOG_ACTIONS = frozenset(
+    {
+        'iframe.load',
+        'iframe.error',
+        'ws.connect',
+        'ws.close',
+        'ws.error',
+        'bbb.join',
+        'jitsi.join',
+        'janus.connect',
+        'janus.fail',
+        'zoom.sdk',
+        'hls.error',
+        'upload',
+        'whep.connect',
+        'interpretation.token',
+        'schedule.fav',
+        'schedule.save',
+        'schedule.fetch',
+        'stream.poll',
+        'captions.ws',
+    }
+)
 
 
 class EventModule(BaseModule):
@@ -46,6 +72,30 @@ class EventModule(BaseModule):
         )
         self.consumer.known_room_id_cache = {r["id"] for r in event_config["rooms"]}
         await self.consumer.send_json(["event.updated", event_config])
+
+    @command("client_log")
+    async def client_log(self, body):
+        if not self.consumer.user or not isinstance(body, dict):
+            await self.consumer.send_success({"ok": False})
+            return
+        now = time.monotonic()
+        recent = [stamp for stamp in getattr(self.consumer, "_client_log_times", []) if now - stamp < 60]
+        if len(recent) >= 20:
+            await self.consumer.send_success({"ok": False, "error_code": "rate_limited"})
+            return
+        recent.append(now)
+        self.consumer._client_log_times = recent
+        action = body.get("action")
+        if action not in CLIENT_LOG_ACTIONS:
+            await self.consumer.send_success({"ok": False})
+            return
+        outcome = body.get("outcome")
+        if outcome not in (OUTCOME_SUCCESS, OUTCOME_FAILURE):
+            outcome = OUTCOME_FAILURE
+        error_code = body.get("error_code")
+        backend = body.get("backend")
+        log_event("video", "client.%s" % action, outcome, error_code=error_code if is_safe_identifier(error_code) else None, backend=backend if is_safe_identifier(backend) else None, event_id=getattr(self.consumer.event, "pk", None), user_id=getattr(self.consumer.user, "pk", None))
+        await self.consumer.send_success({"ok": True})
 
     @event("schedule.update", refresh_user=True)
     async def push_schedule_update(self, body):

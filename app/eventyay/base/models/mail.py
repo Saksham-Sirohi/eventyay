@@ -224,12 +224,10 @@ class MailTemplate(PretalxModel):
             used = get_used_placeholders(self.subject) | get_used_placeholders(self.text)
             missing = used - set(context.keys())
             if missing and _should_warn_missing_placeholders(self.pk, frozenset(missing)):
-                logger.warning(
-                    'Mail template "%s" (pk=%s, role=%s) for event "%s" uses '
-                    'placeholders not available in this context: %s',
-                    self.subject, self.pk, self.role, event.slug,
-                    ', '.join(sorted(missing)),
-                )
+                from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+                log_event('mail', 'mail.template.render', OUTCOME_FAILURE, error_code='missing_placeholders', event_id=event.pk if event else None, object_id=self.pk)
+                logger.warning('Mail template (pk=%s, role=%s) uses placeholders not available in this context', self.pk, self.role)
             try:
                 subject = str(self.subject).format_map(defaultdict(str, context))
                 text = str(self.text).format_map(defaultdict(str, context))
@@ -524,7 +522,7 @@ class QueuedMail(PretalxModel):
                 'eventyay.mail.sent',
                 person=requestor,
                 orga=orga,
-                data={'to_users': [(user.pk, user.email) for user in self.to_users.all()]},
+                data={'to_user_ids': [user.pk for user in self.to_users.all()]},
             )
             self.save()
             queuedmail_post_send.send(

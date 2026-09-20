@@ -84,6 +84,7 @@ class LogMixin:
             kwargs['api_token'] = api_token
 
         # Sanitize data
+        payload = data if isinstance(data, dict) else None
         if isinstance(data, dict):
             sensitive_keys = ['password', 'secret', 'api_key']
             for sensitive in sensitive_keys:
@@ -106,6 +107,22 @@ class LogMixin:
             is_orga_action=orga,
             **kwargs,
         )
+
+        from eventyay.base.operational_logging import emit_logged_action
+
+        actor = user or person
+        try:
+            emit_logged_action(
+                action,
+                event_id=getattr(event, 'pk', None),
+                object_id=getattr(self, 'pk', None),
+                user_id=getattr(actor, 'pk', None) if actor else None,
+                is_orga_action=orga,
+                model=type(self).__name__,
+                data=payload,
+            )
+        except Exception:
+            pass
 
         if save:
             log_entry.save()

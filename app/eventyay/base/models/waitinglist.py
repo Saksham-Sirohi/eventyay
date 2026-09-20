@@ -21,7 +21,11 @@ from .product import Product, ProductVariation
 
 
 class WaitingListException(Exception):  # NOQA: N818
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('tickets', 'waitinglist.error', OUTCOME_FAILURE, error_code='waitinglist_error')
 
 
 class WaitingListEntry(LoggedModel):

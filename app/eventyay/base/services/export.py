@@ -31,7 +31,12 @@ logger = logging.getLogger(__name__)
 
 
 class ExportError(LazyLocaleException):
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('tickets', 'export.error', OUTCOME_FAILURE, error_code='export_error')
+        logger.error('Data export failed')
 
 
 @app.task(base=ProfiledEventTask, throws=(ExportError,), bind=True)

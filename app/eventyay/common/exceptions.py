@@ -1,14 +1,24 @@
+import logging
+
 from django.conf import settings
 from django.utils.functional import cached_property
 from django.utils.log import AdminEmailHandler
 from django.views.debug import ExceptionReporter
 
 class SendMailException(Exception):
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('mail', 'mail.send', OUTCOME_FAILURE, error_code='send_failed')
 
 
 class SubmissionError(Exception):
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('talk', 'submission.error', OUTCOME_FAILURE, error_code='submission_error')
 
 
 class AuthenticationFailedError(Exception):
@@ -16,7 +26,12 @@ class AuthenticationFailedError(Exception):
 
 
 class VideoIntegrationError(Exception):
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('video', 'integration.error', OUTCOME_FAILURE, error_code='video_integration')
+        logging.getLogger(__name__).error('Video integration failed')
 
 
 class PretalxExceptionReporter(ExceptionReporter):

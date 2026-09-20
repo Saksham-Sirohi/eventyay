@@ -464,6 +464,7 @@ if DEBUG and importlib.util.find_spec('debug_toolbar'):
     _LIBRARY_MIDDLEWARES += ('debug_toolbar.middleware.DebugToolbarMiddleware',)
 
 _OURS_MIDDLEWARES = (
+    'eventyay.base.middleware.CorrelationIdMiddleware',
     'eventyay.base.middleware.CustomCommonMiddleware',
     'eventyay.base.middleware.GloballyDisabledPluginMiddleware',
     'eventyay.common.middleware.SessionMiddleware',  # Add session handling
@@ -1254,15 +1255,21 @@ _LOGGING_HANDLERS = {
         'level': 'DEBUG',
         'class': 'logging.StreamHandler',
         'formatter': 'verbose',
+        'filters': ['operational_context'],
     },
     'rich': {
         'level': 'DEBUG',
         'class': 'rich.logging.RichHandler' if os.getenv('TERM') else 'logging.StreamHandler',
         'formatter': 'tiny' if os.getenv('TERM') else 'verbose',
+        'filters': ['operational_context'],
     },
 }
 _LOGGING_FORMATTERS = {
-    'verbose': {'format': '%(levelname)s %(asctime)s %(module)s: %(message)s'},
+    'verbose': {
+        '()': 'eventyay.base.operational_logging.StructuredLogFormatter',
+        'format': '%(levelname)s %(asctime)s %(name)s: %(message)s',
+        'datefmt': '%Y-%m-%dT%H:%M:%SZ',
+    },
     'tiny': {
         'format': '%(message)s',
         'datefmt': '[%X]',
@@ -1280,6 +1287,7 @@ LOGGING = {
     'formatters': _LOGGING_FORMATTERS,
     'filters': {
         'one_line_warning': {'()': 'eventyay.helpers.security.OneLineWarningFilter'},
+        'operational_context': {'()': 'eventyay.base.operational_logging.OperationalLogFilter'},
     },
     'handlers': _LOGGING_HANDLERS,
     'loggers': {

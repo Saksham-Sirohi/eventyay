@@ -6,6 +6,9 @@ class EventyayBaseConfig(AppConfig):
     label = 'base'
 
     def ready(self):
+        from .operational_logging import connect_operational_signals
+
+        connect_operational_signals()
         from . import exporter  # NOQA
         from . import payment  # NOQA
         from . import exporters  # NOQA

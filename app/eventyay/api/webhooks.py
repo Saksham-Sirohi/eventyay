@@ -267,21 +267,13 @@ def notify_webhooks(logentry_ids: list):
     _org, _at, webhooks = None, None, None
     for logentry in qs:
         if not logentry.organizer:
-            logger.debug(
-                'Skipping webhook notification for log entry %d: no organizer',
-                logentry.id,
-            )
+            logger.debug('Skipping webhook notification for log entry %d: no organizer', logentry.id)
             continue  # We need to know the organizer, skip this entry
 
         notification_type = logentry.webhook_type
 
         if not notification_type:
-            logger.debug(
-                'Skipping webhook notification for log entry %d: '
-                'no matching webhook event type for %s',
-                logentry.id,
-                logentry.action_type,
-            )
+            logger.debug('Skipping webhook notification for log entry %d: no matching webhook event type for %s', logentry.id, logentry.action_type)
             continue  # Ignore, no webhooks for this event type
 
         if _org != logentry.organizer or _at != logentry.action_type or webhooks is None:
@@ -335,10 +327,15 @@ def send_webhook(self, logentry_id: int, action_type: str, webhook_id: int):
                     response_body=resp.text[: settings.MAX_SIZE_CONFIG[SizeKey.RESPONSE_SIZE_WEBHOOK]],
                     success=200 <= resp.status_code <= 299,
                 )
+                from eventyay.base.operational_logging import OUTCOME_FAILURE, OUTCOME_SUCCESS, log_event
+
+                success = 200 <= resp.status_code <= 299
+                log_event('plugins', 'webhook.outbound', OUTCOME_SUCCESS if success else OUTCOME_FAILURE, error_code=None if success else 'http_error', webhook_id=webhook.pk, status=resp.status_code, duration_ms=int((time.time() - t) * 1000), retry_count=self.request.retries)
                 if resp.status_code == 410:
                     webhook.enabled = False
                     webhook.save()
                 elif resp.status_code > 299:
+                    logger.warning('Outbound webhook %s returned HTTP %s', webhook.pk, resp.status_code)
                     raise self.retry(
                         countdown=2 ** (self.request.retries * 2)
                     )  # max is 2 ** (8*2) = 65536 seconds = ~18 hours
@@ -353,8 +350,15 @@ def send_webhook(self, logentry_id: int, action_type: str, webhook_id: int):
                     payload=json.dumps(payload),
                     response_body=str(e)[: settings.MAX_SIZE_CONFIG[SizeKey.RESPONSE_SIZE_WEBHOOK]],
                 )
+                from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+                log_event('plugins', 'webhook.outbound', OUTCOME_FAILURE, error_code='request_error', webhook_id=webhook.pk, duration_ms=int((time.time() - t) * 1000), retry_count=self.request.retries)
+                logger.exception('Outbound webhook %s request failed', webhook.pk)
                 raise self.retry(
                     countdown=2 ** (self.request.retries * 2)
                 )  # max is 2 ** (8*2) = 65536 seconds = ~18 hours
         except MaxRetriesExceededError:
-            pass
+            from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+            log_event('plugins', 'webhook.outbound', OUTCOME_FAILURE, error_code='retries_exhausted', webhook_id=webhook.pk, retry_count=self.request.retries)
+            logger.error('Outbound webhook %s exhausted retries', webhook.pk)
