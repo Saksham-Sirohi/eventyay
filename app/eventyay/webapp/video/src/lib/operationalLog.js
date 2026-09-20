@@ -15,6 +15,7 @@ const ALLOWED_ACTIONS = new Set([
 	'whep.connect',
 	'interpretation.token',
 	'schedule.fav',
+	'schedule.save',
 	'schedule.fetch',
 	'stream.poll',
 	'captions.ws',

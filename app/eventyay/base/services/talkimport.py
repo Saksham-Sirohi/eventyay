@@ -20,6 +20,7 @@ from django.utils.translation import gettext as _
 from django_scopes import scope
 
 from eventyay.base.i18n import language
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 from eventyay.base.models import (
     Answer,
     CachedFile,
@@ -616,6 +617,7 @@ def import_speakers(self, event: Event, fileid: str, settings: dict, locale: str
     try:
         cf = CachedFile.objects.get(id=fileid)
     except CachedFile.DoesNotExist:
+        log_event('talk', 'import.error', OUTCOME_FAILURE, error_code='file_missing', event_id=getattr(event, 'pk', None))
         raise ImportExecutionError(
             _('The uploaded speaker file could not be found. Please upload it again and restart the import.')
         )
@@ -1023,6 +1025,7 @@ def import_submissions(self, event: Event, fileid: str, settings: dict, locale: 
     try:
         cf = CachedFile.objects.get(id=fileid)
     except CachedFile.DoesNotExist:
+        log_event('talk', 'import.error', OUTCOME_FAILURE, error_code='file_missing', event_id=getattr(event, 'pk', None))
         raise ImportExecutionError(
             _('The uploaded session file could not be found. Please upload it again and restart the import.')
         )

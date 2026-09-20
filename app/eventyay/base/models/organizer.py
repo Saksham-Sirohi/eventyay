@@ -184,6 +184,18 @@ class Organizer(LoggedModel, TimestampedModel, RulesModelMixin, models.Model, me
                 }
             ),
         )
+        from eventyay.base.operational_logging import emit_logged_action
+
+        try:
+            emit_logged_action(
+                'eventyay.organizer.delete',
+                object_id=self.pk,
+                user_id=getattr(person, 'pk', None),
+                is_orga_action=True,
+                model='Organizer',
+            )
+        except Exception:
+            pass
         for event in self.events.all():
             with scope(event=event):
                 event.shred(person=person)

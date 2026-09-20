@@ -266,6 +266,7 @@ class EventModule(BaseModule):
             by_user=self.consumer.user,
             long=body.get("long") or False,
         )
+        log_event('video', 'event.tokens', OUTCOME_SUCCESS, event_id=getattr(self.consumer.event, 'pk', None), user_id=getattr(self.consumer.user, 'pk', None))
         await self.consumer.send_success({"results": result})
 
     @command("auditlog.list")

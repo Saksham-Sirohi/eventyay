@@ -8,6 +8,7 @@ from django_scopes import scopes_disabled
 
 from eventyay.base.models import Event, Organizer, User
 from eventyay.base.models.log import LogEntry
+from eventyay.base.operational_logging import emit_logged_action
 from eventyay.celery_app import app
 from eventyay.core.tasks import EventTask
 
@@ -69,6 +70,16 @@ def delete_organizer_data(organizer_id: int, user_id: int | None = None) -> None
                 sort_keys=True,
             ),
         )
+        try:
+            emit_logged_action(
+                'eventyay.organizer.deleted',
+                object_id=organizer_id,
+                user_id=getattr(user, 'pk', None),
+                is_orga_action=True,
+                model='Organizer',
+            )
+        except Exception:
+            pass
     except ProtectedError as exc:
         protected_labels = ', '.join(sorted({obj._meta.label for obj in exc.protected_objects})) or 'unknown'
         organizer = Organizer.objects.filter(pk=organizer_id).first()

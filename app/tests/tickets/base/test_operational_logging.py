@@ -125,7 +125,13 @@ def test_is_tickets_action(action, expected):
         ('eventyay.user.settings.2fa.enabled', 'core'),
         ('eventyay.user.settings.changed', 'core'),
         ('eventyay.user.oauth.authorized', 'core'),
+        ('eventyay.event.meetup.created', 'tickets'),
+        ('eventyay.speaker.imported', 'talk'),
         ('eventyay.event.settings.changed', 'tickets'),
+        ('bbbserver.created', 'video'),
+        ('event.created', 'video'),
+        ('user.changed', 'core'),
+        ('eventyay.event.action_required', None),
         ('eventyay.event.update', 'talk'),
         ('eventyay.event.talk_data.update', 'talk'),
         ('eventyay.organizer.follower_notification.sent', 'mail'),
@@ -140,6 +146,17 @@ def test_is_tickets_action(action, expected):
 )
 def test_component_for_action(action, expected):
     assert component_for_action(action) is expected
+
+
+def test_user_log_action_emits_without_payload(monkeypatch, caplog):
+    from eventyay.base.models.auth import User
+
+    caplog.set_level(logging.INFO, logger='eventyay.core')
+    monkeypatch.setattr('eventyay.base.models.log.LogEntry.objects.create', lambda **kwargs: None)
+    user = User(pk=7)
+    user.log_action('eventyay.user.oauth.authorized', user=user, data={'application_name': 'secret-app'})
+    assert any(getattr(rec, 'action', None) == 'eventyay.user.oauth.authorized' for rec in caplog.records)
+    assert all('secret-app' not in rec.getMessage() for rec in caplog.records)
 
 
 def test_sanitize_correlation_id_rejects_unsafe_values():

@@ -812,6 +812,20 @@ class User(
             data=data,
             is_orga_action=orga,
         )
+        from eventyay.base.operational_logging import emit_logged_action
+
+        actor = user or person or self
+        try:
+            emit_logged_action(
+                action,
+                object_id=getattr(self, 'pk', None),
+                user_id=getattr(actor, 'pk', None),
+                is_orga_action=orga,
+                model='User',
+                data=data,
+            )
+        except Exception:
+            pass
 
     def logged_actions(self):
         """Returns all log entries that were made about this user."""

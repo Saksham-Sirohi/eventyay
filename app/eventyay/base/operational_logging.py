@@ -111,6 +111,7 @@ TICKETS_ACTION_PREFIXES: Final[tuple[str, ...]] = (
     'eventyay.event.settings.changed',
     'eventyay.event.deleted',
     'pretix.event.deleted',
+    'eventyay.event.meetup',
     'eventyay.property',
     'pretix.property',
     'eventyay.subevent',
@@ -146,6 +147,7 @@ TALK_ACTION_PREFIXES: Final[tuple[str, ...]] = (
     'eventyay.user.password',
     'eventyay.user.token',
     'eventyay.cfp',
+    'eventyay.speaker',
     'eventyay.event.update',
     'eventyay.event.talk_data',
 )
@@ -154,6 +156,17 @@ VIDEO_ACTION_PREFIXES: Final[tuple[str, ...]] = (
     'eventyay.room',
     'eventyay.video',
     'eventyay.bbb',
+    'bbbserver',
+    'janusserver',
+    'jitsiserver',
+    'turnserver',
+    'loungemeshserver',
+    'event.adminaccess',
+    'event.created',
+    'event.updated',
+    'event.cleared',
+    'event.room',
+    'event.tokens',
 )
 
 MAIL_ACTION_PREFIXES: Final[tuple[str, ...]] = (
@@ -187,6 +200,8 @@ CORE_ACTION_PREFIXES: Final[tuple[str, ...]] = (
     'eventyay.user.oauth',
     'eventyay.organizer',
     'pretix.organizer',
+    'user.changed',
+    'profile.changed',
 )
 
 AREA_PREFIXES: Final[dict[str, tuple[str, ...]]] = {
@@ -221,6 +236,7 @@ ACTION_SKIP_EXACT: Final[frozenset[str]] = frozenset(
         'pretix.device.updated',
         'eventyay.event.settings',
         'pretix.event.settings',
+        'eventyay.event.action_required',
     }
 )
 
