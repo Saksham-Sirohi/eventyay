@@ -14,10 +14,13 @@ const ALLOWED_ACTIONS = new Set([
 	'upload',
 	'whep.connect',
 	'interpretation.token',
+	'interpretation.config',
 	'schedule.fav',
 	'schedule.save',
 	'schedule.fetch',
 	'stream.poll',
+	'stream.schedule',
+	'bbb.recordings',
 	'captions.ws',
 ])
 

@@ -207,7 +207,9 @@ Every HTTP route is covered by ``CorrelationIdMiddleware`` (first in
 lines for 401, 403, and 5xx (including load-shedding 503). Successful
 2xx/4xx page views are not logged. Live WebSocket connect/abnormal close
 and ``ConsumerException`` cover video commands; mutating APIs go through
-``log_action`` prefixes or choke-point ``log_event`` calls.
+``log_action`` prefixes, video ``AuditLog.save``, or choke-point ``log_event``
+calls. Video ``AuditLog`` rows are mirrored without copying ``data`` (chat
+message edits and profile dumps stay out of the process log).
 
 Levels: ``INFO`` for successful lifecycle transitions, ``WARNING`` for
 expected business failures, ``ERROR`` (via ``logger.exception``) only for
@@ -216,31 +218,53 @@ unexpected faults.
 Skipped to keep volume low: scanner heartbeat ``eventyay.device.updated``,
 generic ``eventyay.event.settings`` saves, organizer/order comments (not
 submission review comments), successful HTTP 2xx/4xx (except 401/403),
-and health-check **success** (probes). Page views and join/leave chat are
-not mirrored.
+and health-check **success** (probes). Page views, join/leave chat, chat
+message edits, and attendee profile dumps are not mirrored.
 
 Areas:
 
 - **tickets**: attendee cart/checkout/order/payment/refund, products,
   quotas, vouchers, waiting list, check-in, devices/gates, payment-provider
-  config, ticket/badge PDF layouts.
+  config, ticket/badge PDF layouts, lock timeouts/release, geocoding request
+  failures (no address text), EU VIES VAT lookup unavailability (no VAT ID),
+  ticket PDF generate failures (order code only), API quota-exceeded, and
+  data-shred failures.
 - **talk**: speaker/attendee CfP and submissions, reviews, schedule
   publish, tracks, access codes, organizer event/talk-data updates,
   public schedule and schedule-editor HTTP failures (status only, no
-  JSON/PII).
-- **video**: room lifecycle (via ``log_action``), live WebSocket connect/abnormal
+  JSON/PII), invalid API tokens, Etherpad pad create and misconfiguration,
+  Etherpad pad create and misconfiguration,
+  talk-schedule widget fetch failures (no URL), and speaker-import avatar
+  download failures (no URL).
+- **video**: room lifecycle and moderation (via ``AuditLog`` types such as
+  ``event.room.*`` and ``auth.user.banned``), live WebSocket connect/abnormal
   close, BBB HTTP get/post (no response bodies or join URLs), Janus WebSocket
   connect, WHEP connect, interpretation listener-token, chat webhook
-  delivery, Etherpad pad create, and browser-reported failures
-  (iframe/HLS/BBB/Jitsi/Janus/Zoom/schedule fav) via ``event.client_log``.
+  delivery, live JWT/kiosk auth failures, ticket/agenda video-join
+  denials (misconfigured vs not allowed), Zoom SDK token encode, link-preview
+  fetch 5xx, BBB cost-query failures (server id only), BBB recording XML parse
+  failures (no server URL), live ``server.fatal`` WebSocket crashes, media/schedule
+  upload rejections (error code only), stream schedule save/delete/fetch failures,
+  and browser-reported failures (iframe/HLS/BBB/Jitsi/Janus/Zoom/schedule fav)
+  via ``event.client_log``.
 - **mail**: order-email actions, queued mail sent, organizer follower
-  notifications, send success/failure without recipient addresses or
-  subjects/bodies.
+  notifications, Gmail OAuth connect/callback/revoke (no tokens or
+  addresses), CID image fetch 5xx, Gmail API send errors (rate/daily/permanent,
+  no recipients), admin/central mail-test failures (no addresses), contact-form
+  and sendmail test-send failures, send success/failure without recipient
+  addresses or subjects/bodies.
 - **plugins**: plugin enable/disable, outbound webhook status/duration
-  (no URL/body), inbound Stripe signature validation outcome only.
+  (no URL/body), inbound Stripe signature validation, billing Stripe API
+  errors (no card or customer payloads), meetup RSVP Stripe confirm/refund
+  (order code only), bank-import parse and lock-timeout retries.
 - **core**: request 401/403/5xx (route name, status, duration), control and
-  common login without credentials, team/invite/clone/2FA, Celery job
-  failure (task name, not args).
+  common login without credentials, social-login provider errors, failed 2FA
+  (WebAuthn/U2F/TOTP, user id only), Turnstile misconfig/network (not user captcha
+  fails), ECB rates, OAuth application create failures (no secrets or redirect
+  URIs), update-check and
+  telemetry HTTP failures, team/invite/clone/2FA, NanoCDN storage HTTP
+  failures (no object names), external image import download failures (no
+  URL), Celery job failure (task name, not args).
 
 Production format (console handler ``verbose``)::
 
@@ -295,3 +319,9 @@ Examples (PII-free)::
     INFO 2026-09-20T16:16:10Z eventyay.talk: talk.eventyay.event.update success datetime=2026-09-20T16:16:10Z component=talk outcome=success action=eventyay.event.update event_id=12 is_orga_action=True request_id=req-7f3a9c
 
     WARNING 2026-09-20T16:17:00Z eventyay.talk: talk.schedule.save failure datetime=2026-09-20T16:17:00Z component=talk outcome=failure action=schedule.save error_code=http_error backend=schedule_editor status=500
+
+    INFO 2026-09-20T16:18:00Z eventyay.video: video.auth.user.banned success datetime=2026-09-20T16:18:00Z component=video outcome=success action=auth.user.banned event_id=12 user_id=9 object_id=u1 model=AuditLog request_id=req-7f3a9c
+
+    WARNING 2026-09-20T16:18:10Z eventyay.tickets: tickets.lock.timeout failure datetime=2026-09-20T16:18:10Z component=tickets outcome=failure action=lock.timeout error_code=lock_timeout request_id=req-7f3a9c
+
+    WARNING 2026-09-20T16:18:20Z eventyay.video: video.upload failure datetime=2026-09-20T16:18:20Z component=video outcome=failure action=upload error_code=file.type event_id=12 request_id=req-7f3a9c

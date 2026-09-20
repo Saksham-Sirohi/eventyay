@@ -22,7 +22,11 @@ class SubmissionError(Exception):
 
 
 class AuthenticationFailedError(Exception):
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('talk', 'auth.token', OUTCOME_FAILURE, error_code='invalid_token')
 
 
 class VideoIntegrationError(Exception):

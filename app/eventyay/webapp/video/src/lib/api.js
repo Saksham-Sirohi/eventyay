@@ -81,6 +81,14 @@ export function initApi({ store, token, clientId, inviteToken }) {
 		if (csrf) {
 			request.setRequestHeader('X-CSRFToken', csrf)
 		}
+		request.addEventListener('load', () => {
+			if (request.status < 200 || request.status >= 300) {
+				logOperational({action: 'upload', outcome: 'failure', backend: 'live', error_code: 'upload_failed', status: request.status})
+			}
+		})
+		request.addEventListener('error', () => {
+			logOperational({action: 'upload', outcome: 'failure', backend: 'live', error_code: 'network_error'})
+		})
 		request.send(data)
 		return request
 	}

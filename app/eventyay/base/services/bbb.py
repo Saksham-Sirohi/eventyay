@@ -566,5 +566,13 @@ class BBBService:
                 recordings.extend(server_recordings)
                 successful_request = True
             except Exception:
-                logger.exception("Could not fetch recordings from server %s", server)
+                log_event(
+                    'video',
+                    'connection.get',
+                    OUTCOME_FAILURE,
+                    error_code='parse_error',
+                    backend='bbb',
+                    event_id=getattr(self.event, 'pk', None),
+                )
+                logger.exception('Could not fetch recordings from BBB server')
         return recordings if successful_request else None

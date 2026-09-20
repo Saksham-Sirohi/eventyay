@@ -753,7 +753,8 @@ def _set_external_avatar_url(user: User, avatar_url: str) -> list[str]:
         if not content:
             raise ValueError('Empty response body')
     except (requests.exceptions.RequestException, ValueError):
-        logger.warning('Could not download avatar for user %s from %s', user.pk, avatar_url)
+        log_event('talk', 'connection.get', OUTCOME_FAILURE, error_code='avatar_download', backend='talkimport')
+        logger.warning('Could not download avatar for user %s', user.pk)
         # Fall back: store the external URL in profile so it can still be displayed
         profile = dict(user.profile or {})
         avatar = profile.get('avatar')

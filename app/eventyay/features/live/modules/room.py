@@ -17,7 +17,7 @@ from django.utils.timezone import now
 from requests import RequestException
 from sentry_sdk import add_breadcrumb, configure_scope
 
-from eventyay.base.operational_logging import OUTCOME_FAILURE, OUTCOME_SUCCESS, log_event
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 from eventyay.base.models.room import AnonymousInvite, RoomConfigSerializer
 from eventyay.base.services.event import (
     create_room,
@@ -522,7 +522,6 @@ class RoomModule(BaseModule):
                 code=f"room.invalid.{e.code}", message=str(e)
             )
         else:
-            log_event('video', 'room.create', OUTCOME_SUCCESS, event_id=getattr(self.consumer.event, 'pk', None), object_id=room.get('room') if isinstance(room, dict) else getattr(room, 'pk', None))
             await self.consumer.send_success(room)
 
     @event("reaction")
@@ -710,6 +709,13 @@ class RoomModule(BaseModule):
                 except ConsumerException:
                     raise
                 except Exception:
+                    log_event(
+                        'video',
+                        'connection.webhook',
+                        OUTCOME_FAILURE,
+                        error_code='verification_error',
+                        event_id=getattr(self.consumer.event, 'pk', None),
+                    )
                     logger.exception("Webhook challenge verification failed")
                     await self.consumer.send_error(
                         code="webhook.verification_failed"
@@ -769,7 +775,6 @@ class RoomModule(BaseModule):
             message = e.messages[0] if getattr(e, 'messages', None) else str(e)
             await self.consumer.send_error(code='room.delete.linked_sessions', message=message)
             return
-        log_event('video', 'room.delete', OUTCOME_SUCCESS, event_id=getattr(self.consumer.event, 'pk', None), object_id=getattr(self.room, 'pk', None))
         await self.consumer.send_success()
         await get_channel_layer().group_send(
             f"event.{self.consumer.event.id}",

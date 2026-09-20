@@ -142,6 +142,12 @@ def test_is_tickets_action(action, expected):
         ('eventyay.device.updated', None),
         ('eventyay.event.settings', None),
         ('eventyay.event.order.comment', None),
+        ('auth.user.banned', 'video'),
+        ('auth.user.deleted', 'video'),
+        ('event.room.added', 'video'),
+        ('event.tokens.generate', 'video'),
+        ('chat.event.updated', None),
+        ('auth.user.profile.changed', None),
     ],
 )
 def test_component_for_action(action, expected):
@@ -157,6 +163,131 @@ def test_user_log_action_emits_without_payload(monkeypatch, caplog):
     user.log_action('eventyay.user.oauth.authorized', user=user, data={'application_name': 'secret-app'})
     assert any(getattr(rec, 'action', None) == 'eventyay.user.oauth.authorized' for rec in caplog.records)
     assert all('secret-app' not in rec.getMessage() for rec in caplog.records)
+
+
+def test_audit_log_save_emits_without_payload(monkeypatch, caplog):
+    from eventyay.base.models.audit import AuditLog
+
+    caplog.set_level(logging.INFO, logger='eventyay.video')
+
+    def fake_save(self, *args, **kwargs):
+        self.pk = 1
+
+    monkeypatch.setattr('django.db.models.base.Model.save', fake_save)
+    AuditLog(event_id=3, user_id=9, type='auth.user.banned', data={'object': 'u1', 'reason': 'secret-reason'}).save()
+    assert any(getattr(rec, 'action', None) == 'auth.user.banned' for rec in caplog.records)
+    assert all('secret-reason' not in rec.getMessage() for rec in caplog.records)
+
+    caplog.clear()
+    AuditLog(event_id=3, user_id=9, type='chat.event.updated', data={'old': 'private chat text'}).save()
+    assert not any(getattr(rec, 'action', None) == 'chat.event.updated' for rec in caplog.records)
+
+
+def test_lock_timeout_and_shred_log_without_message(caplog):
+    from eventyay.base.services.locking import LockTimeoutException
+    from eventyay.base.shredder import ShredError
+
+    caplog.set_level(logging.WARNING, logger='eventyay.tickets')
+    LockTimeoutException()
+    assert any(getattr(rec, 'action', None) == 'lock.timeout' for rec in caplog.records)
+
+    caplog.clear()
+    ShredError('The slug you entered was not correct.')
+    assert any(getattr(rec, 'action', None) == 'shred.error' for rec in caplog.records)
+    assert all('slug' not in rec.getMessage() for rec in caplog.records)
+
+
+def test_upload_rejected_logs_error_code_only(caplog):
+    from eventyay.storage.views import upload_rejected
+
+    caplog.set_level(logging.WARNING, logger='eventyay.video')
+    response = upload_rejected(type('E', (), {'pk': 12})(), 'file.type')
+    assert response.status_code == 400
+    assert any(getattr(rec, 'error_code', None) == 'file.type' for rec in caplog.records)
+
+
+def test_lock_release_and_etherpad_config_log_without_message(caplog):
+    from eventyay.base.services.etherpad import EtherpadConfigurationError
+    from eventyay.base.services.locking import LockReleaseException
+
+    caplog.set_level(logging.WARNING, logger='eventyay.tickets')
+    LockReleaseException('Lock is not owned by this thread')
+    assert any(getattr(rec, 'action', None) == 'lock.release' for rec in caplog.records)
+    assert all('thread' not in rec.getMessage() for rec in caplog.records)
+
+    caplog.clear()
+    caplog.set_level(logging.WARNING, logger='eventyay.talk')
+    EtherpadConfigurationError('No Etherpad instance URL is configured.')
+    assert any(getattr(rec, 'error_code', None) == 'not_configured' for rec in caplog.records)
+    assert all('URL' not in rec.getMessage() for rec in caplog.records)
+
+
+def test_quota_exceeded_logs_without_detail(caplog):
+    from eventyay.api.views.order import QuotaExceededAPIException
+
+    caplog.set_level(logging.WARNING, logger='eventyay.tickets')
+    QuotaExceededAPIException()
+    assert any(getattr(rec, 'action', None) == 'quota.exceeded' for rec in caplog.records)
+
+
+def test_geocode_address_logs_request_error(monkeypatch, caplog):
+    import requests
+
+    from eventyay.base.services import geo as geo_mod
+
+    caplog.set_level(logging.WARNING, logger='eventyay.tickets')
+    monkeypatch.setattr(geo_mod, 'clean_address_query', lambda q: 'x')
+    monkeypatch.setattr(geo_mod, '_geocode_cache_key', lambda q: 'k')
+    monkeypatch.setattr(geo_mod.cache, 'get', lambda key: None)
+    monkeypatch.setattr(geo_mod, 'geocoding_is_available', lambda: True)
+    monkeypatch.setattr(geo_mod, 'GlobalSettingsObject', lambda: type('GS', (), {'settings': None})())
+
+    def boom(query, gs):
+        raise requests.RequestException('upstream down')
+
+    monkeypatch.setattr(geo_mod, '_geocode_with_configured_providers', boom)
+    try:
+        geo_mod.geocode_address('ignored')
+    except requests.RequestException:
+        pass
+    assert any(getattr(rec, 'action', None) == 'connection.geocode' for rec in caplog.records)
+    assert all('ignored' not in rec.getMessage() for rec in caplog.records)
+
+
+def test_vat_connection_log_omits_vat_id_and_country(caplog):
+    caplog.set_level(logging.WARNING, logger='eventyay.tickets')
+    log_event(
+        'tickets',
+        'connection.vat',
+        OUTCOME_FAILURE,
+        error_code='vies_unavailable',
+        backend='vies',
+        vat_id='DE123456789',
+        country='DE',
+    )
+    assert any(getattr(rec, 'action', None) == 'connection.vat' for rec in caplog.records)
+    assert any(getattr(rec, 'backend', None) == 'vies' for rec in caplog.records)
+    assert 'DE123456789' not in caplog.text
+    assert not any(getattr(rec, 'vat_id', None) for rec in caplog.records)
+
+
+def test_auth_2fa_failure_logs_user_id_only(caplog):
+    caplog.set_level(logging.WARNING, logger='eventyay.core')
+    log_event('core', 'auth.login', OUTCOME_FAILURE, error_code='2fa_failed', user_id=9, email='secret@example.com')
+    rec = next(r for r in caplog.records if getattr(r, 'error_code', None) == '2fa_failed')
+    assert rec.user_id == 9
+    assert 'secret@example.com' not in caplog.text
+
+
+def test_gmail_errors_log_without_message_text(caplog):
+    from eventyay.base.gmail.errors import GmailRateLimitError
+
+    caplog.set_level(logging.WARNING, logger='eventyay.mail')
+    with pytest.raises(GmailRateLimitError):
+        raise GmailRateLimitError('quota exceeded for user@example.com')
+    rec = next(r for r in caplog.records if getattr(r, 'error_code', None) == 'gmail_rate_limit')
+    assert rec.action == 'mail.send'
+    assert 'user@example.com' not in rec.getMessage()
 
 
 def test_sanitize_correlation_id_rejects_unsafe_values():
@@ -572,6 +703,15 @@ def test_log_event_does_not_raise_when_logger_fails(monkeypatch):
 
     monkeypatch.setattr(logging.Logger, 'log', boom)
     log_event('tickets', 'probe', OUTCOME_SUCCESS, event_id=1)
+
+
+def test_client_log_allowlist_accepts_frontend_actions():
+    from eventyay.features.live.modules.event import CLIENT_LOG_ACTIONS
+
+    assert 'bbb.recordings' in CLIENT_LOG_ACTIONS
+    assert 'interpretation.config' in CLIENT_LOG_ACTIONS
+    assert 'stream.schedule' in CLIENT_LOG_ACTIONS
+    assert 'upload' in CLIENT_LOG_ACTIONS
 
 
 def test_correlation_middleware_returns_response_if_logging_fails(monkeypatch):

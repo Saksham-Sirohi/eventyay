@@ -50,6 +50,7 @@ from eventyay.base.models import (
     OrderPosition,
     User,
 )
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 from eventyay.base.services.invoices import invoice_pdf_task
 from eventyay.base.services.tasks import TransactionAwareTask
 from eventyay.base.services.tickets import get_tickets_for_order
@@ -817,7 +818,21 @@ def convert_image_to_cid(image_src: str, cid_id: str, verify_ssl: bool = True) -
         path = urlparse(image_src).path
         guess_subtype = os.path.splitext(path)[1][1:]
 
-        response = requests.get(image_src, verify=verify_ssl)
+        try:
+            response = requests.get(image_src, verify=verify_ssl)
+        except requests.RequestException:
+            log_event('mail', 'connection.get', OUTCOME_FAILURE, error_code='request_error', backend='cid_image')
+            return None
+        if response.status_code >= 500:
+            log_event(
+                'mail',
+                'connection.get',
+                OUTCOME_FAILURE,
+                error_code='http_error',
+                status=response.status_code,
+                backend='cid_image',
+            )
+            return None
         mime_image = MIMEImage(response.content, _subtype=guess_subtype)
 
     mime_image.add_header('Content-ID', f'<{cid_id}>')

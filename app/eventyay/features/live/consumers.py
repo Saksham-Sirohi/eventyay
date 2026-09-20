@@ -244,6 +244,13 @@ class MainConsumer(AsyncJsonWebsocketConsumer):
             if settings.SENTRY_DSN:
                 capture_exception(e)
             logger.exception("Encountered exception, close socket.")
+            log_event(
+                'video',
+                'live.command',
+                OUTCOME_FAILURE,
+                error_code='server_fatal',
+                event_id=getattr(self.event, 'pk', None),
+            )
             self.content = []
             await self.send_error(code="server.fatal", message="Fatal Server Error")
             await asyncio.sleep(0.5)

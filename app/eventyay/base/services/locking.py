@@ -42,11 +42,19 @@ class LockManager:
 
 
 class LockTimeoutException(Exception):  # NOQA: N818
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('tickets', 'lock.timeout', OUTCOME_FAILURE, error_code='lock_timeout')
 
 
 class LockReleaseException(Exception):  # NOQA: N818
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('tickets', 'lock.release', OUTCOME_FAILURE, error_code='lock_release')
 
 
 def lock_event(event, blocking=False, blocking_timeout=None):

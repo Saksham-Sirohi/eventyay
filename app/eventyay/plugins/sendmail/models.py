@@ -14,6 +14,7 @@ from eventyay.base.models.auth import User
 from eventyay.base.models.event import Event
 from eventyay.base.models.orders import InvoiceAddress, Order, OrderPosition
 from eventyay.base.i18n import LazyI18nString
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 from eventyay.base.services.mail import mail, SendMailException as MailTransportError
 from eventyay.common.exceptions import SendMailException
 
@@ -401,7 +402,8 @@ class EmailQueue(models.Model):
             recipient.sent = False
             recipient.error = f"Internal error: {str(e)}"
             recipient.save(update_fields=["sent", "error"])
-            logger.exception("Unexpected error while sending to %s", email)
+            log_event('mail', 'mail.send', OUTCOME_FAILURE, error_code='queue_failed', event_id=getattr(self.event, 'pk', None))
+            logger.exception('Unexpected error while sending queued mail')
 
         return True
 

@@ -42,6 +42,7 @@ from eventyay.common.views.mixins import (
 )
 from eventyay.orga.forms.schedule import ScheduleReleaseForm
 from eventyay.schedule.forms import QuickScheduleForm, RoomForm
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 from eventyay.base.services.event import notify_event_change
 from eventyay.base.services.room import soft_delete_room
 from eventyay.talk_rules.tracks import apply_track_limit_to_slots, filter_schedule_talk_data, get_allowed_tracks
@@ -102,6 +103,7 @@ class ScheduleExportDownloadView(EventPermissionRequired, View):
             zip_path = get_export_zip_path(self.request.event)
             response = FileResponse(open(zip_path, 'rb'), as_attachment=True)
         except Exception as e:
+            log_event('talk', 'export.error', OUTCOME_FAILURE, error_code='zip_missing', event_id=getattr(self.request.event, 'pk', None))
             messages.error(
                 request,
                 _('Could not find the current export, please try to regenerate it. ({error})').format(error=str(e)),
@@ -207,13 +209,12 @@ class ScheduleToggleView(EventPermissionRequired, View):
                 },
                 ignore_result=True,
             )
-        except (TaskError, ConnectionError) as e:
-            logger.warning(
-                "Unexpected error when trying to trigger schedule's state to external system: %s",
-                e,
-            )
-        except Exception as e:
-            logger.error('Unexpected error in task: %s', e)
+        except (TaskError, ConnectionError):
+            log_event('talk', 'connection.schedule_public', OUTCOME_FAILURE, error_code='enqueue_failed', event_id=getattr(self.request.event, 'pk', None), backend='tickets_api')
+            logger.warning('Could not enqueue schedule visibility sync')
+        except Exception:
+            log_event('talk', 'connection.schedule_public', OUTCOME_FAILURE, error_code='enqueue_failed', event_id=getattr(self.request.event, 'pk', None), backend='tickets_api')
+            logger.exception('Unexpected error enqueueing schedule visibility sync')
         return redirect(self.request.event.orga_urls.schedule)
 
 

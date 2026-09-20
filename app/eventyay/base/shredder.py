@@ -32,7 +32,11 @@ from eventyay.helpers.json import CustomJSONEncoder
 
 
 class ShredError(LazyLocaleException):
-    pass
+    def __init__(self, *args):
+        super().__init__(*args)
+        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+        log_event('tickets', 'shred.error', OUTCOME_FAILURE, error_code='shred_error')
 
 
 def shred_constraints(event: Event):

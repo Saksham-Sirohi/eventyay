@@ -167,6 +167,7 @@ VIDEO_ACTION_PREFIXES: Final[tuple[str, ...]] = (
     'event.cleared',
     'event.room',
     'event.tokens',
+    'auth.user',
 )
 
 MAIL_ACTION_PREFIXES: Final[tuple[str, ...]] = (
@@ -229,6 +230,8 @@ ACTION_SKIP_SUBSTRINGS: Final[tuple[str, ...]] = (
     'pretix.event.comment',
     'eventyay.organizer.settings',
     'pretix.organizer.settings',
+    'chat.event',
+    'auth.user.profile',
 )
 ACTION_SKIP_EXACT: Final[frozenset[str]] = frozenset(
     {

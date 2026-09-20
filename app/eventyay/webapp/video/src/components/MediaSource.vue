@@ -26,6 +26,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useStore } from 'vuex';
 import { isEqual } from 'lodash';
 import api from 'lib/api';
+import {logOperational} from 'lib/operationalLog';
 import { normalizeYoutubeVideoId } from 'lib/validators';
 import { isDomainBlocked, getUrlDomain } from 'lib/iframeConsent';
 import IframeBlocker from 'components/IframeBlocker';
@@ -765,6 +766,7 @@ async function initializeIframe(mute, skipConsentCheck = false) {
 	if (iframeInitInProgress) return;
 	iframeInitInProgress = true;
 	iframeError.value = null;
+	let backend = 'iframe';
 	try {
 		let iframeUrl;
 		let hideIfBackground = false;
@@ -782,6 +784,7 @@ async function initializeIframe(mute, skipConsentCheck = false) {
 
 		switch (effectiveModuleType) {
 			case 'call.zoom': {
+				backend = 'zoom';
 				({ url: iframeUrl } = await api.call('zoom.room_url', {
 					room: props.room.id,
 				}));
@@ -789,6 +792,7 @@ async function initializeIframe(mute, skipConsentCheck = false) {
 				break;
 			}
 			case 'call.loungemesh': {
+				backend = 'loungemesh';
 				({ url: iframeUrl } = await api.call('loungemesh.room_url', {
 					room: props.room.id,
 				}));
@@ -936,6 +940,12 @@ async function initializeIframe(mute, skipConsentCheck = false) {
 		}
 	} catch (error) {
 		iframeError.value = error;
+		logOperational({
+			action: backend === 'zoom' ? 'zoom.sdk' : 'iframe.error',
+			outcome: 'failure',
+			backend,
+			error_code: 'room_url_failed',
+		});
 	} finally {
 		iframeInitInProgress = false;
 	}

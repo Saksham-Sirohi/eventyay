@@ -49,10 +49,13 @@ CLIENT_LOG_ACTIONS = frozenset(
         'upload',
         'whep.connect',
         'interpretation.token',
+        'interpretation.config',
         'schedule.fav',
         'schedule.save',
         'schedule.fetch',
         'stream.poll',
+        'stream.schedule',
+        'bbb.recordings',
         'captions.ws',
     }
 )
@@ -239,7 +242,6 @@ class EventModule(BaseModule):
                 old_data=old,
             )
             await self.consumer.send_success(new)
-            log_event('video', 'event.config', OUTCOME_SUCCESS, event_id=getattr(self.consumer.event, 'pk', None), user_id=getattr(self.consumer.user, 'pk', None))
             await notify_event_change(self.consumer.event.id)
 
             if "conftool_url" in body:
@@ -266,7 +268,6 @@ class EventModule(BaseModule):
             by_user=self.consumer.user,
             long=body.get("long") or False,
         )
-        log_event('video', 'event.tokens', OUTCOME_SUCCESS, event_id=getattr(self.consumer.event, 'pk', None), user_id=getattr(self.consumer.user, 'pk', None))
         await self.consumer.send_success({"results": result})
 
     @command("auditlog.list")

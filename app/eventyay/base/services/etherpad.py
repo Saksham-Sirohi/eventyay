@@ -49,6 +49,10 @@ class EtherpadError(Exception):
 class EtherpadConfigurationError(EtherpadError):
     """Raised when the Etherpad integration is not configured correctly."""
 
+    def __init__(self, *args):
+        super().__init__(*args)
+        log_event('talk', 'connection.create_pad', OUTCOME_FAILURE, error_code='not_configured', backend='etherpad')
+
 
 def validate_etherpad_url(value):
     """Validate that ``value`` is a usable http(s) Etherpad base/instance URL.
