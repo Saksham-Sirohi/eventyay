@@ -108,6 +108,7 @@ TICKETS_ACTION_PREFIXES: Final[tuple[str, ...]] = (
     'pretix.event.added',
     'eventyay.event.changed',
     'pretix.event.changed',
+    'eventyay.event.settings.changed',
     'eventyay.event.deleted',
     'pretix.event.deleted',
     'eventyay.property',
@@ -182,6 +183,8 @@ CORE_ACTION_PREFIXES: Final[tuple[str, ...]] = (
     'eventyay.user.anonymized',
     'eventyay.user.settings.2fa',
     'eventyay.user.settings.notifications',
+    'eventyay.user.settings',
+    'eventyay.user.oauth',
     'eventyay.organizer',
     'pretix.organizer',
 )

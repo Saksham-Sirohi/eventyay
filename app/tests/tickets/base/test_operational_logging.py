@@ -123,6 +123,9 @@ def test_is_tickets_action(action, expected):
         ('eventyay.invite.accepted', 'core'),
         ('eventyay.object.cloned', 'core'),
         ('eventyay.user.settings.2fa.enabled', 'core'),
+        ('eventyay.user.settings.changed', 'core'),
+        ('eventyay.user.oauth.authorized', 'core'),
+        ('eventyay.event.settings.changed', 'tickets'),
         ('eventyay.event.update', 'talk'),
         ('eventyay.event.talk_data.update', 'talk'),
         ('eventyay.organizer.follower_notification.sent', 'mail'),
@@ -206,6 +209,20 @@ def test_correlation_middleware_logs_failures_only(caplog):
     middleware = CorrelationIdMiddleware(lambda request: HttpResponse('ok'))
     middleware(factory.get('/control/orders/'))
     assert not any(getattr(rec, 'component', None) == 'core' for rec in caplog.records)
+
+
+def test_correlation_middleware_is_first_in_stack():
+    from django.conf import settings
+
+    assert settings.MIDDLEWARE[0] == 'eventyay.base.middleware.CorrelationIdMiddleware'
+
+
+def test_correlation_middleware_logs_server_errors(caplog):
+    caplog.set_level(logging.WARNING, logger='eventyay.core')
+    factory = RequestFactory()
+    middleware = CorrelationIdMiddleware(lambda request: HttpResponse('busy', status=503))
+    middleware(factory.get('/control/orders/'))
+    assert any(getattr(rec, 'action', None) == 'request.error' and getattr(rec, 'status', None) == 503 for rec in caplog.records)
 
 
 def test_cart_error_logs_failure_without_payload(caplog):

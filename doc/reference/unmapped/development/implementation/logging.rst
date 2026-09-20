@@ -201,6 +201,14 @@ request/response bodies. ``log_action`` ``data`` payloads are never copied
 to the process log. Only allowlisted keys such as ``provider`` (payment
 provider identifier) and numeric IDs are promoted onto the log line.
 
+Every HTTP route is covered by ``CorrelationIdMiddleware`` (first in
+``MIDDLEWARE``): correlation IDs on all requests, and structured
+``core.auth.denied`` / ``core.permission.denied`` / ``core.request.error``
+lines for 401, 403, and 5xx (including load-shedding 503). Successful
+2xx/4xx page views are not logged. Live WebSocket connect/abnormal close
+and ``ConsumerException`` cover video commands; mutating APIs go through
+``log_action`` prefixes or choke-point ``log_event`` calls.
+
 Levels: ``INFO`` for successful lifecycle transitions, ``WARNING`` for
 expected business failures, ``ERROR`` (via ``logger.exception``) only for
 unexpected faults.

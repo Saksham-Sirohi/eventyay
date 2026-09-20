@@ -153,6 +153,7 @@ class EventModule(BaseModule):
         # Reject in-video role/trait editing so the Teams dashboard stays authoritative.
         blocked = [key for key in ("roles", "trait_grants") if key in body]
         if blocked:
+            log_event('video', 'event.config', OUTCOME_FAILURE, error_code='permission_managed_externally', event_id=getattr(self.consumer.event, 'pk', None), user_id=getattr(self.consumer.user, 'pk', None))
             await self.consumer.send_error(
                 code="config.permission_managed_externally",
                 details={
@@ -238,6 +239,7 @@ class EventModule(BaseModule):
                 old_data=old,
             )
             await self.consumer.send_success(new)
+            log_event('video', 'event.config', OUTCOME_SUCCESS, event_id=getattr(self.consumer.event, 'pk', None), user_id=getattr(self.consumer.user, 'pk', None))
             await notify_event_change(self.consumer.event.id)
 
             if "conftool_url" in body:
@@ -247,6 +249,7 @@ class EventModule(BaseModule):
             if old["pretalx"] != new["pretalx"]:
                 await notify_schedule_change(event_id=self.consumer.event.id)
         else:
+            log_event('video', 'event.config', OUTCOME_FAILURE, error_code='config_invalid', event_id=getattr(self.consumer.event, 'pk', None), user_id=getattr(self.consumer.user, 'pk', None))
             await self.consumer.send_error(
                 code="config.invalid",
                 details=s.errors,

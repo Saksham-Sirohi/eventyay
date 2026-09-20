@@ -464,7 +464,6 @@ if DEBUG and importlib.util.find_spec('debug_toolbar'):
     _LIBRARY_MIDDLEWARES += ('debug_toolbar.middleware.DebugToolbarMiddleware',)
 
 _OURS_MIDDLEWARES = (
-    'eventyay.base.middleware.CorrelationIdMiddleware',
     'eventyay.base.middleware.CustomCommonMiddleware',
     'eventyay.base.middleware.GloballyDisabledPluginMiddleware',
     'eventyay.common.middleware.SessionMiddleware',  # Add session handling
@@ -486,7 +485,9 @@ _OURS_MIDDLEWARES = (
     'eventyay.api.middleware.ApiScopeMiddleware',
 )
 
-MIDDLEWARE = _LIBRARY_MIDDLEWARES + _OURS_MIDDLEWARES
+# Correlation IDs must wrap the whole stack so 401/403/5xx from later
+# middleware (including load-shedding 503) still emit operational logs.
+MIDDLEWARE = ('eventyay.base.middleware.CorrelationIdMiddleware',) + _LIBRARY_MIDDLEWARES + _OURS_MIDDLEWARES
 
 
 _CORE_TEMPLATE_LOADERS = (
