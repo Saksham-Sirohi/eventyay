@@ -115,6 +115,16 @@ def warm_schedule_caches(*, schedule_pk: int):
                     schedule.pk,
                     lang_code,
                 )
+            try:
+                activate(lang_code)
+                get_or_build_landing_featured_widget_schedule(schedule.event, AnonymousUser())
+                get_or_build_speakers_list_meta(schedule.event)
+            except Exception:
+                LOGGER.exception(
+                    'Failed to warm landing/speakers caches for schedule %s (language=%s)',
+                    schedule.pk,
+                    lang_code,
+                )
 
         try:
             for lang_code, _name in settings.LANGUAGES:
@@ -122,11 +132,5 @@ def warm_schedule_caches(*, schedule_pk: int):
                 build_public_schedule_exporters(schedule.event, version=schedule.version)
         except Exception:
             LOGGER.exception('Failed to warm exporters cache for schedule %s', schedule.pk)
-
-        try:
-            get_or_build_landing_featured_widget_schedule(schedule.event, AnonymousUser())
-            get_or_build_speakers_list_meta(schedule.event)
-        except Exception:
-            LOGGER.exception('Failed to warm landing/speakers caches for schedule %s', schedule.pk)
 
     LOGGER.info('Pre-warmed schedule caches for schedule pk=%s version=%s', schedule.pk, schedule.version)

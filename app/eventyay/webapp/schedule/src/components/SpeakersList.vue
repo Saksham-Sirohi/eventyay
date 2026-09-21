@@ -264,6 +264,7 @@ export default {
 			selectedLanguages: [],
 			selectedTracks: [],
 			metaData: null,
+			filtersReady: false,
 		}
 	},
 	mounted() {
@@ -293,6 +294,7 @@ export default {
 		if (!this.usesLocalSpeakers) {
 			this.fetchSpeakers({page: this.currentPage})
 		}
+		this.filtersReady = true
 	},
 	watch: {
 		featuredSortAvailable(available) {
@@ -301,18 +303,18 @@ export default {
 			}
 		},
 		searchQuery() {
-			if (this.usesLocalSpeakers) return
+			if (!this.filtersReady || this.usesLocalSpeakers) return
 			if (this.searchTimeout) clearTimeout(this.searchTimeout)
 			this.searchTimeout = setTimeout(() => {
 				this.updateUrlAndFetch({page: 1})
 			}, 300)
 		},
 		selectedLanguages() {
-			if (this.usesLocalSpeakers) return
+			if (!this.filtersReady || this.usesLocalSpeakers) return
 			this.updateUrlAndFetch({page: 1})
 		},
 		selectedTracks() {
-			if (this.usesLocalSpeakers) return
+			if (!this.filtersReady || this.usesLocalSpeakers) return
 			this.updateUrlAndFetch({page: 1})
 		}
 	},

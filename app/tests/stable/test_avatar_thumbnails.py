@@ -64,6 +64,30 @@ def test_enqueue_missing_avatar_thumbnails_rate_limits():
         delay.assert_called_once_with([1, 2, 3])
 
 
+def test_needs_avatar_thumbnails_requires_both_sizes():
+    user = _user_with_avatar(tiny_name='avatars/ab/speaker_thumbnail_tiny.jpg')
+    assert needs_avatar_thumbnails(
+        user,
+        {'avatar_thumbnail_tiny': '/tiny.jpg', 'avatar_thumbnail_default': None},
+    )
+    assert not needs_avatar_thumbnails(
+        user,
+        {'avatar_thumbnail_tiny': '/tiny.jpg', 'avatar_thumbnail_default': '/default.jpg'},
+    )
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+def test_enqueue_missing_avatar_thumbnails_dispatches_all_batches():
+    cache.clear()
+    ids = list(range(1, 402))
+    with patch('eventyay.person.tasks.ensure_avatar_thumbnails.delay') as delay:
+        enqueue_missing_avatar_thumbnails(12, ids)
+        assert delay.call_count == 3
+        assert delay.call_args_list[0].args[0] == list(range(1, 201))
+        assert delay.call_args_list[1].args[0] == list(range(201, 401))
+        assert delay.call_args_list[2].args[0] == [401]
+
+
 @override_settings(CACHES=LOCMEM_CACHE)
 def test_enqueue_missing_avatar_thumbnails_skips_empty():
     cache.clear()

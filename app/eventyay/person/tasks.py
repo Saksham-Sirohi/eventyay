@@ -5,6 +5,7 @@ from django.core.files import File
 from django.core.files.temp import NamedTemporaryFile
 from django.dispatch import receiver
 from django.utils.timezone import now
+from django_scopes import scopes_disabled
 from PIL import UnidentifiedImageError
 from requests import get
 
@@ -81,13 +82,14 @@ AVATAR_THUMB_BATCH = 200
 
 def enqueue_missing_avatar_thumbnails(event_id, user_ids):
     """Queue missing avatar thumbs off the request path, at most once per minute per event."""
-    ids = [int(pk) for pk in user_ids if pk]
+    ids = list(dict.fromkeys(int(pk) for pk in user_ids if pk))
     if not event_id or not ids:
         return
     lock_key = f'eagenda:enqueue-avatar-thumbs:{event_id}'
     if not cache.add(lock_key, 1, AVATAR_THUMB_ENQUEUE_TTL):
         return
-    ensure_avatar_thumbnails.delay(ids[:AVATAR_THUMB_BATCH])
+    for offset in range(0, len(ids), AVATAR_THUMB_BATCH):
+        ensure_avatar_thumbnails.delay(ids[offset : offset + AVATAR_THUMB_BATCH])
 
 
 @app.task(name='eventyay.person.ensure_avatar_thumbnails')
@@ -120,11 +122,12 @@ def ensure_avatar_thumbnails(user_ids):
             if thumbnail:
                 created = True
     if created:
-        event_ids = (
-            SpeakerProfile.objects.filter(user_id__in=ids)
-            .values_list('event_id', flat=True)
-            .distinct()
-        )
+        with scopes_disabled():
+            event_ids = list(
+                SpeakerProfile.objects.filter(user_id__in=ids)
+                .values_list('event_id', flat=True)
+                .distinct()
+            )
         for event_id in event_ids:
             bump_schedule_cache_version_on_commit(event_id)
 

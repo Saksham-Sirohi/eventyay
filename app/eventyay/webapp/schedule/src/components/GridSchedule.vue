@@ -20,7 +20,7 @@
 			.now(v-if="nowSlice", ref="now", :class="{'on-daybreak': nowSlice.onDaybreak}", :style="{'grid-area': `${nowSlice.slice.name} / 1 / auto / auto`, '--offset': nowSlice.offset}")
 				svg(viewBox="0 0 10 10", :title="nowHoverTime")
 					path(d="M 0 0 L 10 5 L 0 10 z")
-			template(v-for="session of sessions")
+			template(v-for="session of gridSessions")
 				component(
 					:is="SessionComponent",
 					v-if="isProperSession(session)",
@@ -207,8 +207,18 @@ export default {
 			const zonedNow = this.now.clone().tz(this.timezone)
 			return this.hasAmPm ? zonedNow.format('h:mm A') : zonedNow.format('HH:mm')
 		},
+		gridSessions () {
+			if (this.isShiftMode || !this.currentDay) return this.sessions
+			const day = this.currentDay
+			const tz = this.timezone
+			return this.sessions.filter(session => {
+				if (!session.start) return false
+				const start = session.start.clone ? session.start.clone() : moment(session.start)
+				return (tz ? start.tz(tz) : start).format('YYYY-MM-DD') === day
+			})
+		},
 		hasSessionsWithoutRoom () {
-			return this.sessions.some(s => !s.room)
+			return this.gridSessions.some(s => !s.room)
 		},
 		printRoomChunks () {
 			const chunkSize = 4
@@ -268,7 +278,7 @@ export default {
 				halfHourSlices.forEach(slice => pushSlice(slice, {hasSession, hasBreak}))
 				pushSlice(lastSlice)
 			}
-			for (const session of this.sessions) {
+			for (const session of this.gridSessions) {
 				const lastSlice = slices[slices.length - 1]
 				// gap to last slice
 				if (!lastSlice) {

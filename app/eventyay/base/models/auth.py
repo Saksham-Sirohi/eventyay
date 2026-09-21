@@ -98,7 +98,9 @@ def list_avatar_urls(user, event=None, *, include=True) -> dict:
 def needs_avatar_thumbnails(user, avatar_payload=None) -> bool:
     if not user.has_avatar:
         return False
-    if avatar_payload and avatar_payload.get('avatar_thumbnail_tiny'):
+    if avatar_payload and avatar_payload.get('avatar_thumbnail_tiny') and avatar_payload.get(
+        'avatar_thumbnail_default'
+    ):
         return False
     return not is_svg_filename(getattr(user.avatar, 'name', '') or '')
 
