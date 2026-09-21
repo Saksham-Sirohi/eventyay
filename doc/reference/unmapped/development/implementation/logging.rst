@@ -261,7 +261,7 @@ Areas:
   (order code only), bank-import parse and lock-timeout retries.
 - **core**: ``request.start`` and ``request.end`` (route when resolved, status,
   duration), 401/403/5xx, control and common login without credentials,
-  Celery ``job.enqueue`` / ``job.start`` / ``job.finish`` / ``job.fail``
+  Celery ``job.enqueue`` / ``job.start`` / ``job.finish`` / ``job.retry`` / ``job.fail``
   (task name and id, not args), config load (no setting values),
   DB/cache/redis/queue health failures (one structured ``logger.exception``
   line with extras), social-login provider errors,

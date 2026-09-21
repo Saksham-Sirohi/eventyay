@@ -39,8 +39,11 @@ def bind_operational_job_id(sender=None, task_id=None, **kwargs):
 
 @task_postrun.connect(weak=False)
 def reset_operational_job_id(sender=None, task_id=None, state=None, **kwargs):
-    if state != 'FAILURE':
-        log_event('core', 'job.finish', OUTCOME_SUCCESS, job_name=getattr(sender, 'name', None), job_id=task_id, job_state=state)
+    job_name = getattr(sender, 'name', None)
+    if state == 'SUCCESS':
+        log_event('core', 'job.finish', OUTCOME_SUCCESS, job_name=job_name, job_id=task_id, job_state=state)
+    elif state == 'RETRY':
+        log_event('core', 'job.retry', OUTCOME_FAILURE, error_code='retry', job_name=job_name, job_id=task_id)
     reset_job_id()
 
 

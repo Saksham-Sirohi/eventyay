@@ -765,8 +765,9 @@ def test_job_lifecycle_and_config_loaded_are_structured(caplog):
     log_event('core', 'job.enqueue', OUTCOME_SUCCESS, job_name='eventyay.mail.send', job_id='abc')
     log_event('core', 'job.start', OUTCOME_SUCCESS, job_name='eventyay.mail.send', job_id='abc')
     log_event('core', 'job.finish', OUTCOME_SUCCESS, job_name='eventyay.mail.send', job_id='abc', job_state='SUCCESS')
+    log_event('core', 'job.retry', OUTCOME_FAILURE, error_code='retry', job_name='eventyay.mail.send', job_id='abc')
     log_event('core', 'config.loaded', OUTCOME_SUCCESS)
-    assert {getattr(rec, 'action', None) for rec in caplog.records} >= {'job.enqueue', 'job.start', 'job.finish', 'config.loaded'}
+    assert {getattr(rec, 'action', None) for rec in caplog.records} >= {'job.enqueue', 'job.start', 'job.finish', 'job.retry', 'config.loaded'}
 
 
 def test_correlation_middleware_returns_response_if_logging_fails(monkeypatch):
