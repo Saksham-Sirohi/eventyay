@@ -2,7 +2,7 @@ import logging
 import os
 
 from celery import Celery
-from celery.signals import task_failure, task_postrun, task_prerun, task_sent
+from celery.signals import after_task_publish, task_failure, task_postrun, task_prerun
 
 os.environ.setdefault('EVY_RUNNING_ENVIRONMENT', 'development')
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'eventyay.config.settings')
@@ -24,7 +24,7 @@ app.config_from_object('django.conf:settings', namespace='CELERY')
 app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
 
 
-@task_sent.connect(weak=False)
+@after_task_publish.connect(weak=False)
 def log_operational_job_enqueue(sender=None, headers=None, **kwargs):
     task_id = (headers or {}).get('id')
     log_event('core', 'job.enqueue', OUTCOME_SUCCESS, job_name=sender, job_id=task_id)
