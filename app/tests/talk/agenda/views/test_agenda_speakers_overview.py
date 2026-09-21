@@ -3,12 +3,13 @@ from unittest.mock import patch
 
 import pytest
 from django.core.cache import cache
+from django.test import RequestFactory
 from django.test.utils import override_settings
 from django_scopes import scope
 from i18nfield.strings import LazyI18nString
 
 from eventyay.agenda.views.speaker import SpeakerList
-from eventyay.agenda.views.utils import matching_content_locales
+from eventyay.agenda.views.utils import matching_content_locales, speakers_list_query_digest
 from eventyay.base.models import SpeakerProfile, SpeakerSocialLink, Submission
 from eventyay.base.services.stale_cache import bump_schedule_cache_version
 
@@ -38,6 +39,19 @@ def _speakers_json(client, event, **params):
 def test_matching_content_locales_normalizes_region():
     assert set(matching_content_locales(['en'], ['en-us', 'de'])) == {'en', 'en-us'}
     assert set(matching_content_locales(['en-US'], ['en', 'en-us', 'de'])) == {'en-US', 'en', 'en-us'}
+
+
+def test_speakers_list_query_digest_keeps_scalar_and_multi_value_semantics():
+    factory = RequestFactory()
+    last_b = factory.get('/speakers/', {'q': ['a', 'b']})
+    last_a = factory.get('/speakers/', {'q': ['b', 'a']})
+    comma = factory.get('/speakers/', {'q': 'a,b'})
+    assert speakers_list_query_digest(last_b) != speakers_list_query_digest(last_a)
+    assert speakers_list_query_digest(comma) != speakers_list_query_digest(last_b)
+
+    tracks_ab = factory.get('/speakers/', {'track': ['1', '2']})
+    tracks_ba = factory.get('/speakers/', {'track': ['2', '1']})
+    assert speakers_list_query_digest(tracks_ab) == speakers_list_query_digest(tracks_ba)
 
 
 @pytest.mark.django_db

@@ -67,6 +67,7 @@ CACHE_TTL = 600
 LANDING_FEATURED_SPEAKERS_LIMIT = 12
 EMPTY_LANDING_FEATURED_WIDGET = {'speakers': [], 'talks': [], 'tracks': [], 'rooms': []}
 SPEAKERS_LIST_JSON_QUERY_KEYS = ('page', 'q', 'sort', 'track', 'language', 'featured')
+SPEAKERS_LIST_MULTI_QUERY_KEYS = frozenset({'track', 'language'})
 
 MAX_CALENDAR_REDIRECT_URL_LENGTH = 3000
 
@@ -93,12 +94,16 @@ def landing_featured_widget_cache_key(event, *, limit: int = LANDING_FEATURED_SP
 def speakers_list_query_digest(request: HttpRequest) -> str:
     parts = []
     for key in SPEAKERS_LIST_JSON_QUERY_KEYS:
-        values = sorted(str(value) for value in request.GET.getlist(key) if value)
+        if key in SPEAKERS_LIST_MULTI_QUERY_KEYS:
+            values = sorted(str(value) for value in request.GET.getlist(key) if value)
+        else:
+            value = request.GET.get(key)
+            values = [str(value)] if value else []
         if key == 'page':
             values = [value for value in values if value != '1']
         if values:
-            parts.append(f'{key}={",".join(values)}')
-    raw = '|'.join(parts) or 'default'
+            parts.append((key, values))
+    raw = json.dumps(parts, separators=(',', ':')) if parts else 'default'
     return hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()
 
 
