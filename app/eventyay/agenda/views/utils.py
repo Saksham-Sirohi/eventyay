@@ -66,7 +66,7 @@ CACHE_TTL = 600
 
 LANDING_FEATURED_SPEAKERS_LIMIT = 12
 EMPTY_LANDING_FEATURED_WIDGET = {'speakers': [], 'talks': [], 'tracks': [], 'rooms': []}
-SPEAKERS_LIST_JSON_QUERY_KEYS = ('page', 'q', 'sort', 'track', 'language')
+SPEAKERS_LIST_JSON_QUERY_KEYS = ('page', 'q', 'sort', 'track', 'language', 'featured')
 
 MAX_CALENDAR_REDIRECT_URL_LENGTH = 3000
 

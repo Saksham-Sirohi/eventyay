@@ -273,6 +273,27 @@ def test_speakers_json_next_url_is_absolute(client, event, speaker, other_speake
 
 
 @pytest.mark.django_db
+def test_speakers_json_featured_only_excludes_other_speakers(client, event, speaker, other_speaker, slot):
+    _publish_speakers_page(event)
+    with scope(event=event):
+        slot.submission.speakers.add(other_speaker)
+        featured = speaker.event_profile(event)
+        featured.is_featured = True
+        featured.position = 0
+        featured.save(update_fields=['is_featured', 'position'])
+        other = other_speaker.event_profile(event)
+        other.is_featured = False
+        other.save(update_fields=['is_featured'])
+
+    payload = _speakers_json(client, event, featured='1')
+    codes = [item['code'] for item in payload['results']]
+    assert codes == [speaker.code]
+    assert payload['count'] == 1
+    all_speakers = _speakers_json(client, event)
+    assert {item['code'] for item in all_speakers['results']} == {speaker.code, other_speaker.code}
+
+
+@pytest.mark.django_db
 @override_settings(CACHES=LOCMEM_CACHE)
 def test_speakers_json_is_cached_and_stays_paginated(client, event, speaker, other_speaker, slot, monkeypatch):
     cache.clear()

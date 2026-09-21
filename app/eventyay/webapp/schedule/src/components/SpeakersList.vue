@@ -1,6 +1,7 @@
 <template lang="pug">
-.c-speakers-list(v-scrollbar.y="")
-	.speakers-toolbar(v-if="!hideToolbar")
+.c-speakers-list(v-scrollbar.y="", :class="{'is-embedded': featuredOnly}")
+	h3#featured-speakers-heading(v-if="featuredOnly") {{ t.featured_speakers }}
+	.speakers-toolbar(v-if="!hideToolbar && !featuredOnly")
 		.search-box
 			svg.search-icon(viewBox="0 0 24 24", fill="none", stroke="currentColor", stroke-width="2")
 				circle(cx="11", cy="11", r="8")
@@ -158,9 +159,9 @@
 		| {{ t.load_error }}
 	.empty(v-else-if="!isLoadingMore && !filteredSpeakers.length")
 		| {{ t.no_speakers_found }}
-	.speakers-pagination(v-if="!usesLocalSpeakers && totalPages > 0 && (totalCount || isLoadingMore)")
+	.speakers-pagination(v-if="showPagination")
 		p.page-status(v-if="pageStatusLabel") {{ pageStatusLabel }}
-		nav.page-controls(v-if="totalPages > 1", :aria-label="t.pagination")
+		nav.page-controls(v-if="resolvedTotalPages > 1", :aria-label="t.pagination")
 			button.page-btn.nav-prev(
 				type="button",
 				:disabled="currentPage <= 1 || isLoadingMore",
@@ -179,7 +180,7 @@
 			) {{ item === 'ellipsis' ? '…' : item }}
 			button.page-btn.nav-next(
 				type="button",
-				:disabled="currentPage >= totalPages || isLoadingMore",
+				:disabled="currentPage >= resolvedTotalPages || isLoadingMore",
 				:aria-label="t.next_page",
 				@click="goToPage(currentPage + 1)"
 			) {{ t.next }}
@@ -237,6 +238,10 @@ export default {
 			type: Boolean,
 			default: false
 		},
+		featuredOnly: {
+			type: Boolean,
+			default: false
+		},
 		viewMode: {
 			type: String,
 			default: 'details',
@@ -269,26 +274,28 @@ export default {
 	},
 	mounted() {
 		document.addEventListener('click', this.onOutsideClick, true)
-		const urlParams = new URLSearchParams(window.location.search)
-		if (urlParams.has('q')) {
-			this.searchQuery = urlParams.get('q')
-		}
-		if (urlParams.has('language')) {
-			this.selectedLanguages = urlParams.getAll('language')
-		}
-		if (urlParams.has('track')) {
-			this.selectedTracks = urlParams.getAll('track').map(String)
-		}
-		const pageParam = Number(urlParams.get('page'))
-		if (Number.isInteger(pageParam) && pageParam > 0) {
-			this.currentPage = pageParam
+		if (!this.featuredOnly) {
+			const urlParams = new URLSearchParams(window.location.search)
+			if (urlParams.has('q')) {
+				this.searchQuery = urlParams.get('q')
+			}
+			if (urlParams.has('language')) {
+				this.selectedLanguages = urlParams.getAll('language')
+			}
+			if (urlParams.has('track')) {
+				this.selectedTracks = urlParams.getAll('track').map(String)
+			}
+			const pageParam = Number(urlParams.get('page'))
+			if (Number.isInteger(pageParam) && pageParam > 0) {
+				this.currentPage = pageParam
+			}
 		}
 		const metaEl = document.getElementById('pretalx-speakers-meta')
 		if (metaEl) {
 			try { this.metaData = JSON.parse(metaEl.textContent) } catch (e) { /* ignore */ }
 		}
 		
-		if (!this.featuredSortAvailable && this.sortBy === 'featured') {
+		if (!this.featuredOnly && !this.featuredSortAvailable && this.sortBy === 'featured') {
 			this.sortBy = 'a-z'
 		}
 		if (!this.usesLocalSpeakers) {
@@ -298,7 +305,7 @@ export default {
 	},
 	watch: {
 		featuredSortAvailable(available) {
-			if (!available && this.sortBy === 'featured') {
+			if (!this.featuredOnly && !available && this.sortBy === 'featured') {
 				this.sortBy = 'a-z'
 			}
 		},
@@ -358,27 +365,46 @@ export default {
 				previous_page: m.previous_page || this.$t('Previous page'),
 				next_page: m.next_page || this.$t('Next page'),
 				more_pages: m.more_pages || this.$t('More pages'),
+				featured_speakers: m.featured_speakers || this.$t('Featured Speakers'),
 			}
 		},
 		usesLocalSpeakers() {
 			if (this.speakers?.length) return true
 			// Video always injects scheduleLoaded as a boolean. Agenda omits it so pagination can run.
 			if (this.scheduleData?.scheduleLoaded !== undefined) return true
+			if (this.featuredOnly) {
+				return this.scheduleData?.schedule?.speakers_list_public === false
+			}
 			if (this.scheduleData?.schedule?.speakers?.length) return true
 			return Boolean((this.scheduleData?.schedule?.talks || []).length)
 		},
+		resolvedTotalCount() {
+			if (this.featuredOnly && this.usesLocalSpeakers) return this.unpaginatedSpeakers.length
+			return this.totalCount
+		},
+		resolvedTotalPages() {
+			if (this.featuredOnly && this.usesLocalSpeakers) {
+				return Math.max(1, Math.ceil(this.resolvedTotalCount / this.pageSize) || 1)
+			}
+			return this.totalPages
+		},
+		showPagination() {
+			if (this.featuredOnly && this.usesLocalSpeakers) return this.resolvedTotalCount > 0
+			return !this.usesLocalSpeakers && (this.resolvedTotalCount || this.isLoadingMore)
+		},
 		pageStatusLabel() {
-			if (!this.totalCount || this.usesLocalSpeakers) return ''
+			if (this.usesLocalSpeakers && !this.featuredOnly) return ''
+			if (!this.resolvedTotalCount) return ''
 			const start = ((this.currentPage - 1) * this.pageSize) + 1
-			const end = Math.min(this.currentPage * this.pageSize, this.totalCount)
+			const end = Math.min(this.currentPage * this.pageSize, this.resolvedTotalCount)
 			return this.$t('Showing {{start}}–{{end}} of {{total}} speakers', {
 				start,
 				end,
-				total: this.totalCount
+				total: this.resolvedTotalCount
 			})
 		},
 		visiblePages() {
-			const total = this.totalPages
+			const total = this.resolvedTotalPages
 			const current = this.currentPage
 			if (total <= 1) return []
 			if (total <= 7) return Array.from({length: total}, (_, i) => i + 1)
@@ -518,11 +544,15 @@ export default {
 			}
 			return speakers.sort((a, b) => byName(a, b))
 		},
-		filteredSpeakers() {
+		unpaginatedSpeakers() {
 			if (this.usesLocalSpeakers) {
-				if (!this.searchQuery) return this.sortedSpeakers
+				let speakers = this.sortedSpeakers
+				if (this.featuredOnly) {
+					speakers = speakers.filter(speaker => speaker.is_featured)
+				}
+				if (!this.searchQuery) return speakers
 				const q = this.searchQuery.toLowerCase()
-				return this.sortedSpeakers.filter(speaker => {
+				return speakers.filter(speaker => {
 					const name = (speaker.name || '').toLowerCase()
 					const bio = (speaker.biography || '').toLowerCase()
 					const sessionTitles = (speaker.sessions || [])
@@ -532,6 +562,12 @@ export default {
 				})
 			}
 			return this.speakersFromApi
+		},
+		filteredSpeakers() {
+			const speakers = this.unpaginatedSpeakers
+			if (!(this.featuredOnly && this.usesLocalSpeakers)) return speakers
+			const start = (this.currentPage - 1) * this.pageSize
+			return speakers.slice(start, start + this.pageSize)
 		}
 	},
 	methods: {
@@ -558,6 +594,7 @@ export default {
 			this.fetchSpeakers({page: this.currentPage})
 		},
 		syncListUrl() {
+			if (this.featuredOnly) return
 			const url = new URL(window.location.href)
 			if (this.searchQuery) url.searchParams.set('q', this.searchQuery)
 			else url.searchParams.delete('q')
@@ -599,7 +636,12 @@ export default {
 			this.openDropdown = this.openDropdown === name ? null : name
 		},
 		goToPage(page) {
-			if (!Number.isInteger(page) || page < 1 || page > this.totalPages || page === this.currentPage) return
+			if (!Number.isInteger(page) || page < 1 || page > this.resolvedTotalPages || page === this.currentPage) return
+			if (this.usesLocalSpeakers) {
+				this.currentPage = page
+				this.$el?.scrollTo?.({top: 0})
+				return
+			}
 			this.updateUrlAndFetch({page})
 			this.$el?.scrollTo?.({top: 0})
 		},
@@ -659,7 +701,10 @@ export default {
 				baseUrl.searchParams.delete('track')
 				this.selectedTracks.forEach(track => baseUrl.searchParams.append('track', track))
 
-				if (this.sortBy && this.sortBy !== 'featured') baseUrl.searchParams.set('sort', this.sortBy)
+				if (!this.featuredOnly && this.sortBy && this.sortBy !== 'featured') {
+					baseUrl.searchParams.set('sort', this.sortBy)
+				}
+				if (this.featuredOnly) baseUrl.searchParams.set('featured', '1')
 				if (requestedPage > 1) baseUrl.searchParams.set('page', String(requestedPage))
 				const res = await fetch(baseUrl.toString(), { signal: this.fetchController.signal })
 				if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
@@ -736,6 +781,17 @@ export default {
 	flex-direction: column
 	min-height: 0
 	position: relative
+	&.is-embedded
+		overflow: visible !important
+		height: auto
+		min-height: 0
+	h3#featured-speakers-heading
+		margin-top: 0
+		font-family: inherit
+		font-size: 24px
+		font-weight: 500
+		line-height: 1.1
+		color: inherit
 	.speakers-toolbar
 		display: flex
 		align-items: center

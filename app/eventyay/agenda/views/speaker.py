@@ -143,6 +143,9 @@ class SpeakerList(EventPermissionRequired, Filterable, ListView):
             qs = qs.order_by('-user__fullname', 'pk')
         else:
             qs = qs.order_by('-is_featured', *speaker_profile_display_order())
+        featured = (self.request.GET.get('featured') or '').lower()
+        if featured in {'1', 'true', 'yes'}:
+            qs = qs.filter(is_featured=True)
         # Searching session titles joins the speakers M2M, which can duplicate rows.
         return self.filter_queryset(qs).distinct()
 

@@ -207,14 +207,41 @@ export default {
 			const zonedNow = this.now.clone().tz(this.timezone)
 			return this.hasAmPm ? zonedNow.format('h:mm A') : zonedNow.format('HH:mm')
 		},
+		sessionDayKeys () {
+			const tz = this.timezone
+			const days = []
+			const seen = new Set()
+			for (const session of this.sessions || []) {
+				if (!session.start) continue
+				const start = session.start.clone ? session.start.clone() : moment(session.start)
+				const day = (tz ? start.tz(tz) : start).format('YYYY-MM-DD')
+				if (seen.has(day)) continue
+				seen.add(day)
+				days.push(day)
+			}
+			days.sort()
+			return days
+		},
+		visibleSessionDays () {
+			const days = this.sessionDayKeys
+			if (!days.length || this.isShiftMode || !this.currentDay) return new Set(days)
+			const idx = days.indexOf(this.currentDay)
+			if (idx < 0) return new Set(days)
+			const windowDays = new Set()
+			for (let i = Math.max(0, idx - 1); i <= Math.min(days.length - 1, idx + 1); i++) {
+				windowDays.add(days[i])
+			}
+			return windowDays
+		},
 		gridSessions () {
 			if (this.isShiftMode || !this.currentDay) return this.sessions
-			const day = this.currentDay
+			const windowDays = this.visibleSessionDays
+			if (!windowDays.size) return this.sessions
 			const tz = this.timezone
 			return this.sessions.filter(session => {
 				if (!session.start) return false
 				const start = session.start.clone ? session.start.clone() : moment(session.start)
-				return (tz ? start.tz(tz) : start).format('YYYY-MM-DD') === day
+				return windowDays.has((tz ? start.tz(tz) : start).format('YYYY-MM-DD'))
 			})
 		},
 		hasSessionsWithoutRoom () {
@@ -278,7 +305,7 @@ export default {
 				halfHourSlices.forEach(slice => pushSlice(slice, {hasSession, hasBreak}))
 				pushSlice(lastSlice)
 			}
-			for (const session of this.gridSessions) {
+			for (const session of this.sessions) {
 				const lastSlice = slices[slices.length - 1]
 				// gap to last slice
 				if (!lastSlice) {
