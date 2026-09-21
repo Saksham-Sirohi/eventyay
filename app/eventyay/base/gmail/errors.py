@@ -1,3 +1,6 @@
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+
+
 class GmailEmailError(Exception):
     """Base class for Gmail API email delivery errors."""
 
@@ -5,8 +8,6 @@ class GmailEmailError(Exception):
 
     def __init__(self, *args):
         super().__init__(*args)
-        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
-
         log_event('mail', 'mail.send', OUTCOME_FAILURE, error_code=self.error_code)
 
 
@@ -32,3 +33,7 @@ class GmailPermanentError(GmailEmailError):
     """Permanent rejection that should not be retried endlessly."""
 
     error_code = 'gmail_permanent'
+
+    def __init__(self, *args):
+        Exception.__init__(self, *args)
+        log_event('mail', 'mail.bounce', OUTCOME_FAILURE, error_code=self.error_code)

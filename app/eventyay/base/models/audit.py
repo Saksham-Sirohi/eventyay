@@ -1,6 +1,8 @@
 from django.db import models
 from django.db.models import JSONField
 
+from eventyay.base.operational_logging import emit_logged_action
+
 
 class AuditLog(models.Model):
     id = models.BigAutoField(
@@ -29,8 +31,6 @@ class AuditLog(models.Model):
         super().save(*args, **kwargs)
         if not created:
             return
-        from eventyay.base.operational_logging import emit_logged_action
-
         object_id = None
         payload = self.data
         if isinstance(payload, dict):

@@ -21,6 +21,7 @@ OUTCOME_FAILURE: Final = 'failure'
 
 _request_id: ContextVar[str | None] = ContextVar('eventyay_request_id', default=None)
 _job_id: ContextVar[str | None] = ContextVar('eventyay_job_id', default=None)
+_flag_eval_seen: ContextVar[frozenset[str] | None] = ContextVar('eventyay_flag_eval', default=None)
 
 _SAFE_CORRELATION_ID = re.compile(r'^[A-Za-z0-9._-]{1,128}$')
 _SAFE_ROUTE = re.compile(r'^[A-Za-z0-9._:-]{1,128}$')
@@ -56,6 +57,10 @@ SAFE_LOG_FIELDS: Final[tuple[str, ...]] = (
     'recipient_count',
     'webhook_id',
     'backend',
+    'flag_name',
+    'occupancy',
+    'smtp_code',
+    'job_state',
 )
 
 # Keys copied from log_action data into process logs. Values must be opaque IDs
@@ -277,6 +282,7 @@ def bind_request_id(request_id: str) -> None:
 
 def reset_request_id() -> None:
     _request_id.set(None)
+    _flag_eval_seen.set(None)
 
 
 def get_request_id() -> str | None:
@@ -289,6 +295,7 @@ def bind_job_id(job_id: str) -> None:
 
 def reset_job_id() -> None:
     _job_id.set(None)
+    _flag_eval_seen.set(None)
 
 
 def get_job_id() -> str | None:
@@ -344,6 +351,36 @@ def outcome_for_action(action: str) -> str:
     return OUTCOME_SUCCESS
 
 
+def logger_extra(
+    component: str,
+    action: str,
+    outcome: str,
+    **fields: object,
+) -> dict[str, object]:
+    """Allowlisted extras for ``logging.getLogger('eventyay.<area>')``."""
+    extra = {
+        'component': component,
+        'outcome': outcome,
+        'action': action,
+        'request_id': get_request_id(),
+        'job_id': get_job_id(),
+    }
+    for key, value in fields.items():
+        if value is None or value == '':
+            continue
+        if key not in SAFE_LOG_FIELDS:
+            continue
+        if key == 'route':
+            if is_safe_route(value):
+                extra[key] = value
+            continue
+        if key in ('error_code', 'backend', 'job_name', 'mail_type', 'flag_name', 'job_state', 'model') and not is_safe_identifier(value):
+            extra[key] = 'unknown' if key == 'backend' else 'invalid'
+            continue
+        extra[key] = value
+    return extra
+
+
 def log_event(
     component: str,
     action: str,
@@ -361,42 +398,40 @@ def log_event(
     is_orga_action: bool | None = None,
     **fields: object,
 ) -> None:
-    """Allowlisted ``logger.log`` extra fields. Prefer ``logger.exception`` for stack traces."""
+    """``logger.log`` with allowlisted extra fields. Prefer ``logger.exception`` for stack traces."""
     if level is None:
         level = logging.WARNING if outcome == OUTCOME_FAILURE else logging.INFO
-    extra = {
-        'component': component,
-        'outcome': outcome,
-        'action': action,
-        'error_code': error_code,
-        'event_id': event_id,
-        'order_id': order_id,
-        'order_code': order_code,
-        'object_id': object_id,
-        'user_id': user_id,
-        'model': model,
-        'voucher_id': voucher_id,
-        'is_orga_action': True if is_orga_action else None,
-        'request_id': get_request_id(),
-        'job_id': get_job_id(),
-    }
-    for key, value in fields.items():
-        if key not in SAFE_LOG_FIELDS:
-            continue
-        if key == 'route':
-            if is_safe_route(value):
-                extra[key] = value
-            continue
-        if key == 'backend' and not is_safe_identifier(value):
-            extra[key] = 'unknown'
-            continue
-        extra[key] = value
+    extra = logger_extra(
+        component,
+        action,
+        outcome,
+        error_code=error_code,
+        event_id=event_id,
+        order_id=order_id,
+        order_code=order_code,
+        object_id=object_id,
+        user_id=user_id,
+        model=model,
+        voucher_id=voucher_id,
+        is_orga_action=True if is_orga_action else None,
+        **fields,
+    )
     logger = _LOGGERS.get(component) or logging.getLogger(f'eventyay.{component}')
     try:
-        logger.log(level, '%s.%s %s', component, action, outcome, extra=extra)
+        logger.log(level, action, extra=extra)
     except Exception:
-        # Process logging must never break checkout, mail, video, or log_action.
         return
+
+
+def log_flag_evaluation(flag_name: str, enabled: bool) -> None:
+    if enabled or not is_safe_identifier(flag_name):
+        return
+    seen = set(_flag_eval_seen.get() or ())
+    if flag_name in seen:
+        return
+    seen.add(flag_name)
+    _flag_eval_seen.set(frozenset(seen))
+    log_event('video', 'video.feature_flag', OUTCOME_FAILURE, error_code='disabled', flag_name=flag_name)
 
 
 def fields_from_action_name(action: str) -> dict[str, object]:
@@ -437,11 +472,32 @@ def emit_logged_action(
     log_event(component, action, outcome_for_action(action), event_id=event_id, object_id=object_id, user_id=user_id, is_orga_action=is_orga_action, model=model, order_id=order_id, order_code=order_code, voucher_id=voucher_id, **safe_fields)
 
 
+_SKIP_REQUEST_LOG_PREFIXES: Final[tuple[str, ...]] = (
+    '/static',
+    '/media',
+    '/jsi18n',
+)
+
+
+def log_request_start(request) -> None:
+    path = getattr(request, 'path', '') or ''
+    if any(path.startswith(prefix) for prefix in _SKIP_REQUEST_LOG_PREFIXES):
+        return
+    if path.rstrip('/') in ('/healthcheck', '/health', '/_health'):
+        return
+    match = getattr(request, 'resolver_match', None)
+    route = getattr(match, 'view_name', None) if match else None
+    log_event('core', 'request.start', OUTCOME_SUCCESS, route=route)
+
+
 def log_request_outcome(request, response) -> None:
+    path = getattr(request, 'path', '') or ''
+    if any(path.startswith(prefix) for prefix in _SKIP_REQUEST_LOG_PREFIXES):
+        return
     status = getattr(response, 'status_code', None)
     if not isinstance(status, int):
         return
-    if status < 500 and status not in (401, 403):
+    if path.rstrip('/') in ('/healthcheck', '/health', '/_health'):
         return
     started = getattr(request, '_operational_started', None)
     duration_ms = None
@@ -452,15 +508,26 @@ def log_request_outcome(request, response) -> None:
     if status >= 500:
         action = 'request.error'
         error_code = 'server_error'
+        outcome = OUTCOME_FAILURE
+        level = logging.ERROR
     elif status == 401:
         action = 'auth.denied'
         error_code = 'unauthorized'
-    else:
+        outcome = OUTCOME_FAILURE
+        level = logging.WARNING
+    elif status == 403:
         action = 'permission.denied'
         error_code = 'forbidden'
+        outcome = OUTCOME_FAILURE
+        level = logging.WARNING
+    else:
+        action = 'request.end'
+        error_code = None
+        outcome = OUTCOME_SUCCESS if status < 400 else OUTCOME_FAILURE
+        level = logging.INFO
     user = getattr(request, 'user', None)
     user_id = getattr(user, 'pk', None) if user is not None and getattr(user, 'is_authenticated', False) else None
-    log_event('core', action, OUTCOME_FAILURE, error_code=error_code, status=status, route=route, duration_ms=duration_ms, user_id=user_id)
+    log_event('core', action, outcome, level=level, error_code=error_code, status=status, route=route, duration_ms=duration_ms, user_id=user_id)
 
 
 def connect_operational_signals() -> None:

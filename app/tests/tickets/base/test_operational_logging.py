@@ -10,6 +10,7 @@ from django_scopes import scopes_disabled
 
 from eventyay.base.middleware import CorrelationIdMiddleware
 from eventyay.base.models import Event, Order, Organizer
+from eventyay.base.models.audit import AuditLog
 from eventyay.base.operational_logging import (
     OUTCOME_FAILURE,
     OUTCOME_SUCCESS,
@@ -166,8 +167,6 @@ def test_user_log_action_emits_without_payload(monkeypatch, caplog):
 
 
 def test_audit_log_save_emits_without_payload(monkeypatch, caplog):
-    from eventyay.base.models.audit import AuditLog
-
     caplog.set_level(logging.INFO, logger='eventyay.video')
 
     def fake_save(self, *args, **kwargs):
@@ -345,18 +344,20 @@ def test_correlation_middleware_sets_and_echoes_request_id():
     assert get_request_id() is None
 
 
-def test_correlation_middleware_logs_failures_only(caplog):
+def test_correlation_middleware_logs_failures_and_request_end(caplog):
     caplog.set_level(logging.INFO, logger='eventyay.core')
     factory = RequestFactory()
     middleware = CorrelationIdMiddleware(lambda request: HttpResponse('denied', status=403))
     middleware(factory.get('/control/orders/'))
+    assert any(getattr(rec, 'action', None) == 'request.start' for rec in caplog.records)
     assert any(getattr(rec, 'action', None) == 'permission.denied' for rec in caplog.records)
     assert all('email' not in rec.getMessage() for rec in caplog.records)
 
     caplog.clear()
     middleware = CorrelationIdMiddleware(lambda request: HttpResponse('ok'))
     middleware(factory.get('/control/orders/'))
-    assert not any(getattr(rec, 'component', None) == 'core' for rec in caplog.records)
+    assert any(getattr(rec, 'action', None) == 'request.start' for rec in caplog.records)
+    assert any(getattr(rec, 'action', None) == 'request.end' and getattr(rec, 'status', None) == 200 for rec in caplog.records)
 
 
 def test_correlation_middleware_is_first_in_stack():
@@ -371,6 +372,40 @@ def test_correlation_middleware_logs_server_errors(caplog):
     middleware = CorrelationIdMiddleware(lambda request: HttpResponse('busy', status=503))
     middleware(factory.get('/control/orders/'))
     assert any(getattr(rec, 'action', None) == 'request.error' and getattr(rec, 'status', None) == 503 for rec in caplog.records)
+
+
+def test_healthcheck_failure_does_not_emit_request_error(caplog):
+    caplog.set_level(logging.INFO, logger='eventyay.core')
+    factory = RequestFactory()
+    middleware = CorrelationIdMiddleware(lambda request: HttpResponse('Database not available.', status=503))
+    middleware(factory.get('/healthcheck/'))
+    actions = [getattr(rec, 'action', None) for rec in caplog.records]
+    assert 'request.start' not in actions
+    assert 'request.error' not in actions
+    assert 'request.end' not in actions
+
+
+def test_send_mail_exception_already_logged_does_not_duplicate(caplog):
+    from eventyay.base.services.mail import SendMailException
+
+    caplog.set_level(logging.INFO, logger='eventyay.mail')
+    log_event('mail', 'mail.bounce', OUTCOME_FAILURE, error_code='recipient_refused', smtp_code=550)
+    with pytest.raises(SendMailException):
+        raise SendMailException('Failed to send', already_logged=True)
+    send_failed = [
+        rec for rec in caplog.records
+        if getattr(rec, 'action', None) == 'mail.send' and getattr(rec, 'error_code', None) == 'send_failed'
+    ]
+    assert send_failed == []
+    assert any(getattr(rec, 'action', None) == 'mail.bounce' for rec in caplog.records)
+
+
+def test_log_event_scrubs_unsafe_error_code(caplog):
+    caplog.set_level(logging.WARNING, logger='eventyay.mail')
+    log_event('mail', 'mail.send', OUTCOME_FAILURE, error_code='Failed for user@example.com')
+    rec = next(r for r in caplog.records if getattr(r, 'action', None) == 'mail.send')
+    assert rec.error_code == 'invalid'
+    assert 'user@example.com' not in caplog.text
 
 
 def test_cart_error_logs_failure_without_payload(caplog):
@@ -712,6 +747,26 @@ def test_client_log_allowlist_accepts_frontend_actions():
     assert 'interpretation.config' in CLIENT_LOG_ACTIONS
     assert 'stream.schedule' in CLIENT_LOG_ACTIONS
     assert 'upload' in CLIENT_LOG_ACTIONS
+
+
+def test_mail_bounce_and_enqueue_actions_are_structured(caplog):
+    caplog.set_level(logging.INFO, logger='eventyay.mail')
+    log_event('mail', 'mail.enqueue', OUTCOME_SUCCESS, object_id=9, mail_type='submission.new')
+    log_event('mail', 'mail.bounce', OUTCOME_FAILURE, error_code='recipient_refused', smtp_code=550)
+    log_event('mail', 'mail.complaint', OUTCOME_FAILURE, error_code='policy_rejected', smtp_code=554)
+    assert any(getattr(rec, 'action', None) == 'mail.enqueue' for rec in caplog.records)
+    assert any(getattr(rec, 'action', None) == 'mail.bounce' and getattr(rec, 'smtp_code', None) == 550 for rec in caplog.records)
+    assert any(getattr(rec, 'action', None) == 'mail.complaint' and getattr(rec, 'smtp_code', None) == 554 for rec in caplog.records)
+    assert all('@' not in rec.getMessage() for rec in caplog.records)
+
+
+def test_job_lifecycle_and_config_loaded_are_structured(caplog):
+    caplog.set_level(logging.INFO, logger='eventyay.core')
+    log_event('core', 'job.enqueue', OUTCOME_SUCCESS, job_name='eventyay.mail.send', job_id='abc')
+    log_event('core', 'job.start', OUTCOME_SUCCESS, job_name='eventyay.mail.send', job_id='abc')
+    log_event('core', 'job.finish', OUTCOME_SUCCESS, job_name='eventyay.mail.send', job_id='abc', job_state='SUCCESS')
+    log_event('core', 'config.loaded', OUTCOME_SUCCESS)
+    assert {getattr(rec, 'action', None) for rec in caplog.records} >= {'job.enqueue', 'job.start', 'job.finish', 'config.loaded'}
 
 
 def test_correlation_middleware_returns_response_if_logging_fails(monkeypatch):

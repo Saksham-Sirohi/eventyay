@@ -15,6 +15,15 @@ function logOperational({action, outcome, error_code, backend}) {
     const line = parts.join(' ');
     if (outcome === 'failure') {
         console.warn('[eventyay]', line);
+        if (window.parent && window.parent !== window && action === 'zoom.sdk') {
+            window.parent.postMessage({
+                event: 'eventyay:operational',
+                action: 'zoom.sdk',
+                outcome: 'failure',
+                backend: 'zoom',
+                error_code: error_code,
+            }, '*');
+        }
     } else {
         console.info('[eventyay]', line);
     }

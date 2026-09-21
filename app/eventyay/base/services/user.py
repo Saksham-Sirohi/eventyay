@@ -22,6 +22,7 @@ from eventyay.base.models.room import AnonymousInvite
 from eventyay.base.models.event import EventView
 from eventyay.base.models.orders import Order, OrderPosition
 from eventyay.core.permissions import Permission
+from eventyay.base.operational_logging import OUTCOME_FAILURE, is_safe_identifier, log_event
 
 _WIKI_PROFILE_FIELD_KEYS = (
     "wikimedia_username",
@@ -1007,8 +1008,6 @@ class AuthError(Exception):
         self.code = code
         if code == 'auth.missing_token':
             return
-        from eventyay.base.operational_logging import OUTCOME_FAILURE, is_safe_identifier, log_event
-
         log_event('video', 'live.auth', OUTCOME_FAILURE, error_code=code if is_safe_identifier(code) else 'auth_error')
 
 

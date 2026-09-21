@@ -50,7 +50,7 @@ from eventyay.base.models import (
     OrderPosition,
     User,
 )
-from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+from eventyay.base.operational_logging import OUTCOME_FAILURE, OUTCOME_SUCCESS, log_event
 from eventyay.base.services.invoices import invoice_pdf_task
 from eventyay.base.services.tasks import TransactionAwareTask
 from eventyay.base.services.tickets import get_tickets_for_order
@@ -82,11 +82,10 @@ class TolerantDict(dict):
 
 
 class SendMailException(Exception):  # NOQA: N818
-    def __init__(self, *args):
+    def __init__(self, *args, already_logged=False):
         super().__init__(*args)
-        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
-
-        log_event('mail', 'mail.send', OUTCOME_FAILURE, error_code='send_failed')
+        if not already_logged:
+            log_event('mail', 'mail.send', OUTCOME_FAILURE, error_code='send_failed')
 
 
 def mail(
@@ -297,8 +296,6 @@ def mail(
                     body_html = renderer.render(content_plain, signature, raw_subject, order)
             except:
                 logger.exception('Could not render HTML body')
-                from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
-
                 log_event('mail', 'mail.template.render', OUTCOME_FAILURE, error_code='html_render', event_id=event.id if event else None, order_id=order.pk if order else None)
                 body_html = None
 
@@ -545,8 +542,6 @@ def mail_send_task(
 
         try:
             backend.send_messages([email])
-            from eventyay.base.operational_logging import OUTCOME_SUCCESS, log_event
-
             log_event('mail', 'mail.send', OUTCOME_SUCCESS, event_id=event.id if event else None, order_id=order.pk if order else None, mail_type='order' if order else 'transactional')
         except (
             GmailRateLimitError,
@@ -569,10 +564,10 @@ def mail_send_task(
                             'invoices': [],
                         },
                     )
-                raise SendMailException(f'Failed to send an email to {to}.') from e
+                raise SendMailException(f'Failed to send an email to {to}.', already_logged=True) from e
             raise
         except (GmailDailyLimitError, GmailPermanentError) as e:
-            logger.warning('Gmail delivery rejected without further retries: %s', e)
+            logger.warning('Gmail delivery rejected without further retries')
             if order:
                 order.log_action(
                     'eventyay.event.order.email.error',
@@ -583,7 +578,7 @@ def mail_send_task(
                         'invoices': [],
                     },
                 )
-            raise SendMailException(f'Failed to send an email to {to}.') from e
+            raise SendMailException(f'Failed to send an email to {to}.', already_logged=True) from e
         except (smtplib.SMTPResponseException, smtplib.SMTPSenderRefused) as e:
             logger.debug('Got error %s. Retry...', e)
             if e.smtp_code in (101, 111, 421, 422, 431, 442, 447, 452):
@@ -649,7 +644,12 @@ def mail_send_task(
                     },
                 )
 
-            raise SendMailException(f'Failed to send an email to {to}.')
+            bounce_code = smtp_codes[0] if smtp_codes else None
+            if bounce_code in (554, 571):
+                log_event('mail', 'mail.complaint', OUTCOME_FAILURE, error_code='policy_rejected', smtp_code=bounce_code, event_id=event.id if event else None, order_id=order.pk if order else None)
+            else:
+                log_event('mail', 'mail.bounce', OUTCOME_FAILURE, error_code='recipient_refused', smtp_code=bounce_code, event_id=event.id if event else None, order_id=order.pk if order else None)
+            raise SendMailException(f'Failed to send an email to {to}.', already_logged=True)
         except Exception as e:
             if isinstance(
                 e,
@@ -819,7 +819,7 @@ def convert_image_to_cid(image_src: str, cid_id: str, verify_ssl: bool = True) -
         guess_subtype = os.path.splitext(path)[1][1:]
 
         try:
-            response = requests.get(image_src, verify=verify_ssl)
+            response = requests.get(image_src, verify=verify_ssl, timeout=15)
         except requests.RequestException:
             log_event('mail', 'connection.get', OUTCOME_FAILURE, error_code='request_error', backend='cid_image')
             return None

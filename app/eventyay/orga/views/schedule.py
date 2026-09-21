@@ -42,7 +42,7 @@ from eventyay.common.views.mixins import (
 )
 from eventyay.orga.forms.schedule import ScheduleReleaseForm
 from eventyay.schedule.forms import QuickScheduleForm, RoomForm
-from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+from eventyay.base.operational_logging import OUTCOME_FAILURE, OUTCOME_SUCCESS, log_event
 from eventyay.base.services.event import notify_event_change
 from eventyay.base.services.room import soft_delete_room
 from eventyay.talk_rules.tracks import apply_track_limit_to_slots, filter_schedule_talk_data, get_allowed_tracks
@@ -191,6 +191,7 @@ class ScheduleToggleView(EventPermissionRequired, View):
         event.feature_flags = flags
         event.settings.talk_schedule_public = is_public
         event.save(update_fields=['feature_flags'])
+        log_event('video', 'video.feature_flag', OUTCOME_SUCCESS, event_id=event.pk, flag_name='show_schedule')
 
     def dispatch(self, request, *args, **kwargs):
         super().dispatch(request, *args, **kwargs)

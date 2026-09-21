@@ -8,6 +8,7 @@ from django_scopes import ScopedManager, scopes_disabled
 from rules.contrib.models import RulesModelBase, RulesModelMixin
 
 from eventyay.helpers.json import CustomJSONEncoder
+from eventyay.base.operational_logging import emit_logged_action
 
 SENSITIVE_KEYS = ['password', 'secret', 'api_key']
 
@@ -107,8 +108,6 @@ class LogMixin:
             is_orga_action=orga,
             **kwargs,
         )
-
-        from eventyay.base.operational_logging import emit_logged_action
 
         actor = user or person
         try:

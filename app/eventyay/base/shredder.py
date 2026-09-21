@@ -16,6 +16,7 @@ from eventyay.api.serializers.order import (
 )
 from eventyay.api.serializers.waitinglist import WaitingListSerializer
 from eventyay.base.i18n import LazyLocaleException
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 from eventyay.base.models import (
     CachedCombinedTicket,
     CachedTicket,
@@ -34,8 +35,6 @@ from eventyay.helpers.json import CustomJSONEncoder
 class ShredError(LazyLocaleException):
     def __init__(self, *args):
         super().__init__(*args)
-        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
-
         log_event('tickets', 'shred.error', OUTCOME_FAILURE, error_code='shred_error')
 
 

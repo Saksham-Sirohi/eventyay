@@ -689,6 +689,17 @@ function onWindowMessage(event) {
 
 	if (!iframeEl.value?.contentWindow || event.source !== iframeEl.value.contentWindow) return;
 
+	if (data.event === 'eventyay:operational' && data.action === 'zoom.sdk') {
+		const zoomCodes = new Set(['sdk_missing', 'join_failed', 'init_failed', 'sdk_exception']);
+		logOperational({
+			action: 'zoom.sdk',
+			outcome: data.outcome === 'success' ? 'success' : 'failure',
+			backend: 'zoom',
+			error_code: zoomCodes.has(data.error_code) ? data.error_code : 'sdk_exception',
+		});
+		return;
+	}
+
 	if (
 		data.event === 'zoom:leave' ||
 		data.action === 'leave' ||

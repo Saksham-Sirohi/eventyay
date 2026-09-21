@@ -196,6 +196,15 @@ def get_create_params_for_room(
             voice_bridge=voice_bridge,
             guest_policy=guest_policy,
         )
+        if record:
+            log_event(
+                'video',
+                'recording.start',
+                OUTCOME_SUCCESS,
+                event_id=getattr(room, 'event_id', None),
+                object_id=getattr(room, 'pk', None),
+                backend='bbb',
+            )
 
     m = [m for m in room.module_config if m["type"] == "call.bigbluebutton"][0]
     config = m["config"]
@@ -575,4 +584,13 @@ class BBBService:
                     event_id=getattr(self.event, 'pk', None),
                 )
                 logger.exception('Could not fetch recordings from BBB server')
+        if successful_request:
+            log_event(
+                'video',
+                'recording.fetch',
+                OUTCOME_SUCCESS,
+                event_id=getattr(self.event, 'pk', None),
+                object_id=getattr(room, 'pk', None),
+                backend='bbb',
+            )
         return recordings if successful_request else None

@@ -58,7 +58,9 @@ class WebSocketClient extends EventEmitter {
 			if (this._openRequests[id]) {
 				const timeoutedRequest = this._popPendingRequest(id)
 				timeoutedRequest.deferred.reject(new Error('call timed out'))
-				logOperational({action: 'ws.error', outcome: 'failure', backend: 'live', error_code: 'call_timeout'})
+				if (name !== 'event.client_log') {
+					logOperational({action: 'ws.error', outcome: 'failure', backend: 'live', error_code: 'call_timeout'})
+				}
 			}
 		}, options.timeout)
 		return promise

@@ -44,6 +44,7 @@ from eventyay.common.text.path import path_with_hash
 from eventyay.common.urls import EventUrls
 from eventyay.helpers.urls import build_absolute_uri
 from eventyay.talk_rules.person import is_administrator
+from eventyay.base.operational_logging import emit_logged_action
 
 from ...helpers.u2f import pub_key_from_der, websafe_decode
 from .base import LoggingMixin
@@ -812,8 +813,6 @@ class User(
             data=data,
             is_orga_action=orga,
         )
-        from eventyay.base.operational_logging import emit_logged_action
-
         actor = user or person or self
         try:
             emit_logged_action(

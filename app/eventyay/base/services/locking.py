@@ -8,6 +8,7 @@ from django.db import transaction
 from django.utils.timezone import now
 
 from eventyay.base.models import EventLock
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 
 logger = logging.getLogger('pretix.base.locking')
 LOCK_TIMEOUT = 120
@@ -44,16 +45,12 @@ class LockManager:
 class LockTimeoutException(Exception):  # NOQA: N818
     def __init__(self, *args):
         super().__init__(*args)
-        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
-
         log_event('tickets', 'lock.timeout', OUTCOME_FAILURE, error_code='lock_timeout')
 
 
 class LockReleaseException(Exception):  # NOQA: N818
     def __init__(self, *args):
         super().__init__(*args)
-        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
-
         log_event('tickets', 'lock.release', OUTCOME_FAILURE, error_code='lock_release')
 
 

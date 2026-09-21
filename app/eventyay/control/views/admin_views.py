@@ -56,7 +56,7 @@ from eventyay.control.forms.server_management import (
     EventForm,
 )
 from eventyay.base.models.log import LogEntry
-from eventyay.base.operational_logging import OUTCOME_FAILURE, emit_logged_action, log_event
+from eventyay.base.operational_logging import OUTCOME_FAILURE, OUTCOME_SUCCESS, emit_logged_action, log_event
 from eventyay.base.settings import (
     GlobalSettingsObject,
     SUPPORTED_VIDEO_PROVIDERS,
@@ -1023,6 +1023,14 @@ class BBBMoveRoom(AdministratorPermissionRequiredMixin, FormView):
             )
             r = requests.get(u, timeout=15)
             r.raise_for_status()
+            log_event(
+                'video',
+                'recording.stop',
+                OUTCOME_SUCCESS,
+                event_id=getattr(room, 'event_id', None),
+                object_id=getattr(room, 'pk', None),
+                backend='bbb',
+            )
         except Exception:
             log_event('video', 'connection.get', OUTCOME_FAILURE, error_code='request_error', backend='bbb')
             messages.warning(self.request, _("Kicking all attendees did not work."))

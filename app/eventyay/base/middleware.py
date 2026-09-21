@@ -23,7 +23,7 @@ from django.utils.translation.trans_real import (
 
 from eventyay.base.i18n import get_language_without_region
 from eventyay.base.models import GlobalPluginConfig
-from eventyay.base.operational_logging import bind_request_id, reset_request_id, sanitize_correlation_id
+from eventyay.base.operational_logging import bind_request_id, log_request_outcome, log_request_start, reset_request_id, sanitize_correlation_id
 from eventyay.base.settings import global_settings_object
 from eventyay.common.urls import get_url_origin
 from eventyay.multidomain.urlreverse import (
@@ -560,6 +560,10 @@ class CorrelationIdMiddleware(MiddlewareMixin):
         request.request_id = request_id
         request._operational_started = time.monotonic()
         bind_request_id(request_id)
+        try:
+            log_request_start(request)
+        except Exception:
+            pass
 
     def process_response(self, request: HttpRequest, response: HttpResponse):
         try:
@@ -569,8 +573,6 @@ class CorrelationIdMiddleware(MiddlewareMixin):
         except Exception:
             pass
         try:
-            from eventyay.base.operational_logging import log_request_outcome
-
             log_request_outcome(request, response)
         except Exception:
             pass

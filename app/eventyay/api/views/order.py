@@ -1866,8 +1866,6 @@ class QuotaExceededAPIException(APIException):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
-
         log_event('tickets', 'quota.exceeded', OUTCOME_FAILURE, error_code='quota_exceeded')
 
 

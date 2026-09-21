@@ -11,6 +11,7 @@ from phonenumber_field.modelfields import PhoneNumberField
 
 from eventyay.base.email import get_email_context
 from eventyay.base.i18n import language
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 from eventyay.base.models import Voucher
 from eventyay.base.services.mail import mail
 from eventyay.base.settings import PERSON_NAME_SCHEMES
@@ -23,8 +24,6 @@ from .product import Product, ProductVariation
 class WaitingListException(Exception):  # NOQA: N818
     def __init__(self, *args):
         super().__init__(*args)
-        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
-
         log_event('tickets', 'waitinglist.error', OUTCOME_FAILURE, error_code='waitinglist_error')
 
 

@@ -11,6 +11,7 @@ from django.utils.crypto import get_random_string
 from websockets.exceptions import WebSocketException
 
 from eventyay.base.models import JanusServer
+from eventyay.base.operational_logging import OUTCOME_FAILURE, OUTCOME_SUCCESS, log_event
 from .video_server_routing import filter_servers_for_event
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,6 @@ JANUS_RESPONSE_TIMEOUT = 10
 class JanusError(Exception):
     def __init__(self, *args):
         super().__init__(*args)
-        from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
-
         log_event('video', 'janus.connection', OUTCOME_FAILURE, error_code='janus_error')
 
 
@@ -75,8 +74,6 @@ async def _janus_websocket(server):
                 close_timeout=5,
                 ssl=ssl_context if url.startswith("wss://") else None,
             ) as websocket:
-                from eventyay.base.operational_logging import OUTCOME_SUCCESS, log_event
-
                 log_event('video', 'connection.websocket', OUTCOME_SUCCESS, backend='janus')
                 yield websocket
                 return
@@ -84,7 +81,6 @@ async def _janus_websocket(server):
             last_exception = e
             continue
 
-    logger.error('Could not connect to Janus')
     raise JanusError(f"Could not connect to Janus server {server.url}: {last_exception}") from last_exception
 
 

@@ -17,7 +17,7 @@ from django.utils.timezone import now
 from requests import RequestException
 from sentry_sdk import add_breadcrumb, configure_scope
 
-from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
+from eventyay.base.operational_logging import OUTCOME_FAILURE, OUTCOME_SUCCESS, log_event
 from eventyay.base.models.room import AnonymousInvite, RoomConfigSerializer
 from eventyay.base.services.event import (
     create_room,
@@ -379,6 +379,14 @@ class RoomModule(BaseModule):
                     is_changed = True
             if is_changed:
                 await redis.expire(f"room:approxcount:known:{room.pk}", 900)
+                log_event(
+                    'video',
+                    'room.occupancy',
+                    OUTCOME_SUCCESS,
+                    event_id=getattr(self.consumer.event, 'pk', None),
+                    object_id=room.pk,
+                    occupancy=actual_view_count,
+                )
                 await self.consumer.channel_layer.group_send(
                     GROUP_EVENT.format(id=self.consumer.event.pk),
                     {
