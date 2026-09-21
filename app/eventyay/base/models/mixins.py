@@ -159,24 +159,32 @@ class FileCleanupMixin:
 
         for field in self._file_fields:
             old_value = getattr(pre_save_instance, field)
-            if old_value:
-                new_value = getattr(self, field)
-                if new_value and old_value.path != new_value.path:
-                    # We don't want to delete the file immediately, as the save action
-                    # that triggered this task might still fail, so we schedule the
-                    # deletion for 10 seconds in the future, and pass the file field
-                    # to check if the file is still in use.
-                    from eventyay.common.tasks import task_cleanup_file
+            if not old_value:
+                continue
+            new_value = getattr(self, field)
+            old_name = getattr(old_value, 'name', None) or ''
+            new_name = getattr(new_value, 'name', None) if new_value else ''
+            if not old_name or old_name == new_name:
+                continue
+            try:
+                old_path = old_value.path
+            except (NotImplementedError, ValueError, OSError, AttributeError):
+                old_path = old_name
+            # We don't want to delete the file immediately, as the save action
+            # that triggered this task might still fail, so we schedule the
+            # deletion for 10 seconds in the future, and pass the file field
+            # to check if the file is still in use.
+            from eventyay.common.tasks import task_cleanup_file
 
-                    task_cleanup_file.apply_async(
-                        kwargs={
-                            'model': str(self._meta.model_name.capitalize()),
-                            'pk': self.pk,
-                            'field': field,
-                            'path': old_value.path,
-                        },
-                        countdown=10,
-                    )
+            task_cleanup_file.apply_async(
+                kwargs={
+                    'model': str(self._meta.model_name.capitalize()),
+                    'pk': self.pk,
+                    'field': field,
+                    'path': old_path,
+                },
+                countdown=10,
+            )
         return super().save(*args, **kwargs)
 
     def _delete_files(self):

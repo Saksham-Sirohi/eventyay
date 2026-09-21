@@ -167,6 +167,7 @@ def talk_starrers(request, event, slug, **kwargs):
                         'avatar_url': user.get_avatar_url(
                             event=request.event,
                             thumbnail='tiny',
+                            generate_missing=False,
                         ),
                         'url': f'{base_url}people/{user.code}/stars/',
                     }

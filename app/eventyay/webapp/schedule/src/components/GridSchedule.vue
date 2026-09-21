@@ -899,6 +899,10 @@ export default {
 	.rooms-inner
 		grid-template-columns: 96px repeat(var(--total-rooms), minmax(var(--room-col-min), 1fr)) auto
 
+@media (max-width: 900px)
+	.c-grid-schedule
+		--room-col-min: 260px
+
 @media (max-width: 600px)
 	.c-grid-schedule
 		--room-col-min: 240px

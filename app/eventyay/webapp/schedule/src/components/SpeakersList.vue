@@ -97,10 +97,11 @@
 		)
 			.speaker-avatar
 				img(
-					v-if="speaker.avatar_thumbnail_tiny || speaker.avatar_thumbnail_default || speaker.avatar || speaker.avatar_url",
-					:src="speaker.avatar_thumbnail_tiny || speaker.avatar_thumbnail_default || speaker.avatar || speaker.avatar_url",
+					v-if="speaker.avatar_thumbnail_tiny || speaker.avatar_thumbnail_default",
+					:src="speaker.avatar_thumbnail_tiny || speaker.avatar_thumbnail_default",
 					:alt="speaker.name",
-					loading="lazy"
+					loading="lazy",
+					decoding="async"
 				)
 				.avatar-placeholder(v-else)
 					svg(viewBox="0 0 24 24")
@@ -121,10 +122,11 @@
 					summary.featured-speaker-summary
 						.thumbnail
 							img(
-								v-if="speaker.avatar || speaker.avatar_thumbnail_default || speaker.avatar_url",
-								:src="speaker.avatar || speaker.avatar_thumbnail_default || speaker.avatar_url",
+								v-if="speaker.avatar_thumbnail_default || speaker.avatar_thumbnail_tiny",
+								:src="speaker.avatar_thumbnail_default || speaker.avatar_thumbnail_tiny",
 								:alt="speaker.name || t.speaker_fallback",
-								loading="lazy"
+								loading="lazy",
+								decoding="async"
 							)
 							.avatar-placeholder(v-else)
 								svg(viewBox="0 0 24 24")
@@ -156,9 +158,33 @@
 		| {{ t.load_error }}
 	.empty(v-else-if="!isLoadingMore && !filteredSpeakers.length")
 		| {{ t.no_speakers_found }}
-	.loading(v-if="isLoadingMore")
-		| Loading...
-	.sentinel(ref="sentinel", v-if="hasMore")
+	.speakers-pagination(v-if="!usesLocalSpeakers && totalPages > 0 && (totalCount || isLoadingMore)")
+		p.page-status(v-if="pageStatusLabel") {{ pageStatusLabel }}
+		nav.page-controls(v-if="totalPages > 1", :aria-label="t.pagination")
+			button.page-btn.nav-prev(
+				type="button",
+				:disabled="currentPage <= 1 || isLoadingMore",
+				:aria-label="t.previous_page",
+				@click="goToPage(currentPage - 1)"
+			) {{ t.previous }}
+			button.page-btn(
+				v-for="(item, idx) in visiblePages",
+				:key="`${item}-${idx}`",
+				type="button",
+				:class="{current: item === currentPage, ellipsis: item === 'ellipsis'}",
+				:disabled="item === 'ellipsis' || isLoadingMore",
+				:aria-current="item === currentPage ? 'page' : null",
+				:aria-label="pageButtonLabel(item)",
+				@click="item !== 'ellipsis' && goToPage(item)"
+			) {{ item === 'ellipsis' ? '…' : item }}
+			button.page-btn.nav-next(
+				type="button",
+				:disabled="currentPage >= totalPages || isLoadingMore",
+				:aria-label="t.next_page",
+				@click="goToPage(currentPage + 1)"
+			) {{ t.next }}
+	.loading(v-if="isLoadingMore", :class="{'is-initial': !filteredSpeakers.length}", role="status", :aria-label="t.loading")
+		bunt-progress-circular(:size="filteredSpeakers.length ? 'big' : 'huge'", :page="true")
 	.backdrop(v-if="openDropdown || mobileFiltersOpen || mobileMoreOpen", @click="closeToolbarOverlays")
 </template>
 
@@ -223,6 +249,10 @@ export default {
 			searchQuery: '',
 			speakersFromApi: [],
 			nextPageUrl: null,
+			totalCount: 0,
+			currentPage: 1,
+			totalPages: 0,
+			pageSize: 48,
 			isLoadingMore: false,
 			loadError: false,
 			searchTimeout: null,
@@ -248,6 +278,10 @@ export default {
 		if (urlParams.has('track')) {
 			this.selectedTracks = urlParams.getAll('track').map(String)
 		}
+		const pageParam = Number(urlParams.get('page'))
+		if (Number.isInteger(pageParam) && pageParam > 0) {
+			this.currentPage = pageParam
+		}
 		const metaEl = document.getElementById('pretalx-speakers-meta')
 		if (metaEl) {
 			try { this.metaData = JSON.parse(metaEl.textContent) } catch (e) { /* ignore */ }
@@ -257,16 +291,8 @@ export default {
 			this.sortBy = 'a-z'
 		}
 		if (!this.usesLocalSpeakers) {
-			this.fetchSpeakers()
+			this.fetchSpeakers({page: this.currentPage})
 		}
-
-		this.observer = new IntersectionObserver((entries) => {
-			if (entries[0].isIntersecting && this.nextPageUrl) {
-				this.fetchSpeakers(this.nextPageUrl, true)
-			}
-		})
-		const sentinel = this.$el.querySelector('.sentinel')
-		if (sentinel) this.observer.observe(sentinel)
 	},
 	watch: {
 		featuredSortAvailable(available) {
@@ -278,30 +304,21 @@ export default {
 			if (this.usesLocalSpeakers) return
 			if (this.searchTimeout) clearTimeout(this.searchTimeout)
 			this.searchTimeout = setTimeout(() => {
-				this.updateUrlAndFetch()
+				this.updateUrlAndFetch({page: 1})
 			}, 300)
 		},
 		selectedLanguages() {
 			if (this.usesLocalSpeakers) return
-			this.updateUrlAndFetch()
+			this.updateUrlAndFetch({page: 1})
 		},
 		selectedTracks() {
 			if (this.usesLocalSpeakers) return
-			this.updateUrlAndFetch()
-		},
-		nextPageUrl() {
-			if (!this.nextPageUrl) return
-			const sentinel = this.$el.querySelector('.sentinel')
-			if (sentinel && this.observer) {
-				this.observer.unobserve(sentinel)
-				this.observer.observe(sentinel)
-			}
+			this.updateUrlAndFetch({page: 1})
 		}
 	},
 	beforeUnmount() {
 		document.removeEventListener('click', this.onOutsideClick, true)
 		if (this.searchTimeout) clearTimeout(this.searchTimeout)
-		if (this.observer) this.observer.disconnect()
 	},
 	computed: {
 		speakerCodeFromAny() {
@@ -332,13 +349,47 @@ export default {
 				reset_all_filters: m.reset_all_filters || this.$t('Reset all filters'),
 				filters: m.filters || this.$t('Filters'),
 				more: m.more || this.$t('More'),
+				loading: m.loading || this.$t('Loading…'),
+				pagination: m.pagination || this.$t('Speakers pagination'),
+				previous: m.previous || this.$t('Prev'),
+				next: m.next || this.$t('Next'),
+				previous_page: m.previous_page || this.$t('Previous page'),
+				next_page: m.next_page || this.$t('Next page'),
+				more_pages: m.more_pages || this.$t('More pages'),
 			}
 		},
 		usesLocalSpeakers() {
 			if (this.speakers?.length) return true
-			if (this.scheduleData?.scheduleLoaded != null) return true
+			// Video always injects scheduleLoaded as a boolean. Agenda omits it so pagination can run.
+			if (this.scheduleData?.scheduleLoaded !== undefined) return true
 			if (this.scheduleData?.schedule?.speakers?.length) return true
 			return Boolean((this.scheduleData?.schedule?.talks || []).length)
+		},
+		pageStatusLabel() {
+			if (!this.totalCount || this.usesLocalSpeakers) return ''
+			const start = ((this.currentPage - 1) * this.pageSize) + 1
+			const end = Math.min(this.currentPage * this.pageSize, this.totalCount)
+			return this.$t('Showing {{start}}–{{end}} of {{total}} speakers', {
+				start,
+				end,
+				total: this.totalCount
+			})
+		},
+		visiblePages() {
+			const total = this.totalPages
+			const current = this.currentPage
+			if (total <= 1) return []
+			if (total <= 7) return Array.from({length: total}, (_, i) => i + 1)
+			const wanted = new Set([1, total, current, current - 1, current + 1])
+			const pages = [...wanted].filter(page => page >= 1 && page <= total).sort((a, b) => a - b)
+			const items = []
+			let last = 0
+			for (const page of pages) {
+				if (last && page - last > 1) items.push('ellipsis')
+				items.push(page)
+				last = page
+			}
+			return items
 		},
 		availableLanguages() {
 			if (this.metaData?.content_locales?.length) {
@@ -479,9 +530,6 @@ export default {
 				})
 			}
 			return this.speakersFromApi
-		},
-		hasMore() {
-			return this.usesLocalSpeakers ? false : !!this.nextPageUrl
 		}
 	},
 	methods: {
@@ -500,20 +548,32 @@ export default {
 			if (path.includes(this.$el)) return
 			this.closeToolbarOverlays()
 		},
-		updateUrlAndFetch() {
+		updateUrlAndFetch({page} = {}) {
 			if (this.usesLocalSpeakers) return
+			if (page) this.currentPage = page
+			else this.currentPage = 1
+			this.syncListUrl()
+			this.fetchSpeakers({page: this.currentPage})
+		},
+		syncListUrl() {
 			const url = new URL(window.location.href)
 			if (this.searchQuery) url.searchParams.set('q', this.searchQuery)
 			else url.searchParams.delete('q')
-			
+
 			url.searchParams.delete('language')
 			this.selectedLanguages.forEach(lang => url.searchParams.append('language', lang))
-			
+
 			url.searchParams.delete('track')
 			this.selectedTracks.forEach(track => url.searchParams.append('track', track))
-			
+
+			if (this.currentPage > 1) url.searchParams.set('page', String(this.currentPage))
+			else url.searchParams.delete('page')
+
 			window.history.replaceState({}, '', url)
-			this.fetchSpeakers()
+		},
+		pageButtonLabel(item) {
+			if (item === 'ellipsis') return this.t.more_pages
+			return this.$t('Page {{page}}', {page: item})
 		},
 		formatLanguageLabel(code) {
 			if (!code) return ''
@@ -531,10 +591,15 @@ export default {
 			this.selectedTracks = []
 			this.sortBy = this.featuredSortAvailable ? 'featured' : 'a-z'
 			this.openDropdown = null
-			if (!this.usesLocalSpeakers) this.fetchSpeakers()
+			if (!this.usesLocalSpeakers) this.updateUrlAndFetch({page: 1})
 		},
 		toggleDropdown(name) {
 			this.openDropdown = this.openDropdown === name ? null : name
+		},
+		goToPage(page) {
+			if (!Number.isInteger(page) || page < 1 || page > this.totalPages || page === this.currentPage) return
+			this.updateUrlAndFetch({page})
+			this.$el?.scrollTo?.({top: 0})
 		},
 		closeToolbarOverlays() {
 			this.openDropdown = null
@@ -568,9 +633,8 @@ export default {
 		onSessionClick(event, session) {
 			this.onSessionLinkClick(event, session)
 		},
-		async fetchSpeakers(url = null, append = false) {
+		async fetchSpeakers({page} = {}) {
 			if (this.usesLocalSpeakers) return
-			if (this.isLoadingMore && append) return
 			this.isLoadingMore = true
 			this.loadError = false
 
@@ -580,31 +644,33 @@ export default {
 			this.fetchController = new AbortController()
 
 			try {
-				if (!url) {
-					const base = (this.eventUrl || '').replace(/\/?$/, '/')
-					const baseApi = base ? `${base}speakers/` : window.location.href
-					const baseUrl = new URL(baseApi, window.location.origin)
-					baseUrl.searchParams.set('format', 'json')
-					if (this.searchQuery) baseUrl.searchParams.set('q', this.searchQuery)
-					
-					baseUrl.searchParams.delete('language')
-					this.selectedLanguages.forEach(lang => baseUrl.searchParams.append('language', lang))
-					
-					baseUrl.searchParams.delete('track')
-					this.selectedTracks.forEach(track => baseUrl.searchParams.append('track', track))
+				const requestedPage = page || this.currentPage || 1
+				const base = (this.eventUrl || '').replace(/\/?$/, '/')
+				const baseApi = base ? `${base}speakers/` : window.location.href
+				const baseUrl = new URL(baseApi, window.location.origin)
+				baseUrl.searchParams.set('format', 'json')
+				if (this.searchQuery) baseUrl.searchParams.set('q', this.searchQuery)
 
-					if (this.sortBy && this.sortBy !== 'featured') baseUrl.searchParams.set('sort', this.sortBy)
-					url = baseUrl.toString()
-				}
-				const res = await fetch(url, { signal: this.fetchController.signal })
+				baseUrl.searchParams.delete('language')
+				this.selectedLanguages.forEach(lang => baseUrl.searchParams.append('language', lang))
+
+				baseUrl.searchParams.delete('track')
+				this.selectedTracks.forEach(track => baseUrl.searchParams.append('track', track))
+
+				if (this.sortBy && this.sortBy !== 'featured') baseUrl.searchParams.set('sort', this.sortBy)
+				if (requestedPage > 1) baseUrl.searchParams.set('page', String(requestedPage))
+				const res = await fetch(baseUrl.toString(), { signal: this.fetchController.signal })
 				if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`)
 				const data = await res.json()
-				this.speakersFromApi = append ? this.speakersFromApi.concat(data.results) : data.results
-				const base = (this.eventUrl || '').replace(/\/?$/, '/')
-				const baseUrl = new URL(base || window.location.href, window.location.origin)
-				this.nextPageUrl = data.next
-					? new URL(data.next, baseUrl).toString()
-					: null
+				this.speakersFromApi = data.results || []
+				if (typeof data.count === 'number') this.totalCount = data.count
+				this.currentPage = typeof data.page === 'number' ? data.page : requestedPage
+				if (typeof data.page_size === 'number' && data.page_size > 0) this.pageSize = data.page_size
+				if (typeof data.num_pages === 'number') this.totalPages = data.num_pages
+				else this.totalPages = this.totalCount && this.pageSize
+					? Math.max(1, Math.ceil(this.totalCount / this.pageSize))
+					: 1
+				this.nextPageUrl = data.next || null
 			} catch (e) {
 				if (e.name !== 'AbortError') {
 					console.error('Failed to load speakers', e)
@@ -652,7 +718,7 @@ export default {
 		setSort(value) {
 			this.sortBy = value
 			this.openDropdown = null
-			if (!this.usesLocalSpeakers) this.fetchSpeakers()
+			if (!this.usesLocalSpeakers) this.updateUrlAndFetch({page: 1})
 		},
 
 		toggleView() {
@@ -1111,9 +1177,80 @@ export default {
 		min-height: 400px
 		text-align: center
 		color: $clr-secondary-text-light
+	.speakers-pagination
+		display: flex
+		flex-direction: column
+		align-items: center
+		gap: 8px
+		padding: 16px 12px 24px
+		.page-status
+			margin: 0
+			font-size: 13px
+			color: $clr-secondary-text-light
+		.page-controls
+			display: flex
+			flex-wrap: nowrap
+			justify-content: center
+			align-items: center
+			gap: 6px
+			width: 100%
+			overflow-x: auto
+		.page-btn
+			appearance: none
+			flex: 0 0 auto
+			min-width: 36px
+			height: 36px
+			padding: 0 10px
+			border: 1px solid var(--pretalx-clr-primary, #3aa57c)
+			background: #fff
+			color: var(--pretalx-clr-primary, #3aa57c)
+			border-radius: 8px
+			font-size: 14px
+			font-weight: 600
+			white-space: nowrap
+			cursor: pointer
+			&:hover, &:focus-visible
+				background: var(--pretalx-clr-primary, #3aa57c)
+				color: #fff
+				outline: none
+			&.current
+				background: var(--pretalx-clr-primary, #3aa57c)
+				color: #fff
+			&.ellipsis, &:disabled
+				cursor: default
+				opacity: 0.55
+			&.ellipsis:disabled
+				border-color: transparent
+				background: transparent
+				color: $clr-secondary-text-light
+				opacity: 1
+	.loading
+		display: flex
+		justify-content: center
+		align-items: center
+		padding: 24px 12px
+		min-height: 64px
+		color: var(--pretalx-clr-primary, #3aa57c)
+		&.is-initial
+			padding: 64px 12px
+			min-height: 180px
 
 @media (max-width: 600px)
 	.c-speakers-list
+		.speakers-pagination
+			padding: 12px 8px 20px
+			.page-controls
+				gap: 4px
+			.page-btn
+				min-width: 30px
+				height: 32px
+				padding: 0 7px
+				font-size: 13px
+				border-radius: 7px
+			.page-btn.nav-prev,
+			.page-btn.nav-next
+				min-width: 32px
+				padding: 0 8px
 		.speakers-toolbar
 			padding: 6px 8px 0
 			gap: 6px

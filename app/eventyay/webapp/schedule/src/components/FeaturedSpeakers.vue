@@ -7,8 +7,8 @@
 				summary.featured-speaker-summary
 					.thumbnail
 						img(
-							v-if="speaker.avatar_thumbnail_default || speaker.avatar || speaker.avatar_url",
-							:src="speaker.avatar_thumbnail_default || speaker.avatar || speaker.avatar_url",
+							v-if="speaker.avatar_thumbnail_default || speaker.avatar_thumbnail_tiny || speaker.avatar || speaker.avatar_url",
+							:src="speaker.avatar_thumbnail_default || speaker.avatar_thumbnail_tiny || speaker.avatar || speaker.avatar_url",
 							:alt="speaker.name || t.speaker_fallback",
 							loading="lazy"
 						)

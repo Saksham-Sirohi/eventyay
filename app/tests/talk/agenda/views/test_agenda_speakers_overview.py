@@ -1,12 +1,24 @@
 import json
+from unittest.mock import patch
 
 import pytest
+from django.core.cache import cache
+from django.test.utils import override_settings
 from django_scopes import scope
 from i18nfield.strings import LazyI18nString
 
 from eventyay.agenda.views.speaker import SpeakerList
 from eventyay.agenda.views.utils import matching_content_locales
 from eventyay.base.models import SpeakerProfile, SpeakerSocialLink, Submission
+from eventyay.base.services.stale_cache import bump_schedule_cache_version
+
+
+LOCMEM_CACHE = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'agenda-speakers-overview-cache-tests',
+    }
+}
 
 
 def _publish_speakers_page(event):
@@ -241,6 +253,71 @@ def test_speakers_json_next_url_is_absolute(client, event, speaker, other_speake
 
     payload = _speakers_json(client, event)
     assert payload['next']
+    assert payload['previous'] is None
+    assert payload['page'] == 1
+    assert payload['num_pages'] == 2
+    assert payload['page_size'] == 1
     assert payload['next'].startswith('http')
     assert 'format=json' in payload['next']
     assert 'page=2' in payload['next']
+    assert payload['count'] == 2
+    page_two = _speakers_json(client, event, page='2')
+    assert page_two['next'] is None
+    assert page_two['previous']
+    assert 'page=1' in page_two['previous']
+    assert page_two['page'] == 2
+    assert {item['code'] for item in payload['results'] + page_two['results']} == {
+        speaker.code,
+        other_speaker.code,
+    }
+
+
+@pytest.mark.django_db
+@override_settings(CACHES=LOCMEM_CACHE)
+def test_speakers_json_is_cached_and_stays_paginated(client, event, speaker, other_speaker, slot, monkeypatch):
+    cache.clear()
+    _publish_speakers_page(event)
+    monkeypatch.setattr(SpeakerList, 'paginate_by', 1)
+    with scope(event=event):
+        slot.submission.speakers.add(other_speaker)
+
+    first = _speakers_json(client, event)
+    assert first['count'] == 2
+    assert first['next']
+    with patch('eventyay.agenda.views.speaker.build_speaker_cards') as build_cards:
+        cached = _speakers_json(client, event)
+    build_cards.assert_not_called()
+    assert cached['results'] == first['results']
+    assert cached['next'] == first['next']
+    assert cached['previous'] == first['previous']
+    assert cached['page'] == 1
+    assert cached['num_pages'] == 2
+
+    page_two = _speakers_json(client, event, page='2')
+    assert page_two['next'] is None
+    assert {item['code'] for item in first['results'] + page_two['results']} == {
+        speaker.code,
+        other_speaker.code,
+    }
+
+
+@pytest.mark.django_db
+@override_settings(CACHES=LOCMEM_CACHE)
+def test_speakers_json_cache_invalidates_on_profile_change(client, event, speaker, slot):
+    cache.clear()
+    _publish_speakers_page(event)
+    with scope(event=event):
+        profile = speaker.event_profile(event)
+        profile.biography = 'Cached speaker bio'
+        profile.save(update_fields=['biography'])
+
+    first = next(item for item in _speakers_json(client, event)['results'] if item['code'] == speaker.code)
+    assert first['biography'] == 'Cached speaker bio'
+
+    with scope(event=event):
+        profile.biography = 'Fresh speaker bio'
+        profile.save(update_fields=['biography'])
+    bump_schedule_cache_version(event.pk)
+
+    updated = next(item for item in _speakers_json(client, event)['results'] if item['code'] == speaker.code)
+    assert updated['biography'] == 'Fresh speaker bio'
