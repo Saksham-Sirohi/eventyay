@@ -87,9 +87,9 @@ def test_event_clone_reuses_matching_import_key(event):
 
 
 @pytest.mark.django_db
-def test_revert_migration_drops_unanswered_seeded_questions_and_keeps_answers(event, speaker):
+def test_revert_migration_removes_seeded_questions_and_their_answers(event, speaker):
     with scope(event=event):
-        unanswered = TalkQuestion.all_objects.create(
+        job_title = TalkQuestion.all_objects.create(
             event=event,
             question='Job Title',
             variant=TalkQuestionVariant.STRING,
@@ -97,14 +97,14 @@ def test_revert_migration_drops_unanswered_seeded_questions_and_keeps_answers(ev
             import_key='speaker_job_title',
             active=False,
         )
-        answered = TalkQuestion.objects.create(
+        organization = TalkQuestion.objects.create(
             event=event,
             question='Organization',
             variant=TalkQuestionVariant.STRING,
             target=TalkQuestionTarget.SPEAKER,
             import_key='speaker_organization',
         )
-        Answer.objects.create(question=answered, person=speaker, answer='Acme')
+        Answer.objects.create(question=organization, person=speaker, answer='Acme')
         custom = TalkQuestion.objects.create(
             event=event,
             question='Custom question',
@@ -112,12 +112,13 @@ def test_revert_migration_drops_unanswered_seeded_questions_and_keeps_answers(ev
             target=TalkQuestionTarget.SPEAKER,
             import_key='custom_field',
         )
+        Answer.objects.create(question=custom, person=speaker, answer='Keep me')
 
     migration = importlib.import_module('eventyay.base.migrations.0078_revert_default_speaker_questions')
     migration.remove_default_speaker_questions(apps, None)
 
     with scope(event=event):
-        assert not TalkQuestion.all_objects.filter(pk=unanswered.pk).exists()
-        answered.refresh_from_db()
-        assert Answer.objects.get(question=answered).answer == 'Acme'
+        assert not TalkQuestion.all_objects.filter(pk__in=[job_title.pk, organization.pk]).exists()
+        assert not Answer.objects.filter(answer='Acme').exists()
         assert TalkQuestion.all_objects.filter(pk=custom.pk).exists()
+        assert Answer.objects.get(question=custom).answer == 'Keep me'

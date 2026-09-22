@@ -3,10 +3,10 @@ from django.db.models import QuerySet
 
 
 def remove_default_speaker_questions(apps, schema_editor):
-    """Remove seeded Job Title and Organization questions that have no responses.
+    """Remove the Job Title and Organization questions inserted by 0076.
 
-    Answer and AnswerOption use on_delete=PROTECT. Questions that already have
-    either are left in place so those responses are not deleted.
+    Answer and AnswerOption use on_delete=PROTECT, so their rows for these
+    questions are removed first. Other custom questions are left in place.
     """
     TalkQuestion = apps.get_model('base', 'TalkQuestion')
     Answer = apps.get_model('base', 'Answer')
@@ -15,9 +15,9 @@ def remove_default_speaker_questions(apps, schema_editor):
     questions = QuerySet(model=TalkQuestion).filter(
         import_key__in=['speaker_job_title', 'speaker_organization'],
     )
-    answered_ids = QuerySet(model=Answer).filter(question__in=questions).values_list('question_id', flat=True)
-    option_ids = QuerySet(model=AnswerOption).filter(question__in=questions).values_list('question_id', flat=True)
-    questions.exclude(pk__in=answered_ids).exclude(pk__in=option_ids).delete()
+    QuerySet(model=Answer).filter(question__in=questions).delete()
+    QuerySet(model=AnswerOption).filter(question__in=questions).delete()
+    questions.delete()
 
 
 class Migration(migrations.Migration):
