@@ -30,6 +30,7 @@ from eventyay.base.services.stale_cache import (
     bump_schedule_cache_version_on_commit,
     get_schedule_cache_version,
 )
+from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 from eventyay.common.exporter import BaseExporter
 from eventyay.common.signals import register_data_exporters, register_my_data_exporters
 from eventyay.common.social_links import serialize_social_link
@@ -1620,7 +1621,8 @@ def get_schedule_exporter_content(request, exporter_name, schedule, token=None):
         file_name, file_type, data = exporter.render(request=request)
         etag = hashlib.sha1(str(data).encode()).hexdigest()
     except Exception:
-        logger.exception(f'Failed to use {exporter.identifier} for {request.event.slug}')
+        log_event('talk', 'export.error', OUTCOME_FAILURE, error_code='export_error', event_id=getattr(request.event, 'pk', None))
+        logger.exception('Failed to render schedule exporter')
         return
     if request.headers.get('If-None-Match') == etag:
         return HttpResponseNotModified()
