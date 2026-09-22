@@ -1,7 +1,10 @@
+import importlib
+
 import pytest
+from django.apps import apps
 from django_scopes import scope, scopes_disabled
 
-from eventyay.base.models import Event, TalkQuestion, TalkQuestionTarget, TalkQuestionVariant
+from eventyay.base.models import Answer, Event, TalkQuestion, TalkQuestionTarget, TalkQuestionVariant
 from eventyay.person.forms.profile import SpeakerProfileForm
 
 
@@ -81,3 +84,40 @@ def test_event_clone_reuses_matching_import_key(event):
         assert q_dest.active is False
         assert str(q_dest.question) == 'Shared field'
         assert TalkQuestion.all_objects.filter(event=dest_event, import_key='shared_import_key').count() == 1
+
+
+@pytest.mark.django_db
+def test_revert_migration_drops_unanswered_seeded_questions_and_keeps_answers(event, speaker):
+    with scope(event=event):
+        unanswered = TalkQuestion.all_objects.create(
+            event=event,
+            question='Job Title',
+            variant=TalkQuestionVariant.STRING,
+            target=TalkQuestionTarget.SPEAKER,
+            import_key='speaker_job_title',
+            active=False,
+        )
+        answered = TalkQuestion.objects.create(
+            event=event,
+            question='Organization',
+            variant=TalkQuestionVariant.STRING,
+            target=TalkQuestionTarget.SPEAKER,
+            import_key='speaker_organization',
+        )
+        Answer.objects.create(question=answered, person=speaker, answer='Acme')
+        custom = TalkQuestion.objects.create(
+            event=event,
+            question='Custom question',
+            variant=TalkQuestionVariant.STRING,
+            target=TalkQuestionTarget.SPEAKER,
+            import_key='custom_field',
+        )
+
+    migration = importlib.import_module('eventyay.base.migrations.0078_revert_default_speaker_questions')
+    migration.remove_default_speaker_questions(apps, None)
+
+    with scope(event=event):
+        assert not TalkQuestion.all_objects.filter(pk=unanswered.pk).exists()
+        answered.refresh_from_db()
+        assert Answer.objects.get(question=answered).answer == 'Acme'
+        assert TalkQuestion.all_objects.filter(pk=custom.pk).exists()
