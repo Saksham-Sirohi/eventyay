@@ -529,22 +529,27 @@ export default {
 				this.starrersPageItems = items
 			}
 		},
+		/**
+		 * @returns {Promise<{ok: boolean, offset?: number}>}
+		 */
 		async loadStarrers({ limit, offset = 0, destination = 'preview' } = {}) {
-			if (!this.popularityFeatureEnabled) return
+			if (!this.popularityFeatureEnabled) return { ok: false }
 			const url = this.getStarrersUrl({ limit, offset })
-			if (!url) return
+			if (!url) return { ok: false }
 			const requestId = ++this.starrersRequestId
 			this.starrersLoading = true
 			try {
 				const response = await fetch(url)
-				if (requestId !== this.starrersRequestId) return
-				if (!response.ok) return
+				if (requestId !== this.starrersRequestId) return { ok: false }
+				if (!response.ok) return { ok: false }
 				const data = await response.json()
-				if (requestId !== this.starrersRequestId) return
-				if (!data || typeof data !== 'object') return
+				if (requestId !== this.starrersRequestId) return { ok: false }
+				if (!data || typeof data !== 'object' || !Array.isArray(data.items)) return { ok: false }
 				this.applyStarrersPayload(data, { offset, destination })
+				return { ok: true, offset }
 			} catch (error) {
 				console.error('Failed to load session starrers', error)
+				return { ok: false }
 			} finally {
 				if (requestId === this.starrersRequestId) this.starrersLoading = false
 			}
@@ -558,12 +563,15 @@ export default {
 				this.starrersPageItems = (this.starrers.items || []).slice(0, this.inlineStarrersLimit)
 				return
 			}
-			this.starrersPage = next
-			await this.loadStarrers({
+			const offset = (next - 1) * this.inlineStarrersLimit
+			const result = await this.loadStarrers({
 				limit: this.inlineStarrersLimit,
-				offset: (next - 1) * this.inlineStarrersLimit,
+				offset,
 				destination: 'page',
 			})
+			if (!result?.ok || result.offset !== offset) return
+			const loadedPage = Math.floor(result.offset / this.inlineStarrersLimit) + 1
+			this.starrersPage = Math.min(loadedPage, Math.max(this.starrersPageCount, 1))
 		},
 		async toggleStarrersExpanded() {
 			this.starrersExpanded = !this.starrersExpanded
@@ -601,17 +609,22 @@ export default {
 			} else {
 				await this.scheduleFav(favId)
 			}
-			await this.loadStarrers({ limit: this.inlineStarrersLimit, offset: 0, destination: 'preview' })
-			if (this.starrersExpanded && this.starrersPage > this.starrersPageCount) {
-				this.starrersPage = Math.max(this.starrersPageCount, 1)
+			const preview = await this.loadStarrers({ limit: this.inlineStarrersLimit, offset: 0, destination: 'preview' })
+			if (!preview?.ok || !this.starrersExpanded) return
+			const pageCount = Math.max(this.starrersPageCount, 1)
+			const target = Math.min(this.starrersPage, pageCount)
+			if (target <= 1) {
+				this.starrersPage = 1
+				this.starrersPageItems = (this.starrers.items || []).slice(0, this.inlineStarrersLimit)
+				return
 			}
-			if (this.starrersExpanded && this.starrersPage > 1) {
-				await this.loadStarrers({
-					limit: this.inlineStarrersLimit,
-					offset: (this.starrersPage - 1) * this.inlineStarrersLimit,
-					destination: 'page',
-				})
-			}
+			const offset = (target - 1) * this.inlineStarrersLimit
+			const result = await this.loadStarrers({
+				limit: this.inlineStarrersLimit,
+				offset,
+				destination: 'page',
+			})
+			if (result?.ok && result.offset === offset) this.starrersPage = target
 		},
 		async fetchApiContent() {
 			if (this.apiContent || this.fetchedApiContent !== null || this.apiContentLoaded) return
