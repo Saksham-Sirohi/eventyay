@@ -83,9 +83,9 @@
 					path(d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4")
 					polyline(points="7 10 12 15 17 10")
 					line(x1="12" y1="15" x2="12" y2="3")
+		p.schedule-pending-note(v-if="isSchedulePending") {{ tentativeSessionText }}
 		.speakers(v-if="resolvedTalk.speakers && resolvedTalk.speakers.length > 0")
 			.header {{ t.speakers }} ({{ resolvedTalk.speakers.length }})
-			p.schedule-pending-note(v-if="isSchedulePending") {{ tentativeSessionText }}
 			.speakers-list
 				.speaker(v-for="speaker of resolvedTalk.speakers", :key="speaker.code")
 					a.speaker-link(:href="getSpeakerLink(speaker)", @click="onSpeakerClick($event, speaker)")

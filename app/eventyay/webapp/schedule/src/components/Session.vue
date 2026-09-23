@@ -186,7 +186,9 @@ export default {
 			return isTalkSchedulePending(this.session)
 		},
 		showTentativeSessionNote () {
-			return this.isSchedulePending && this.namedSpeakers.length > 0 && !this.showSessionType
+			// List rows include the note even with no speakers. The calendar grid
+			// stays "Coming soon" only, so cells do not grow.
+			return this.isSchedulePending && !this.showSessionType
 		},
 		schedulePendingText () {
 			const m = this.translationMessages || {}
