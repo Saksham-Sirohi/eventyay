@@ -716,6 +716,12 @@ export default {
 			color: $clr-secondary-text-light
 			.session-language
 				white-space: nowrap
+		.schedule-pending-note
+			margin: 0 16px 16px
+			font-size: 13px
+			font-weight: 400
+			line-height: 1.4
+			color: $clr-secondary-text-light
 		.field-section
 			margin: 16px 0 0 0
 			.field-heading

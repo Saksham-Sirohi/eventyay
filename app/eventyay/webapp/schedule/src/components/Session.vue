@@ -168,7 +168,6 @@ export default {
 			return this.generateSessionLinkUrl({eventUrl: this.eventUrl, session: this.session})
 		},
 		sessionHref () {
-			if (this.isSchedulePending) return undefined
 			return this.link
 		},
 		style () {
@@ -579,6 +578,12 @@ expandClampedSessionText()
 			color: $clr-primary-text-dark
 			letter-spacing: 0.5px
 			text-transform: uppercase
+	.schedule-pending-note
+		margin: 4px 0 0
+		font-size: 12px
+		font-weight: 400
+		line-height: 1.35
+		color: $clr-secondary-text-light
 	&.schedule-pending-session
 		cursor: default
 		.time-box

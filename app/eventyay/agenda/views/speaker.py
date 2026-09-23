@@ -5,6 +5,7 @@ from urllib.parse import unquote, urljoin, urlparse
 
 import vobject
 from django.conf import settings
+from django.contrib.auth.models import AnonymousUser
 from django.core.exceptions import SuspiciousFileOperation
 from django.core.files.storage import Storage
 from django.db.models import Q
@@ -52,6 +53,7 @@ from eventyay.common.views.mixins import (
 from eventyay.talk_rules.agenda import (
     agenda_speaker_talks,
     can_list_released_schedule_speakers,
+    is_speaker_viewable,
     should_hide_public_speaker_sessions,
 )
 
@@ -199,6 +201,13 @@ class SpeakerView(PermissionRequired, TemplateView):
     @context
     def schedule_json(self):
         return build_speaker_schedule_json(self.request, self.kwargs['code'])
+
+    @context
+    def hide_visibility_warning(self):
+        profile = self.profile
+        if not profile:
+            return False
+        return bool(is_speaker_viewable(AnonymousUser(), profile))
 
     def dispatch(self, request, *args, **kwargs):
         if not self.wip_preview and is_public_speakers_empty(request):

@@ -244,16 +244,13 @@ export default {
 			remoteApiUrl: computed(() => this.remoteApiUrl),
 			buntTeleportTarget: computed(() => this.$refs.teleportTarget),
 			onSessionLinkClick: (event, session) => {
-				if (isTalkSchedulePending(session)) {
-					event.preventDefault()
-					return
-				}
 				if (this.isShiftMode) {
 					event.preventDefault()
 					return
 				}
 				if (this.onHomeServer) return
 				event.preventDefault()
+				if (isTalkSchedulePending(session)) return
 
 				this.showSessionDetails(session, event)
 			},

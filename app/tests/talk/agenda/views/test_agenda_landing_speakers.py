@@ -344,6 +344,57 @@ def test_featured_speaker_links_work_without_published_schedule(client, event, s
 
 
 @pytest.mark.django_db
+def test_featured_speaker_page_stays_public_and_sessions_are_coming_soon(
+    client, orga_client, event, confirmed_submission, speaker
+):
+    """A public featured speaker page must not claim it is organiser-only.
+
+    Their sessions open as coming soon until a schedule is released.
+    """
+    _enable_public_featured_speakers(event)
+    with scope(event=event):
+        profile = speaker.event_profile(event)
+        profile.is_featured = True
+        profile.save(update_fields=['is_featured'])
+        confirmed_submission.is_featured = False
+        confirmed_submission.save(update_fields=['is_featured'])
+        assert event.current_schedule is None
+        speaker_url = reverse(
+            'agenda:speaker',
+            kwargs={
+                'code': speaker.code,
+                'event': event.slug,
+                'organizer': event.organizer.slug,
+            },
+        )
+        talk_url = reverse(
+            'agenda:talk.detail',
+            kwargs={
+                'slug': confirmed_submission.code,
+                'event': event.slug,
+                'organizer': event.organizer.slug,
+            },
+        )
+
+    organiser_page = orga_client.get(speaker_url)
+    assert organiser_page.status_code == 200
+    assert 'Only organisers can see it' not in organiser_page.text
+
+    anonymous_page = client.get(speaker_url)
+    assert anonymous_page.status_code == 200
+    assert 'Only organisers can see it' not in anonymous_page.text
+
+    talk_page = client.get(talk_url)
+    assert talk_page.status_code == 200
+    assert 'Only organisers can see it' not in talk_page.text
+    schedule_data = json.loads(talk_page.context['schedule_json'])
+    assert schedule_data['talks'][0]['code'] == confirmed_submission.code
+    assert schedule_data['talks'][0]['schedule_pending'] is True
+    assert schedule_data['talks'][0]['start'] is None
+    assert schedule_data['rooms'] == []
+
+
+@pytest.mark.django_db
 def test_featured_speakers_show_coming_soon_when_schedule_is_unpublished(
     client, event, slot, speaker
 ):

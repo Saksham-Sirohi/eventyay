@@ -44,6 +44,7 @@ from eventyay.talk_rules.agenda import (
     has_public_featured_speakers,
     is_submission_visible_via_featured,
     pending_public_submission_codes_for_speaker,
+    submission_belongs_to_public_featured_speaker,
     public_speakers_list_available,
     require_wip_schedule_access,
     speaker_may_show_pending_sessions,
@@ -1118,19 +1119,21 @@ def _schedule_json_includes_talk(schedule_json: str, submission_code: str) -> bo
 
 def build_pre_agenda_featured_talk_schedule_json(event, user, submission_code):
     """Build talk detail JSON for featured sessions before a schedule is released."""
-    from eventyay.talk_rules.agenda import is_submission_visible_via_featured
-
     submission = (
         event.submissions.filter(code__iexact=submission_code)
         .select_related('submission_type')
         .prefetch_related('speakers')
         .first()
     )
-    if not submission or not is_submission_visible_via_featured(user, submission):
+    if not submission or not (
+        is_submission_visible_via_featured(user, submission)
+        or submission_belongs_to_public_featured_speaker(user, submission)
+    ):
         return '{}'
 
     featured = include_public_featured_speaker_metadata(user, event)
     data = _empty_featured_schedule_data(event)
+    data['rooms'] = []
     data['talks'] = [_pending_featured_talk_data(submission, event)]
     _ensure_schedule_speakers(data, event, featured)
     return serialize_widget_schedule_data(data, event=event)
@@ -1148,7 +1151,7 @@ def build_talk_schedule_json(request: HttpRequest, submission_code: str) -> str:
     schedule = event.current_schedule
     featured = include_public_featured_speaker_metadata(user, event)
 
-    if not schedule:
+    if not can_view_public_schedule_sessions(user, event, schedule):
         return build_pre_agenda_featured_talk_schedule_json(event, user, submission_code)
 
     if schedule.version:

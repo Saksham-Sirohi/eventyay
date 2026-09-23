@@ -15,6 +15,27 @@ def is_submission_visible_via_featured(user, submission):
     return bool(submission and submission.is_featured and are_featured_submissions_visible(user, submission.event))
 
 
+def submission_belongs_to_public_featured_speaker(user, submission):
+    """A featured speaker's session may be shown as coming soon before the agenda is public."""
+    if not submission:
+        return False
+    event = submission.event
+    if is_agenda_visible(user, event):
+        return False
+    if not are_featured_speakers_visible(user, event):
+        return False
+    from eventyay.base.models import SubmissionStates
+
+    if submission.state in (
+        SubmissionStates.REJECTED,
+        SubmissionStates.CANCELED,
+        SubmissionStates.WITHDRAWN,
+        SubmissionStates.DELETED,
+    ):
+        return False
+    return submission.speakers.filter(profiles__event=event, profiles__is_featured=True).exists()
+
+
 def is_submission_visible_via_schedule(user, submission):
     return bool(
         submission
@@ -110,6 +131,7 @@ def is_agenda_submission_visible(user, submission):
     return (
         is_submission_visible_via_schedule(user, submission)
         or is_submission_visible_via_featured(user, submission)
+        or submission_belongs_to_public_featured_speaker(user, submission)
     )
 
 
@@ -292,7 +314,10 @@ def agenda_page_allowed_without_talks_published(url_name, user, event, *, url_kw
         if not slug:
             return False
         submission = event.submissions.filter(code__iexact=slug).first()
-        return is_submission_visible_via_featured(user, submission)
+        return bool(
+            is_submission_visible_via_featured(user, submission)
+            or submission_belongs_to_public_featured_speaker(user, submission)
+        )
     if url_name in ('speaker', 'widget.messages'):
         if url_name == 'speaker':
             code = (url_kwargs or {}).get('code')

@@ -144,19 +144,13 @@
 								.featured-speaker-session(v-for="session in speaker.sessions", :key="session.slot_id || session.id")
 									small.featured-speaker-session-time(v-if="!sessionIsPending(session)") {{ formatSessionDateTime(session) }}
 									small.featured-speaker-session-room(v-if="sessionRoomName(session) && !sessionIsPending(session)") {{ sessionRoomName(session) }}
-									span.featured-speaker-session-link.featured-speaker-session-pending(
-										v-if="sessionIsPending(session)",
-										:style="getSessionStyle(session)"
-									)
-										span.featured-speaker-session-slot {{ t.coming_soon }}
-										span.featured-speaker-session-title {{ getLocalizedString(session.title) }}
 									a.featured-speaker-session-link(
-										v-else,
+										:class="{'featured-speaker-session-pending': sessionIsPending(session)}",
 										:href="getSessionLink(session)",
 										:style="getSessionStyle(session)",
 										@click="onSessionClick($event, session)"
 									)
-										span.featured-speaker-session-slot {{ formatSessionSlot(session) }}
+										span.featured-speaker-session-slot {{ sessionIsPending(session) ? t.coming_soon : formatSessionSlot(session) }}
 										span.featured-speaker-session-title {{ getLocalizedString(session.title) }}
 								p.schedule-pending-note(v-if="hasPendingSession(speaker)") {{ t.tentative_session }}
 						.featured-speaker-profile-link
@@ -686,8 +680,9 @@ export default {
 			return (speaker?.sessions || []).some((session) => this.sessionIsPending(session))
 		},
 		getSessionLink(session) {
+			const code = session?.code || session?.id
 			const base = (this.eventUrl || '').replace(/\/?$/, '/')
-			return session?.id ? `${base}talk/${session.id}/` : '#'
+			return code ? `${base}talk/${code}/` : undefined
 		},
 		onSessionClick(event, session) {
 			this.onSessionLinkClick(event, session)
@@ -1146,6 +1141,12 @@ export default {
 				opacity: 0.92
 				text-decoration: none
 
+		.schedule-pending-note
+			margin: 8px 0 0
+			font-size: 12px
+			font-weight: 400
+			line-height: 1.35
+			color: $clr-secondary-text-light
 		.featured-speaker-session-pending
 			cursor: default
 			&:hover
