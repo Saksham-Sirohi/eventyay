@@ -231,6 +231,12 @@ export function isTalkSchedulePending (talk) {
 	return Boolean(talk?.schedule_pending || !talk?.start)
 }
 
+const TENTATIVE_SESSION_TEXT = 'These details are tentative and may change, including speakers and other session information.'
+
+export function tentativeSessionText (messages) {
+	return messages?.schedule_pending_tentative || TENTATIVE_SESSION_TEXT
+}
+
 export function talkToSession (talk, {
 	timezone,
 	speakersLookup = {},

@@ -244,6 +244,10 @@ export default {
 			remoteApiUrl: computed(() => this.remoteApiUrl),
 			buntTeleportTarget: computed(() => this.$refs.teleportTarget),
 			onSessionLinkClick: (event, session) => {
+				if (isTalkSchedulePending(session)) {
+					event.preventDefault()
+					return
+				}
 				if (this.isShiftMode) {
 					event.preventDefault()
 					return
@@ -779,7 +783,8 @@ export default {
 			return
 		}
 
-		if (this.schedule.schedule_unavailable || (!this.schedule.talks.length && !this.isFeaturedPage)) {
+		const showWithoutTalks = this.isFeaturedPage || this.view === 'featured-speakers'
+		if (this.schedule.schedule_unavailable || (!this.schedule.talks.length && !showWithoutTalks)) {
 			this.scheduleUnavailable = true
 			return
 		}

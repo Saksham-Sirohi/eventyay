@@ -197,6 +197,10 @@ class ScheduleToggleView(EventPermissionRequired, View):
         super().dispatch(request, *args, **kwargs)
         is_public = not self.request.event.get_feature_flag('show_schedule')
         self._set_schedule_public(self.request.event, is_public)
+        if is_public:
+            messages.success(self.request, _('The schedule is now public.'))
+        else:
+            messages.success(self.request, _('The public schedule has been unpublished.'))
         # Trigger tickets to hidden/unhidden schedule menu
         try:
             from eventyay.orga.tasks import trigger_public_schedule

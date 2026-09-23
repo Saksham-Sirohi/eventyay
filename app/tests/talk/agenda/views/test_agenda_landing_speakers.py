@@ -26,10 +26,11 @@ LOCMEM_CACHE = {
 
 def _enable_public_featured_speakers(event):
     with scope(event=event):
+        event.live = True
         event.talks_published = False
         event.feature_flags['show_featured_speakers'] = 'always'
         event.feature_flags['show_schedule'] = True
-        event.save(update_fields=['talks_published', 'feature_flags'])
+        event.save(update_fields=['live', 'talks_published', 'feature_flags'])
 
 
 @pytest.mark.django_db
@@ -315,7 +316,10 @@ def test_featured_speaker_links_work_without_published_schedule(client, event, s
     widget_schedule = landing.context['featured_speakers_widget_schedule']
     assert widget_schedule['talks'] == []
 
-    speaker_url = reverse('agenda:speaker', kwargs={'code': speaker.code, 'event': event.slug})
+    speaker_url = reverse(
+        'agenda:speaker',
+        kwargs={'code': speaker.code, 'event': event.slug, 'organizer': event.organizer.slug},
+    )
     speaker_response = client.get(speaker_url, follow=True)
     assert speaker_response.status_code == 200
     assert speaker.fullname in speaker_response.text
@@ -326,13 +330,56 @@ def test_featured_speaker_links_work_without_published_schedule(client, event, s
     assert list(speaker_response.context['talks']) == []
 
     speakers_list_response = client.get(event.urls.speakers, follow=True)
-    assert speakers_list_response.status_code == 404
+    assert speakers_list_response.status_code == 200
+    assert (
+        speakers_list_response.request['PATH_INFO'].rstrip('/')
+        == urlparse(str(event.urls.base)).path.rstrip('/')
+    )
 
     talk_url = reverse(
         'agenda:talk.detail',
-        kwargs={'slug': 'nonexistent', 'event': event.slug},
+        kwargs={'slug': 'nonexistent', 'event': event.slug, 'organizer': event.organizer.slug},
     )
     assert client.get(talk_url).status_code == 404
+
+
+@pytest.mark.django_db
+def test_featured_speakers_show_coming_soon_when_schedule_is_unpublished(
+    client, event, slot, speaker
+):
+    """Unpublishing the schedule keeps featured speakers and marks sessions coming soon."""
+    with scope(event=event):
+        event.live = True
+        event.talks_published = True
+        event.feature_flags['show_schedule'] = True
+        event.feature_flags['show_featured_speakers'] = 'always'
+        event.feature_flags['show_featured'] = 'never'
+        event.save(update_fields=['live', 'talks_published', 'feature_flags'])
+        profile = speaker.event_profile(event)
+        profile.is_featured = True
+        profile.save(update_fields=['is_featured'])
+        slot.submission.is_featured = False
+        slot.submission.save(update_fields=['is_featured'])
+        event.release_schedule('v1')
+        event.feature_flags['show_schedule'] = False
+        event.save(update_fields=['feature_flags'])
+
+    landing = client.get(event.urls.base)
+    assert landing.status_code == 200
+    widget_schedule = landing.context['featured_speakers_widget_schedule']
+    assert {s['code'] for s in widget_schedule['speakers']} == {speaker.code}
+    assert len(widget_schedule['talks']) == 1
+    assert widget_schedule['talks'][0]['code'] == slot.submission.code
+    assert widget_schedule['talks'][0]['schedule_pending'] is True
+    assert widget_schedule['talks'][0]['start'] is None
+    messages = client.get(
+        reverse(
+            'agenda:widget.messages',
+            kwargs={'event': event.slug, 'organizer': event.organizer.slug},
+        )
+    )
+    assert messages.status_code == 200
+    assert 'These details are tentative and may change, including speakers and other session information.' in messages.content.decode()
 
 
 @pytest.mark.django_db
@@ -378,7 +425,10 @@ def test_featured_speakers_show_pending_sessions_in_private_talk_testmode(
     assert widget_schedule['talks'][0]['start'] is None
 
     speaker_response = client.get(
-        reverse('agenda:speaker', kwargs={'code': speaker.code, 'event': event.slug}),
+        reverse(
+            'agenda:speaker',
+            kwargs={'code': speaker.code, 'event': event.slug, 'organizer': event.organizer.slug},
+        ),
         follow=True,
     )
     assert speaker_response.status_code == 200
@@ -404,7 +454,10 @@ def test_featured_submission_visible_on_speaker_profile_before_public_release(
         assert speaker.event_profile(event).is_featured is False
 
     speaker_response = client.get(
-        reverse('agenda:speaker', kwargs={'code': speaker.code, 'event': event.slug}),
+        reverse(
+            'agenda:speaker',
+            kwargs={'code': speaker.code, 'event': event.slug, 'organizer': event.organizer.slug},
+        ),
         follow=True,
     )
     assert speaker_response.status_code == 200
@@ -426,7 +479,11 @@ def test_featured_talk_detail_available_without_published_schedule(client, event
 
     talk_url = reverse(
         'agenda:talk.detail',
-        kwargs={'slug': confirmed_submission.code, 'event': event.slug},
+        kwargs={
+            'slug': confirmed_submission.code,
+            'event': event.slug,
+            'organizer': event.organizer.slug,
+        },
     )
     response = client.get(talk_url, follow=True)
     assert response.status_code == 200
@@ -441,7 +498,10 @@ def test_non_featured_speaker_profile_not_public_without_schedule(client, event,
     with scope(event=event):
         assert event.current_schedule is None
 
-    speaker_url = reverse('agenda:speaker', kwargs={'code': speaker.code, 'event': event.slug})
+    speaker_url = reverse(
+        'agenda:speaker',
+        kwargs={'code': speaker.code, 'event': event.slug, 'organizer': event.organizer.slug},
+    )
     response = client.get(speaker_url, follow=True)
     assert response.status_code == 403
 

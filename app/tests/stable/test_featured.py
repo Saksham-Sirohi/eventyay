@@ -306,3 +306,50 @@ def test_featured_talk_detail_shows_pending_data_when_slot_not_public(client, ev
     assert schedule_data['talks'][0]['code'] == sub_featured.code
     assert schedule_data['talks'][0]['schedule_pending'] is True
 
+
+@pytest.mark.django_db
+def test_featured_sessions_coming_soon_when_schedule_unpublished(client, event, user):
+    """Featured sessions stay visible, and show coming soon, when the schedule is unpublished."""
+    with scope(event=event):
+        sub_type = SubmissionType.objects.create(event=event, name='Talk')
+        submission = Submission.objects.create(
+            title='Independent Featured Session',
+            event=event,
+            submission_type=sub_type,
+            abstract='Featured without a featured speaker',
+            content_locale='en',
+            is_featured=True,
+        )
+        submission.speakers.add(user)
+        submission.accept()
+        submission.confirm()
+        profile = user.event_profile(event)
+        profile.is_featured = False
+        profile.save(update_fields=['is_featured'])
+        room = Room.objects.create(event=event, name='Room A')
+        TalkSlot.objects.update_or_create(
+            submission=submission,
+            schedule=event.wip_schedule,
+            defaults={
+                'is_visible': True,
+                'start': event.date_from + dt.timedelta(hours=10),
+                'end': event.date_from + dt.timedelta(hours=11),
+                'room': room,
+            },
+        )
+        event.feature_flags['show_featured'] = 'always'
+        event.feature_flags['show_featured_speakers'] = 'never'
+        event.feature_flags['show_schedule'] = True
+        event.talks_published = True
+        event.save(update_fields=['feature_flags', 'talks_published'])
+        event.release_schedule('v1')
+        event.feature_flags['show_schedule'] = False
+        event.save(update_fields=['feature_flags'])
+
+    response = client.get(event.urls.featured)
+    assert response.status_code == 200
+    schedule_data = json.loads(response.context['schedule_data_json'])
+    assert schedule_data['talks'][0]['code'] == submission.code
+    assert schedule_data['talks'][0]['schedule_pending'] is True
+    assert schedule_data['talks'][0]['start'] is None
+

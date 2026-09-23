@@ -216,6 +216,22 @@ const initFeedbackBulkActions = (root = document) => {
   })
 }
 
+const initConfirmSubmit = (root = document) => {
+  root.querySelectorAll('button[type="submit"][data-confirm]').forEach((button) => {
+    if (button.dataset.confirmSubmitInit === 'true') {
+      return
+    }
+    button.dataset.confirmSubmitInit = 'true'
+    button.addEventListener('click', (event) => {
+      const confirmMessage = button.getAttribute('data-confirm')
+      if (confirmMessage && !window.confirm(confirmMessage)) {
+        event.preventDefault()
+      }
+    })
+  })
+}
+
 onReady(() => {
   initFeedbackBulkActions()
+  initConfirmSubmit()
 })

@@ -144,15 +144,23 @@
 							.featured-speaker-sessions
 								h4 {{ t.sessions }}
 								.featured-speaker-session(v-for="session in speaker.sessions", :key="session.slot_id || session.id")
-									small.featured-speaker-session-time {{ formatSessionDateTime(session) }}
-									small.featured-speaker-session-room(v-if="sessionRoomName(session)") {{ sessionRoomName(session) }}
+									small.featured-speaker-session-time(v-if="!sessionIsPending(session)") {{ formatSessionDateTime(session) }}
+									small.featured-speaker-session-room(v-if="sessionRoomName(session) && !sessionIsPending(session)") {{ sessionRoomName(session) }}
+									span.featured-speaker-session-link.featured-speaker-session-pending(
+										v-if="sessionIsPending(session)",
+										:style="getSessionStyle(session)"
+									)
+										span.featured-speaker-session-slot {{ t.coming_soon }}
+										span.featured-speaker-session-title {{ getLocalizedString(session.title) }}
 									a.featured-speaker-session-link(
+										v-else,
 										:href="getSessionLink(session)",
 										:style="getSessionStyle(session)",
 										@click="onSessionClick($event, session)"
 									)
 										span.featured-speaker-session-slot {{ formatSessionSlot(session) }}
 										span.featured-speaker-session-title {{ getLocalizedString(session.title) }}
+								p.schedule-pending-note(v-if="hasPendingSession(speaker)") {{ t.tentative_session }}
 						.featured-speaker-profile-link
 							a(:href="getSpeakerLink(speaker)", @click="onSpeakerClick($event, speaker)") {{ t.view_profile }}
 	.empty(v-if="loadError")
@@ -191,7 +199,7 @@
 
 <script>
 import moment from 'moment-timezone'
-import { getLocalizedString, compareFeaturedSpeakers, isFeaturedSpeakersSortAvailable, sessionsForSpeaker } from '../utils'
+import { getLocalizedString, compareFeaturedSpeakers, isFeaturedSpeakersSortAvailable, isTalkSchedulePending, sessionsForSpeaker, tentativeSessionText } from '../utils'
 import MarkdownContent from './MarkdownContent'
 import SpeakerSocialLinks from './SpeakerSocialLinks.vue'
 import { logOperational } from '../operationalLog.js'
@@ -352,6 +360,8 @@ export default {
 				z_to_a: m.z_to_a || this.$t('Z → A'),
 				featured: m.featured || this.$t('Featured'),
 				sessions: m.sessions || this.$t('Sessions'),
+				coming_soon: m.schedule_pending_secondary || this.$t('Coming soon'),
+				tentative_session: tentativeSessionText(m),
 				view_profile: m.view_profile || this.$t('View speaker profile'),
 				view_list: m.view_list || this.$t('Switch to list view'),
 				view_details: m.view_details || this.$t('Switch to details view'),
@@ -670,6 +680,12 @@ export default {
 		},
 		onSpeakerClick(event, speaker) {
 			this.onSpeakerLinkClick(event, speaker)
+		},
+		sessionIsPending(session) {
+			return isTalkSchedulePending(session)
+		},
+		hasPendingSession(speaker) {
+			return (speaker?.sessions || []).some((session) => this.sessionIsPending(session))
 		},
 		getSessionLink(session) {
 			const base = (this.eventUrl || '').replace(/\/?$/, '/')
@@ -1137,6 +1153,11 @@ export default {
 			&:hover
 				opacity: 0.92
 				text-decoration: none
+
+		.featured-speaker-session-pending
+			cursor: default
+			&:hover
+				opacity: 1
 
 		.featured-speaker-session-slot
 			display: block

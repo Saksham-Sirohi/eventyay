@@ -1,5 +1,5 @@
 <template lang="pug">
-a.c-linear-schedule-session(:class="{faved, 'has-date': showDate, 'short-session': isShortSession, 'grid-very-short': isGridVeryShort, 'schedule-pending-session': isSchedulePending, 'has-fav-count': hasFavCount}", :style="style", :href="link", @click="onSessionLinkClick($event, session)", :target="linkTarget")
+a.c-linear-schedule-session(:class="{faved, 'has-date': showDate, 'short-session': isShortSession, 'grid-very-short': isGridVeryShort, 'schedule-pending-session': isSchedulePending, 'has-fav-count': hasFavCount}", :style="style", :href="sessionHref", @click="onSessionClick", :target="sessionHref ? linkTarget : null")
 	.time-box
 		.start.schedule-pending(v-if="isSchedulePending")
 			svg.schedule-pending-icon(viewBox="0 0 24 24", fill="none", stroke="currentColor", stroke-width="2", stroke-linecap="round", stroke-linejoin="round", aria-hidden="true")
@@ -44,6 +44,7 @@ a.c-linear-schedule-session(:class="{faved, 'has-date': showDate, 'short-session
 			span.speakers-overflow-hint(
 				v-if="speakersHiddenCount > 0",
 				:aria-label="speakersOverflowLabel") {{ speakersOverflowHint }}
+		p.schedule-pending-note(v-if="showTentativeSessionNote") {{ tentativeSessionText }}
 		.tags-box(v-if="showTags && session.tags && session.tags.length")
 			.tags(v-for="tag_item of session.tags")
 				.tag-item(:style="{'background-color': tag_item.color, 'color': getContrastColor(tag_item.color)}") {{ tag_item.tag }}
@@ -70,7 +71,7 @@ a.c-linear-schedule-session(:class="{faved, 'has-date': showDate, 'short-session
 
 </template>
 <script>
-import { getLocalizedString, getPrettyDuration, getSessionTime, getContrastColor, normalizePopularityCount, getSessionTypeLabel } from '../utils'
+import { getLocalizedString, getPrettyDuration, getSessionTime, getContrastColor, normalizePopularityCount, getSessionTypeLabel, isTalkSchedulePending, tentativeSessionText as pendingSessionNote } from '../utils'
 import { renderEventyayRichText } from '../utils/eventyayRichText'
 import FavButton from './FavButton.vue'
 
@@ -166,6 +167,10 @@ export default {
 		link () {
 			return this.generateSessionLinkUrl({eventUrl: this.eventUrl, session: this.session})
 		},
+		sessionHref () {
+			if (this.isSchedulePending) return undefined
+			return this.link
+		},
 		style () {
 			return {
 				'--track-color': this.session.track?.color || 'var(--pretalx-clr-primary)'
@@ -178,11 +183,17 @@ export default {
 			return getSessionTime(this.session, this.effectiveTimezone, this.locale, this.effectiveHasAmPm)
 		},
 		isSchedulePending () {
-			return Boolean(this.session.schedule_pending || !this.session.start)
+			return isTalkSchedulePending(this.session)
+		},
+		showTentativeSessionNote () {
+			return this.isSchedulePending && this.namedSpeakers.length > 0 && !this.showSessionType
 		},
 		schedulePendingText () {
 			const m = this.translationMessages || {}
 			return m.schedule_pending_secondary || this.$t('Coming soon')
+		},
+		tentativeSessionText () {
+			return pendingSessionNote(this.translationMessages)
 		},
 		weekdayLabel () {
 			return this.session.start.clone().tz(this.effectiveTimezone).locale(this.locale || 'en').format('ddd')
@@ -305,6 +316,13 @@ export default {
 		this._speakersResizeObserver?.disconnect?.()
 	},
 	methods: {
+		onSessionClick (event) {
+			if (this.isSchedulePending) {
+				event.preventDefault()
+				return
+			}
+			this.onSessionLinkClick(event, this.session)
+		},
 		gridMetaTitle (text) {
 			if (!this.isGridVeryShort || !text) return null
 			return text
@@ -560,6 +578,7 @@ expandClampedSessionText()
 			letter-spacing: 0.5px
 			text-transform: uppercase
 	&.schedule-pending-session
+		cursor: default
 		.time-box
 			justify-content: center
 	&.has-date

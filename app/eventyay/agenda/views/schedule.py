@@ -382,7 +382,7 @@ class ScheduleView(PermissionRequired, ScheduleMixin, TemplateView):
         return ctx
 
 
-@cache_page(60 * 60 * 24, key_prefix='schedule-messages-v5')
+@cache_page(60 * 60 * 24, key_prefix='schedule-messages-v6')
 def schedule_messages(request, **kwargs):
     """Cached for static exports; bump key_prefix when message keys or copy change."""
     strings = {
@@ -458,6 +458,9 @@ def schedule_messages(request, **kwargs):
         'schedule_room_has_interpretation': _('This room has live interpretation.'),
         'back': _('Back'),
         'schedule_pending_secondary': _('Coming soon'),
+        'schedule_pending_tentative': _(
+            'These details are tentative and may change, including speakers and other session information.'
+        ),
         'schedule_speakers_overflow_hint': _('+%(count)s more'),
         'schedule_speakers_overflow_label': _('+%(count)s more speakers'),
         'no_schedule_available': _('No schedule has been published yet. Please check back later.'),

@@ -85,6 +85,7 @@
 					line(x1="12" y1="15" x2="12" y2="3")
 		.speakers(v-if="resolvedTalk.speakers && resolvedTalk.speakers.length > 0")
 			.header {{ t.speakers }} ({{ resolvedTalk.speakers.length }})
+			p.schedule-pending-note(v-if="isSchedulePending") {{ tentativeSessionText }}
 			.speakers-list
 				.speaker(v-for="speaker of resolvedTalk.speakers", :key="speaker.code")
 					a.speaker-link(:href="getSpeakerLink(speaker)", @click="onSpeakerClick($event, speaker)")
@@ -141,7 +142,7 @@
 
 <script>
 import moment from 'moment-timezone'
-import { getLocalizedString, getIconByFileEnding, computeTalkExporters, buildExportMenuItems, parseBooleanAnswer, resolveAbsoluteUrl, buildQrcodesUrl, getVideoEmbedUrl } from '../utils'
+import { getLocalizedString, getIconByFileEnding, computeTalkExporters, buildExportMenuItems, parseBooleanAnswer, resolveAbsoluteUrl, buildQrcodesUrl, getVideoEmbedUrl, isTalkSchedulePending, tentativeSessionText as pendingSessionNote } from '../utils'
 import MarkdownContent from './MarkdownContent.vue'
 import DetailBackNav from './DetailBackNav.vue'
 import DetailTopActions from './DetailTopActions.vue'
@@ -318,11 +319,14 @@ export default {
 			return moment(this.resolvedTalk.start).format('L LT') + ' - ' + moment(this.resolvedTalk.end).format('LT')
 		},
 		isSchedulePending () {
-			return Boolean(this.resolvedTalk?.schedule_pending || !this.resolvedTalk?.start)
+			return isTalkSchedulePending(this.resolvedTalk)
 		},
 		schedulePendingText () {
 			const m = this.translationMessages || {}
 			return m.schedule_pending_secondary || this.$t('Coming soon')
+		},
+		tentativeSessionText () {
+			return pendingSessionNote(this.translationMessages)
 		},
 		sessionTimeLabel () {
 			if (this.isSchedulePending) return this.schedulePendingText

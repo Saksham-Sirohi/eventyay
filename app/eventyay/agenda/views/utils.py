@@ -928,6 +928,13 @@ def build_featured_schedule_json(request: HttpRequest) -> str:
     featured = are_featured_submissions_visible(request.user, event)
     featured_by_code = {sub.code: sub for sub in featured_qs}
     published = event.current_schedule
+    # Same gate as the public schedule, using data already loaded for this request.
+    public_times = bool(
+        published
+        and event.talks_published
+        and event.get_feature_flag('show_schedule')
+        and not event.private_testmode_talks_enabled
+    )
 
     if published:
         scheduled_codes = set(
@@ -942,6 +949,9 @@ def build_featured_schedule_json(request: HttpRequest) -> str:
             )
         else:
             data = _empty_featured_schedule_data(event)
+        if not public_times:
+            for talk in data['talks']:
+                _mark_talk_schedule_pending(talk)
     else:
         wip = event.wip_schedule
         if wip and featured_by_code:

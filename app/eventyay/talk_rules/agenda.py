@@ -129,34 +129,17 @@ def is_pre_agenda_featured_public(user, event):
     )
 
 
-def speaker_has_released_schedule_slots(event, user):
-    """True if the user has any talk slot on the published schedule."""
-    schedule = getattr(event, 'current_schedule', None)
-    if not schedule or not user:
-        return False
-    from django_scopes import scope
-
-    from eventyay.base.models import TalkSlot
-
-    with scope(event=event):
-        return TalkSlot.objects.filter(
-            schedule=schedule,
-            submission__isnull=False,
-            submission__speakers=user,
-        ).exists()
-
-
 @rules.predicate
 def is_featured_speaker_profile(user, profile):
+    """Public featured-speaker pages follow the featured-speaker setting only.
+
+    A speaker marked featured stays public whether or not their sessions are on a
+    released schedule. Session publication is a separate setting.
+    """
     if not profile or not profile.is_featured:
         return False
     event_obj = profile.event
-    if not are_featured_speakers_visible(user, event_obj):
-        return False
-    # Speakers on the released schedule follow normal schedule visibility instead.
-    if is_agenda_visible(user, event_obj) and speaker_has_released_schedule_slots(event_obj, profile.user):
-        return False
-    return True
+    return bool(are_featured_speakers_visible(user, event_obj))
 
 
 @rules.predicate
