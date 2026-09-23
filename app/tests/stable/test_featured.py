@@ -5,7 +5,7 @@ import pytest
 import datetime as dt
 from django.contrib.auth.models import AnonymousUser
 from django_scopes import scope
-from eventyay.base.models import Submission, Room, TalkSlot, SubmissionType
+from eventyay.base.models import StreamSchedule, Submission, Room, TalkSlot, SubmissionType
 from eventyay.common.templatetags.event_tags import show_schedule_nav_tab
 
 @pytest.mark.django_db
@@ -343,13 +343,25 @@ def test_featured_sessions_coming_soon_when_schedule_unpublished(client, event, 
         event.talks_published = True
         event.save(update_fields=['feature_flags', 'talks_published'])
         event.release_schedule('v1')
+        StreamSchedule.objects.create(
+            room=room,
+            url='https://example.com/unpublished-stream',
+            start_time=event.date_from,
+            end_time=event.date_from + dt.timedelta(hours=12),
+            stream_type='hls',
+        )
         event.feature_flags['show_schedule'] = False
         event.save(update_fields=['feature_flags'])
 
     response = client.get(event.urls.featured)
     assert response.status_code == 200
     schedule_data = json.loads(response.context['schedule_data_json'])
-    assert schedule_data['talks'][0]['code'] == submission.code
-    assert schedule_data['talks'][0]['schedule_pending'] is True
-    assert schedule_data['talks'][0]['start'] is None
+    talk = schedule_data['talks'][0]
+    assert talk['code'] == submission.code
+    assert talk['schedule_pending'] is True
+    assert talk['start'] is None
+    assert talk['room'] is None
+    assert talk['stream_url'] is None
+    assert talk['stream_type'] is None
+    assert schedule_data['rooms'] == []
 

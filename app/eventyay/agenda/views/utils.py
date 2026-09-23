@@ -924,8 +924,7 @@ def build_featured_schedule_json(request: HttpRequest) -> str:
         else:
             data = _empty_featured_schedule_data(event)
         if not public_times:
-            for talk in data['talks']:
-                _mark_talk_schedule_pending(talk)
+            _withhold_unpublished_schedule_details(data)
     else:
         wip = event.wip_schedule
         if wip and featured_by_code:
@@ -936,8 +935,7 @@ def build_featured_schedule_json(request: HttpRequest) -> str:
                 include_featured_speaker_metadata=featured,
                 respect_public_visibility=False,
             )
-            for talk in data['talks']:
-                _mark_talk_schedule_pending(talk)
+            _withhold_unpublished_schedule_details(data)
         else:
             data = _empty_featured_schedule_data(event)
 
@@ -966,8 +964,7 @@ def _load_pending_speaker_talks(event, user, schedule, speaker_user_codes, *, fe
             respect_public_visibility=False,
         )
     filtered = filter_schedule_data_to_featured_speakers(schedule_data, speaker_user_codes)
-    for talk in filtered.get('talks', []):
-        _mark_talk_schedule_pending(talk)
+    _withhold_unpublished_schedule_details(filtered)
     return filtered
 
 
@@ -1053,8 +1050,18 @@ def _mark_talk_schedule_pending(talk_data):
     talk_data['start'] = None
     talk_data['end'] = None
     talk_data['room'] = None
+    talk_data['stream_url'] = None
+    talk_data['stream_type'] = None
     talk_data['schedule_pending'] = True
     return talk_data
+
+
+def _withhold_unpublished_schedule_details(data):
+    """Remove room and stream metadata from a coming-soon featured payload."""
+    for talk in data.get('talks', []):
+        _mark_talk_schedule_pending(talk)
+    data['rooms'] = []
+    return data
 
 
 def _ensure_schedule_speakers(data, event, include_featured_speaker_metadata):
