@@ -721,7 +721,7 @@ export default {
 				this.apiUrl = this.remoteApiUrl
 			}
 			this.loadFavs().then((favs) => {
-				this.favs = this.pruneFavs(favs, this.schedule)
+				this.favs = this.featuredRemote ? favs : this.pruneFavs(favs, this.schedule)
 			})
 		},
 		recordingFilter () {
@@ -869,49 +869,18 @@ export default {
 			await this.$nextTick()
 			this.onWindowResize()
 		}
-		this.schedule.tracks.forEach(t => { t.value = t.id; t.label = getLocalizedString(t.name); this.allTracks.push(t) })
-		this.schedule.rooms.forEach(r => { this.allRooms.push({ id: r.id, value: r.id, label: getLocalizedString(r.name), selected: false }) })
-		const typeSet = new Set()
-		this.schedule.talks.forEach(s => {
-			const typeLabel = getSessionTypeLabel(s.session_type)
-			if (typeLabel && !typeSet.has(typeLabel)) {
-				typeSet.add(typeLabel)
-				this.allTypes.push({ value: typeLabel, label: typeLabel, selected: false })
-			}
-		})
-		// Build language filter from event content_locales (configured by organiser),
-		// falling back to per-talk content_locale for older data.
-		const langSet = new Set()
-		const eventLocales = this.schedule.content_locales || []
-		eventLocales.forEach(code => {
-			if (code && !langSet.has(code)) {
-				langSet.add(code)
-				const displayName = (() => {
-					try { return new Intl.DisplayNames([this.locale], { type: 'language' }).of(code) } catch { return code }
-				})()
-				this.allLanguages.push({ value: code, label: displayName, selected: false })
-			}
-		})
-
-		// Also include any per-talk locales not already covered by event locales
-		this.schedule.talks.forEach(s => {
-			if (s.content_locale && !langSet.has(s.content_locale)) {
-				langSet.add(s.content_locale)
-				const displayName = (() => {
-					try { return new Intl.DisplayNames([this.locale], { type: 'language' }).of(s.content_locale) } catch { return s.content_locale }
-				})()
-				this.allLanguages.push({ value: s.content_locale, label: displayName, selected: false })
-			}
-		})
+		this.mergeFeaturedFilters(this.schedule)
 
 		// set API URL before loading favs
 		this.apiUrl = this.remoteApiUrl || (window.location.origin + '/api/v1/events/' + this.eventSlug + '/')
 		if (this.publicFavsUrl) {
 			this.favsReadOnly = true
 			this.onlyFavs = true
-			this.favs = this.pruneFavs(await this.loadPublicFavs(), this.schedule)
+			const publicFavs = await this.loadPublicFavs()
+			this.favs = this.featuredRemote ? publicFavs : this.pruneFavs(publicFavs, this.schedule)
 		} else {
-			this.favs = this.pruneFavs(await this.loadFavs(), this.schedule)
+			const savedFavs = await this.loadFavs()
+			this.favs = this.featuredRemote ? savedFavs : this.pruneFavs(savedFavs, this.schedule)
 			if (!this.loggedIn && this.favs.length) this.showAnonymousFavsInfo()
 		}
 		this.shareStarredSessions = await loadStarredSharingPreference(this.eventUrl)
@@ -956,8 +925,58 @@ export default {
 			this.featuredPageSize = data.page_size || this.featuredPageSize
 			if (this.featuredTotalPages > 1) this.featuredRemote = true
 		},
+		mergeFeaturedFilters (schedule) {
+			if (!schedule) return
+			const knownTracks = new Set(this.allTracks.map(track => track.id))
+			;(schedule.tracks || []).forEach(track => {
+				if (track?.id == null || knownTracks.has(track.id)) return
+				knownTracks.add(track.id)
+				this.allTracks.push({
+					...track,
+					value: track.id,
+					label: getLocalizedString(track.name),
+					selected: false,
+				})
+			})
+			const knownRooms = new Set(this.allRooms.map(room => room.id))
+			;(schedule.rooms || []).forEach(room => {
+				if (room?.id == null || knownRooms.has(room.id)) return
+				knownRooms.add(room.id)
+				this.allRooms.push({
+					id: room.id,
+					value: room.id,
+					label: getLocalizedString(room.name),
+					selected: false,
+				})
+			})
+			const knownTypes = new Set(this.allTypes.map(type => type.value))
+			const knownLanguages = new Set(this.allLanguages.map(language => language.value))
+			const addLanguage = (code) => {
+				if (!code || knownLanguages.has(code)) return
+				knownLanguages.add(code)
+				let label = code
+				try {
+					label = new Intl.DisplayNames([this.locale], { type: 'language' }).of(code) || code
+				} catch {
+					label = code
+				}
+				this.allLanguages.push({ value: code, label, selected: false })
+			}
+			;(schedule.content_locales || []).forEach(addLanguage)
+			;(schedule.talks || []).forEach(talk => {
+				const typeLabel = getSessionTypeLabel(talk.session_type)
+				if (typeLabel && !knownTypes.has(typeLabel)) {
+					knownTypes.add(typeLabel)
+					this.allTypes.push({ value: typeLabel, label: typeLabel, selected: false })
+				}
+				addLanguage(talk.content_locale)
+			})
+		},
 		async fetchFeaturedPage (page) {
-			if (!this.isFeaturedPage || this.featuredPageLoading) return
+			if (!this.isFeaturedPage) return
+			this._featuredFetchController?.abort()
+			const controller = new AbortController()
+			this._featuredFetchController = controller
 			const nextPage = Math.min(Math.max(page, 1), this.featuredTotalPages || 1)
 			this.featuredPageLoading = true
 			try {
@@ -967,7 +986,7 @@ export default {
 				if (nextPage > 1) url.searchParams.set('page', String(nextPage))
 				if (this.searchQuery) url.searchParams.set('q', this.searchQuery)
 				if (this.sortBy && this.sortBy !== 'title') url.searchParams.set('sort', this.sortBy)
-				const response = await fetch(url.toString())
+				const response = await fetch(url.toString(), { signal: controller.signal })
 				if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
 				const data = await response.json()
 				this.schedule = {
@@ -976,13 +995,14 @@ export default {
 					talks: data.talks || [],
 				}
 				this.readFeaturedPageMeta(data)
+				this.mergeFeaturedFilters(this.schedule)
 				window.scrollTo({top: 0, behavior: 'smooth'})
 			} catch (error) {
 				if (error?.name !== 'AbortError') {
 					this.scheduleError = true
 				}
 			} finally {
-				this.featuredPageLoading = false
+				if (this._featuredFetchController === controller) this.featuredPageLoading = false
 			}
 		},
 		getFavStorageKey (userCode = null) {

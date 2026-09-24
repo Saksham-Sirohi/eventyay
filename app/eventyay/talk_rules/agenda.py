@@ -26,12 +26,7 @@ def submission_belongs_to_public_featured_speaker(user, submission):
         return False
     from eventyay.base.models import SubmissionStates
 
-    if submission.state in (
-        SubmissionStates.REJECTED,
-        SubmissionStates.CANCELED,
-        SubmissionStates.WITHDRAWN,
-        SubmissionStates.DELETED,
-    ):
+    if submission.state not in SubmissionStates.accepted_states:
         return False
     return submission.speakers.filter(profiles__event=event, profiles__is_featured=True).exists()
 
@@ -265,14 +260,9 @@ def pending_public_submission_codes_for_speaker(event, user, speaker_code):
     codes = set()
     with scope(event=event):
         submissions = (
-            event.submissions.filter(speakers__code__iexact=speaker_code)
-            .exclude(
-                state__in=(
-                    SubmissionStates.REJECTED,
-                    SubmissionStates.CANCELED,
-                    SubmissionStates.WITHDRAWN,
-                    SubmissionStates.DELETED,
-                )
+            event.submissions.filter(
+                speakers__code__iexact=speaker_code,
+                state__in=SubmissionStates.accepted_states,
             )
             .select_related('event')
         )

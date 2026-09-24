@@ -318,10 +318,6 @@ export default {
 	},
 	methods: {
 		onSessionClick (event) {
-			if (this.isSchedulePending) {
-				event.preventDefault()
-				return
-			}
 			this.onSessionLinkClick(event, this.session)
 		},
 		gridMetaTitle (text) {
