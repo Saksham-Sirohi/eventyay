@@ -12,7 +12,7 @@
 		featured-speakers(v-if="view === 'featured-speakers'")
 		speakers-list(v-else-if="view === 'speakers'")
 		speaker-detail(v-else-if="view === 'speaker'", :speakerId="speakerCode", :onHomeServer="onHomeServer")
-	template(v-else-if="schedule && schedule.talks.length")
+	template(v-else-if="schedule && (schedule.talks.length || (isFeaturedPage && featuredRemote))")
 		schedule-toolbar(v-if="(scheduleMeta || schedule) && !publicFavsUrl",
 			:version="version || scheduleMeta?.version || ''",
 			:isCurrent="scheduleMeta?.is_current !== false",
@@ -99,8 +99,32 @@
 			@changeDay="setCurrentDay($event)",
 			@fav="fav($event)",
 			@unfav="unfav($event)")
-		.no-results(v-if="sessions && !sessions.length && searchQuery")
+		.no-results(v-if="sessions && !sessions.length && (searchQuery || (isFeaturedPage && featuredRemote))")
 			.no-results-text No sessions match your search.
+		.featured-sessions-pagination(v-if="isFeaturedPage && featuredTotalPages > 1")
+			p.page-status(v-if="featuredPageStatus") {{ featuredPageStatus }}
+			nav.page-controls(:aria-label="$t('Featured sessions pagination')")
+				button.page-btn.nav-prev(
+					type="button",
+					:disabled="featuredPage <= 1 || featuredPageLoading",
+					:aria-label="$t('Previous page')",
+					@click="fetchFeaturedPage(featuredPage - 1)"
+				) {{ $t('Prev') }}
+				button.page-btn(
+					v-for="(item, idx) in featuredVisiblePages",
+					:key="`${item}-${idx}`",
+					type="button",
+					:class="{current: item === featuredPage, ellipsis: item === 'ellipsis'}",
+					:disabled="item === 'ellipsis' || featuredPageLoading",
+					:aria-current="item === featuredPage ? 'page' : null",
+					@click="item !== 'ellipsis' && fetchFeaturedPage(item)"
+				) {{ item === 'ellipsis' ? '…' : item }}
+				button.page-btn.nav-next(
+					type="button",
+					:disabled="featuredPage >= featuredTotalPages || featuredPageLoading",
+					:aria-label="$t('Next page')",
+					@click="fetchFeaturedPage(featuredPage + 1)"
+				) {{ $t('Next') }}
 	bunt-progress-circular(v-else, size="huge", :page="true")
 	.error-messages(v-if="errorMessages.length")
 		.error-message(v-for="message in errorMessages", :key="message")
@@ -336,6 +360,14 @@ export default {
 			scheduleMeta: null,
 			sessionsMode: false,
 			searchQuery: '',
+			featuredPage: 1,
+			featuredTotalCount: 0,
+			featuredTotalPages: 1,
+			featuredPageSize: 48,
+			featuredPageLoading: false,
+			featuredRemote: false,
+			featuredPagingReady: false,
+			featuredSearchTimeout: null,
 			recordingFilter: 'all',
 			timeDensityMinutes: Number(localStorage.getItem('schedule-time-density-minutes') || 30),
 			sortIncludeRoom: false,
@@ -512,7 +544,7 @@ export default {
 		// sessions: baseSessions + search filter. Used for display.
 		sessions () {
 			if (!this.baseSessions) return
-			if (!this.searchQuery) return this.baseSessions
+			if (!this.searchQuery || (this.isFeaturedPage && this.featuredRemote)) return this.baseSessions
 			const q = this.searchQuery.toLowerCase()
 			return this.baseSessions.filter(s => {
 				const speakerNames = (s.speakers || []).map(sp => (sp?.name || '').toLowerCase()).join(' ')
@@ -585,6 +617,32 @@ export default {
 		properSessions () {
 			if (!this.sessions) return []
 			return this.sessions.filter(s => isProperSession(s))
+		},
+		featuredPageStatus () {
+			if (!this.isFeaturedPage || this.featuredTotalPages <= 1 || !this.featuredTotalCount) return ''
+			const start = ((this.featuredPage - 1) * this.featuredPageSize) + 1
+			const end = Math.min(this.featuredPage * this.featuredPageSize, this.featuredTotalCount)
+			return this.$t('Showing {{start}}–{{end}} of {{total}} featured sessions', {
+				start,
+				end,
+				total: this.featuredTotalCount,
+			})
+		},
+		featuredVisiblePages () {
+			const total = this.featuredTotalPages
+			const current = this.featuredPage
+			if (total <= 1) return []
+			if (total <= 7) return Array.from({length: total}, (_, index) => index + 1)
+			const wanted = new Set([1, total, current, current - 1, current + 1])
+			const pages = [...wanted].filter(page => page >= 1 && page <= total).sort((a, b) => a - b)
+			const items = []
+			let last = 0
+			for (const page of pages) {
+				if (last && page - last > 1) items.push('ellipsis')
+				items.push(page)
+				last = page
+			}
+			return items
 		},
 		resolvedTalk () {
 			if (!this.talkCode || !this.sessions) return null
@@ -675,6 +733,17 @@ export default {
 			} catch {
 				// ignore localStorage access errors
 			}
+		},
+		searchQuery () {
+			if (!this.featuredPagingReady || !this.isFeaturedPage || !this.featuredRemote) return
+			if (this.featuredSearchTimeout) clearTimeout(this.featuredSearchTimeout)
+			this.featuredSearchTimeout = setTimeout(() => {
+				this.fetchFeaturedPage(1)
+			}, 300)
+		},
+		sortBy () {
+			if (!this.featuredPagingReady || !this.isFeaturedPage || !this.featuredRemote) return
+			this.fetchFeaturedPage(1)
 		}
 	},
 	async created () {
@@ -717,6 +786,7 @@ export default {
 					if (!Array.isArray(this.schedule.talks)) {
 						this.schedule.talks = []
 					}
+					this.readFeaturedPageMeta(this.schedule)
 				}
 			} catch (e) { /* ignore parse error, fall through to fetch */ }
 		}
@@ -794,6 +864,7 @@ export default {
 		}
 		this.now = moment.tz(this.currentTimezone)
 		setInterval(() => this.now = moment.tz(this.currentTimezone), 30000)
+		this.featuredPagingReady = this.isFeaturedPage
 		if (!this.scrollParentResizeObserver) {
 			await this.$nextTick()
 			this.onWindowResize()
@@ -877,6 +948,43 @@ export default {
 		// TODO destroy observers
 	},
 	methods: {
+		readFeaturedPageMeta (data) {
+			if (!this.isFeaturedPage || !data) return
+			this.featuredPage = data.page || 1
+			this.featuredTotalCount = typeof data.count === 'number' ? data.count : (data.talks || []).length
+			this.featuredTotalPages = data.num_pages || 1
+			this.featuredPageSize = data.page_size || this.featuredPageSize
+			if (this.featuredTotalPages > 1) this.featuredRemote = true
+		},
+		async fetchFeaturedPage (page) {
+			if (!this.isFeaturedPage || this.featuredPageLoading) return
+			const nextPage = Math.min(Math.max(page, 1), this.featuredTotalPages || 1)
+			this.featuredPageLoading = true
+			try {
+				const base = (this.eventUrl || '').replace(/\/?$/, '/')
+				const url = new URL(`${base}featured/`, window.location.origin)
+				url.searchParams.set('format', 'json')
+				if (nextPage > 1) url.searchParams.set('page', String(nextPage))
+				if (this.searchQuery) url.searchParams.set('q', this.searchQuery)
+				if (this.sortBy && this.sortBy !== 'title') url.searchParams.set('sort', this.sortBy)
+				const response = await fetch(url.toString())
+				if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
+				const data = await response.json()
+				this.schedule = {
+					...(this.schedule || {}),
+					...data,
+					talks: data.talks || [],
+				}
+				this.readFeaturedPageMeta(data)
+				window.scrollTo({top: 0, behavior: 'smooth'})
+			} catch (error) {
+				if (error?.name !== 'AbortError') {
+					this.scheduleError = true
+				}
+			} finally {
+				this.featuredPageLoading = false
+			}
+		},
 		getFavStorageKey (userCode = null) {
 			if (this.loggedIn && userCode) return `${this.eventSlug}_${userCode}_favs`
 			return `${this.eventSlug}_favs`
@@ -1305,6 +1413,52 @@ export default {
 </script>
 <style lang="stylus">
 @import 'styles/global.styl'
+.featured-sessions-pagination
+	display: flex
+	flex-direction: column
+	align-items: center
+	gap: 8px
+	padding: 8px 16px 24px
+	.page-status
+		margin: 0
+		font-size: 13px
+		color: $clr-secondary-text-light
+	.page-controls
+		display: flex
+		flex-wrap: nowrap
+		justify-content: center
+		align-items: center
+		gap: 6px
+		width: 100%
+		overflow-x: auto
+	.page-btn
+		appearance: none
+		flex: 0 0 auto
+		min-width: 36px
+		height: 36px
+		padding: 0 10px
+		border: 1px solid var(--pretalx-clr-primary, #3aa57c)
+		background: #fff
+		color: var(--pretalx-clr-primary, #3aa57c)
+		border-radius: 8px
+		font-size: 14px
+		font-weight: 600
+		cursor: pointer
+		&:hover, &:focus-visible
+			background: var(--pretalx-clr-primary, #3aa57c)
+			color: #fff
+			outline: none
+		&.current
+			background: var(--pretalx-clr-primary, #3aa57c)
+			color: #fff
+		&.ellipsis, &:disabled
+			cursor: default
+			opacity: 0.55
+		&.ellipsis:disabled
+			border-color: transparent
+			background: transparent
+			color: $clr-secondary-text-light
+			opacity: 1
 .schedule-error
 	color: $clr-error
 	font-size: 18px

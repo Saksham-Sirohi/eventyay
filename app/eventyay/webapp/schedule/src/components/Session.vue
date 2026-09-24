@@ -186,12 +186,12 @@ export default {
 		},
 		showTentativeSessionNote () {
 			// List rows include the note even with no speakers. The calendar grid
-			// stays "Coming soon" only, so cells do not grow.
+			// stays "To be announced" only, so cells do not grow.
 			return this.isSchedulePending && !this.showSessionType
 		},
 		schedulePendingText () {
 			const m = this.translationMessages || {}
-			return m.schedule_pending_secondary || this.$t('Coming soon')
+			return m.schedule_pending_secondary || this.$t('To be announced')
 		},
 		tentativeSessionText () {
 			return pendingSessionNote(this.translationMessages)
@@ -467,6 +467,8 @@ expandClampedSessionText()
 	color: rgb(13 15 16)
 	position: relative
 	font-size: 14px
+	&[href]
+		cursor: pointer
 	.time-box
 		width: 64px
 		flex-shrink: 0
@@ -585,7 +587,8 @@ expandClampedSessionText()
 		line-height: 1.35
 		color: $clr-secondary-text-light
 	&.schedule-pending-session
-		cursor: default
+		&[href]
+			cursor: pointer
 		.time-box
 			justify-content: center
 	&.has-date

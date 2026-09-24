@@ -169,7 +169,7 @@ class TestFeaturedSessions:
         assert response.status_code == 200
         content = response.content.decode()
         assert "Featured Session Title" in content
-        assert 'schedule_pending' in content or 'Coming soon' in content
+        assert 'schedule_pending' in content or 'To be announced' in content
         assert '<article id="featured-talks">' not in content
         meta = json.loads(response.context['schedule_meta_json'])
         assert meta['exporters'] == []

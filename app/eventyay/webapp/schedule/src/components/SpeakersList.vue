@@ -352,7 +352,7 @@ export default {
 				z_to_a: m.z_to_a || this.$t('Z → A'),
 				featured: m.featured || this.$t('Featured'),
 				sessions: m.sessions || this.$t('Sessions'),
-				coming_soon: m.schedule_pending_secondary || this.$t('Coming soon'),
+				coming_soon: m.schedule_pending_secondary || this.$t('To be announced'),
 				tentative_session: tentativeSessionText(m),
 				view_profile: m.view_profile || this.$t('View speaker profile'),
 				view_list: m.view_list || this.$t('Switch to list view'),
@@ -392,15 +392,18 @@ export default {
 			return this.totalPages
 		},
 		showPagination() {
-			if (this.featuredOnly && this.usesLocalSpeakers) return this.resolvedTotalCount > 0
-			return !this.usesLocalSpeakers && (this.resolvedTotalCount || this.isLoadingMore)
+			if (this.featuredOnly) return this.resolvedTotalPages > 1
+			return !this.usesLocalSpeakers && this.resolvedTotalPages > 1
 		},
 		pageStatusLabel() {
+			if (!this.resolvedTotalCount || this.resolvedTotalPages <= 1) return ''
 			if (this.usesLocalSpeakers && !this.featuredOnly) return ''
-			if (!this.resolvedTotalCount) return ''
 			const start = ((this.currentPage - 1) * this.pageSize) + 1
 			const end = Math.min(this.currentPage * this.pageSize, this.resolvedTotalCount)
-			return this.$t('Showing {{start}}–{{end}} of {{total}} speakers', {
+			const label = this.featuredOnly
+				? 'Showing {{start}}–{{end}} of {{total}} featured speakers'
+				: 'Showing {{start}}–{{end}} of {{total}} speakers'
+			return this.$t(label, {
 				start,
 				end,
 				total: this.resolvedTotalCount
@@ -1137,6 +1140,7 @@ export default {
 			border-radius: 4px
 			padding: 9px 11px
 			text-decoration: none
+			cursor: pointer
 			&:hover
 				opacity: 0.92
 				text-decoration: none
@@ -1148,9 +1152,7 @@ export default {
 			line-height: 1.35
 			color: $clr-secondary-text-light
 		.featured-speaker-session-pending
-			cursor: default
-			&:hover
-				opacity: 1
+			cursor: pointer
 
 		.featured-speaker-session-slot
 			display: block
@@ -1171,6 +1173,7 @@ export default {
 			a
 				color: var(--pretalx-clr-primary, var(--clr-primary))
 				text-decoration: none
+				cursor: pointer
 				&:hover
 					text-decoration: underline
 	.speaker-card
