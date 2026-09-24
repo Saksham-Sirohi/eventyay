@@ -264,10 +264,8 @@ export default {
 					event.preventDefault()
 					return
 				}
-				if (this.onHomeServer) return
+				if (this.onHomeServer || isTalkSchedulePending(session)) return
 				event.preventDefault()
-				if (isTalkSchedulePending(session)) return
-
 				this.showSessionDetails(session, event)
 			},
 			generateSessionLinkUrl: ({eventUrl, session}) => {
