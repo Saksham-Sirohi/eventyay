@@ -73,8 +73,8 @@ def test_featured_speaker_without_talks_still_viewable_after_schedule_release(cl
 
 
 @pytest.mark.django_db
-def test_featured_speakers_list_blocked_before_public_schedule_release(client, event):
-    """Featured speakers stay on the info page, but the full list stays hidden until release."""
+def test_featured_speakers_list_visible_before_public_schedule_release(client, event):
+    """Anonymous visitors can open featured speakers before the full list is public."""
     with scope(event=event):
         user = User.objects.create_user(
             email='featured-pre-release@example.com',
@@ -87,6 +87,12 @@ def test_featured_speakers_list_blocked_before_public_schedule_release(client, e
             biography='Featured biography.',
             is_featured=True,
         )
+        regular = User.objects.create_user(
+            email='regular-pre-release@example.com',
+            password='testpass123',
+            fullname='Regular Hidden Speaker',
+        )
+        SpeakerProfile.objects.create(event=event, user=regular, biography='Hidden biography.')
         event.feature_flags['show_featured_speakers'] = 'always'
         event.feature_flags['show_schedule'] = True
         event.talks_published = False
@@ -112,7 +118,20 @@ def test_featured_speakers_list_blocked_before_public_schedule_release(client, e
     )
     assert client.get(speaker_url, follow=True).status_code == 200
 
-    _assert_speakers_list_redirects(client, event, expected_message='No published schedule.')
+    speakers_list_url = reverse(
+        'agenda:speakers',
+        kwargs={
+            'event': event.slug,
+            'organizer': event.organizer.slug,
+        },
+    )
+    speakers_page = client.get(speakers_list_url)
+    assert speakers_page.status_code == 200
+    speakers_body = speakers_page.content.decode()
+    assert user.fullname in speakers_body
+    assert 'Regular Hidden Speaker' not in speakers_body
+    assert 'fa-group' in speakers_body
+    assert 'fa-group' in landing.content.decode()
 
 
 @pytest.mark.django_db

@@ -3499,6 +3499,7 @@ button.btn-speaker-not-arrived {
   margin-top: 0.1rem;
 }
 
+.orga-confirm-dialog,
 .feedback-confirm-dialog {
   border: none;
   border-radius: 8px;
@@ -3512,6 +3513,7 @@ button.btn-speaker-not-arrived {
   z-index: 9999;
 }
 
+.orga-confirm-dialog-title,
 .feedback-confirm-dialog-title {
   margin-top: 0;
   margin-bottom: 16px;
@@ -3519,6 +3521,7 @@ button.btn-speaker-not-arrived {
   font-weight: 600;
 }
 
+.orga-confirm-dialog-message,
 .feedback-confirm-dialog-message {
   margin-top: 0;
   margin-bottom: 24px;
@@ -3527,6 +3530,12 @@ button.btn-speaker-not-arrived {
   color: #555;
 }
 
+.orga-confirm-dialog::backdrop,
+.feedback-confirm-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.orga-confirm-dialog-actions,
 .feedback-confirm-dialog-actions {
   display: flex;
   justify-content: flex-end;

@@ -26,6 +26,7 @@ from eventyay.agenda.views.utils import (
     build_google_calendar_url,
     build_speaker_cards,
     build_speaker_schedule_json,
+    build_speakers_list_schedule_json,
     escape_json_for_script,
     get_cached_speakers_list_json_payload,
     get_or_build_speakers_list_meta,
@@ -53,6 +54,7 @@ from eventyay.common.views.mixins import (
 from eventyay.talk_rules.agenda import (
     agenda_speaker_talks,
     can_list_released_schedule_speakers,
+    featured_speakers_page_public,
     is_speaker_viewable,
     should_hide_public_speaker_sessions,
 )
@@ -125,12 +127,15 @@ class SpeakerList(EventPermissionRequired, Filterable, ListView):
         return super().render_to_response(context, **response_kwargs)
 
     def has_permission(self):
-        return can_list_released_schedule_speakers(self.request.user, self.request.event)
+        user = self.request.user
+        event = self.request.event
+        return can_list_released_schedule_speakers(user, event) or featured_speakers_page_public(user, event)
 
     def dispatch(self, request, *args, **kwargs):
         if is_public_speakers_list_empty(request):
             return redirect_to_presale_with_warning(request, _('No published speakers.'))
-        if not can_list_released_schedule_speakers(request.user, request.event):
+        full_list = can_list_released_schedule_speakers(request.user, request.event)
+        if not full_list and not featured_speakers_page_public(request.user, request.event):
             return redirect_when_public_speakers_unavailable(request)
         return super().dispatch(request, *args, **kwargs)
 
@@ -147,6 +152,8 @@ class SpeakerList(EventPermissionRequired, Filterable, ListView):
             qs = qs.order_by('-is_featured', *speaker_profile_display_order())
         featured = (self.request.GET.get('featured') or '').lower()
         if featured in {'1', 'true', 'yes'}:
+            qs = qs.filter(is_featured=True)
+        elif not can_list_released_schedule_speakers(self.request.user, event):
             qs = qs.filter(is_featured=True)
         # Searching session titles joins the speakers M2M, which can duplicate rows.
         return self.filter_queryset(qs).distinct()
@@ -189,6 +196,8 @@ class SpeakerList(EventPermissionRequired, Filterable, ListView):
         context = super().get_context_data(**kwargs)
         meta = get_or_build_speakers_list_meta(self.request.event)
         context['speakers_meta_json'] = escape_json_for_script(json.dumps(meta, cls=I18nJSONEncoder))
+        if not can_list_released_schedule_speakers(self.request.user, self.request.event):
+            context['schedule_json'] = build_speakers_list_schedule_json(self.request)
         return context
 
 

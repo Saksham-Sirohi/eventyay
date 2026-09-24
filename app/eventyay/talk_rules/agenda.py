@@ -219,22 +219,44 @@ def _speaker_profile_by_code(event, speaker_code, *, select_related=()):
 
 
 def public_speakers_list_available(user, event):
-    """Whether the public speakers overview page and its nav links may be shown."""
+    """Whether the full public speakers overview may be shown."""
     event_obj = getattr(event, 'event', event)
     if not can_list_released_schedule_speakers(user, event_obj):
         return False
     return event_obj.speakers.exists()
 
 
+def featured_speakers_page_public(user, event):
+    """Whether anonymous visitors may open the speakers page for featured speakers only."""
+    event_obj = getattr(event, 'event', event)
+    if not event_obj or event_obj.private_testmode_talks_enabled:
+        return False
+    return has_public_featured_speakers(user, event_obj)
+
+
+def public_speakers_nav_available(user, event):
+    """Whether the Speakers header tab may be shown.
+
+    The full list follows a released public schedule. Featured speakers stay
+    linked before that release when their own setting makes them public.
+    """
+    event_obj = getattr(event, 'event', event)
+    if public_speakers_list_available(user, event_obj):
+        return True
+    return featured_speakers_page_public(user, event_obj)
+
+
 def agenda_speakers_page_reachable(user, event):
     """Whether the speakers list view may run and show schedule-style redirects."""
     event_obj = getattr(event, 'event', event)
-    if not event_obj or not event_obj.get_feature_flag('show_schedule'):
+    if not event_obj:
         return False
     if can_list_released_schedule_speakers(user, event):
         return True
     if has_public_featured_speakers(user, event):
         return True
+    if not event_obj.get_feature_flag('show_schedule'):
+        return False
     if event_obj.current_schedule and event_obj.speakers.exists():
         return True
     return False
