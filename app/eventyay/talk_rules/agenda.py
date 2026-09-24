@@ -287,6 +287,7 @@ AGENDA_PAGES_WITHOUT_TALKS_PUBLISHED = frozenset(
         'speakers',
         'speaker',
         'talk.detail',
+        'talk.starrers',
         'widget.messages',
     }
 )
@@ -299,7 +300,7 @@ def agenda_page_allowed_without_talks_published(url_name, user, event, *, url_kw
         return False
     if url_name == 'speakers':
         return agenda_speakers_page_reachable(user, event)
-    if url_name == 'talk.detail':
+    if url_name in ('talk.detail', 'talk.starrers'):
         slug = (url_kwargs or {}).get('slug')
         if not slug:
             return False

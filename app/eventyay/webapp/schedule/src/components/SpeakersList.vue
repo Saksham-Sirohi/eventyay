@@ -159,31 +159,21 @@
 		| {{ t.load_error }}
 	.empty(v-else-if="!isLoadingMore && !filteredSpeakers.length")
 		| {{ t.no_speakers_found }}
-	.speakers-pagination(v-if="showPagination")
-		p.page-status(v-if="pageStatusLabel") {{ pageStatusLabel }}
-		nav.page-controls(v-if="resolvedTotalPages > 1", :aria-label="t.pagination")
-			button.page-btn.nav-prev(
-				type="button",
-				:disabled="currentPage <= 1 || isLoadingMore",
-				:aria-label="t.previous_page",
-				@click="goToPage(currentPage - 1)"
-			) {{ t.previous }}
-			button.page-btn(
-				v-for="(item, idx) in visiblePages",
-				:key="`${item}-${idx}`",
-				type="button",
-				:class="{current: item === currentPage, ellipsis: item === 'ellipsis'}",
-				:disabled="item === 'ellipsis' || isLoadingMore",
-				:aria-current="item === currentPage ? 'page' : null",
-				:aria-label="pageButtonLabel(item)",
-				@click="item !== 'ellipsis' && goToPage(item)"
-			) {{ item === 'ellipsis' ? '…' : item }}
-			button.page-btn.nav-next(
-				type="button",
-				:disabled="currentPage >= resolvedTotalPages || isLoadingMore",
-				:aria-label="t.next_page",
-				@click="goToPage(currentPage + 1)"
-			) {{ t.next }}
+	list-pagination(
+		v-if="showPagination",
+		:current-page="currentPage",
+		:total-pages="resolvedTotalPages",
+		:items="visiblePages",
+		:status="pageStatusLabel",
+		:aria-label="t.pagination",
+		:previous-label="t.previous",
+		:previous-aria-label="t.previous_page",
+		:next-label="t.next",
+		:next-aria-label="t.next_page",
+		:item-aria-label="pageButtonLabel",
+		:loading="isLoadingMore",
+		@change="goToPage"
+	)
 	.loading(v-if="isLoadingMore", :class="{'is-initial': !filteredSpeakers.length}", role="status", :aria-label="t.loading")
 		bunt-progress-circular(:size="filteredSpeakers.length ? 'big' : 'huge'", :page="true")
 	.backdrop(v-if="openDropdown || mobileFiltersOpen || mobileMoreOpen", @click="closeToolbarOverlays")
@@ -191,7 +181,8 @@
 
 <script>
 import moment from 'moment-timezone'
-import { getLocalizedString, compareFeaturedSpeakers, isFeaturedSpeakersSortAvailable, isTalkSchedulePending, sessionsForSpeaker, tentativeSessionText } from '../utils'
+import { getLocalizedString, compareFeaturedSpeakers, isFeaturedSpeakersSortAvailable, isTalkSchedulePending, sessionsForSpeaker, tentativeSessionText, visiblePageItems, pageStatusRange } from '../utils'
+import ListPagination from './ListPagination.vue'
 import MarkdownContent from './MarkdownContent'
 import SpeakerSocialLinks from './SpeakerSocialLinks.vue'
 import { logOperational } from '../operationalLog.js'
@@ -209,7 +200,7 @@ function localePrimary (code) {
 
 export default {
 	name: 'SpeakersList',
-	components: { MarkdownContent, SpeakerSocialLinks },
+	components: { MarkdownContent, SpeakerSocialLinks, ListPagination },
 	inject: {
 		scheduleData: { default: null },
 		eventUrl: { default: '' },
@@ -398,32 +389,15 @@ export default {
 		pageStatusLabel() {
 			if (!this.resolvedTotalCount || this.resolvedTotalPages <= 1) return ''
 			if (this.usesLocalSpeakers && !this.featuredOnly) return ''
-			const start = ((this.currentPage - 1) * this.pageSize) + 1
-			const end = Math.min(this.currentPage * this.pageSize, this.resolvedTotalCount)
+			const range = pageStatusRange(this.currentPage, this.pageSize, this.resolvedTotalCount)
+			if (!range) return ''
 			const label = this.featuredOnly
 				? 'Showing {{start}}–{{end}} of {{total}} featured speakers'
 				: 'Showing {{start}}–{{end}} of {{total}} speakers'
-			return this.$t(label, {
-				start,
-				end,
-				total: this.resolvedTotalCount
-			})
+			return this.$t(label, range)
 		},
 		visiblePages() {
-			const total = this.resolvedTotalPages
-			const current = this.currentPage
-			if (total <= 1) return []
-			if (total <= 7) return Array.from({length: total}, (_, i) => i + 1)
-			const wanted = new Set([1, total, current, current - 1, current + 1])
-			const pages = [...wanted].filter(page => page >= 1 && page <= total).sort((a, b) => a - b)
-			const items = []
-			let last = 0
-			for (const page of pages) {
-				if (last && page - last > 1) items.push('ellipsis')
-				items.push(page)
-				last = page
-			}
-			return items
+			return visiblePageItems(this.resolvedTotalPages, this.currentPage)
 		},
 		availableLanguages() {
 			if (this.metaData?.content_locales?.length) {
@@ -1248,53 +1222,6 @@ export default {
 		min-height: 400px
 		text-align: center
 		color: $clr-secondary-text-light
-	.speakers-pagination
-		display: flex
-		flex-direction: column
-		align-items: center
-		gap: 8px
-		padding: 16px 12px 24px
-		.page-status
-			margin: 0
-			font-size: 13px
-			color: $clr-secondary-text-light
-		.page-controls
-			display: flex
-			flex-wrap: nowrap
-			justify-content: center
-			align-items: center
-			gap: 6px
-			width: 100%
-			overflow-x: auto
-		.page-btn
-			appearance: none
-			flex: 0 0 auto
-			min-width: 36px
-			height: 36px
-			padding: 0 10px
-			border: 1px solid var(--pretalx-clr-primary, #3aa57c)
-			background: #fff
-			color: var(--pretalx-clr-primary, #3aa57c)
-			border-radius: 8px
-			font-size: 14px
-			font-weight: 600
-			white-space: nowrap
-			cursor: pointer
-			&:hover, &:focus-visible
-				background: var(--pretalx-clr-primary, #3aa57c)
-				color: #fff
-				outline: none
-			&.current
-				background: var(--pretalx-clr-primary, #3aa57c)
-				color: #fff
-			&.ellipsis, &:disabled
-				cursor: default
-				opacity: 0.55
-			&.ellipsis:disabled
-				border-color: transparent
-				background: transparent
-				color: $clr-secondary-text-light
-				opacity: 1
 	.loading
 		display: flex
 		justify-content: center
@@ -1308,20 +1235,6 @@ export default {
 
 @media (max-width: 600px)
 	.c-speakers-list
-		.speakers-pagination
-			padding: 12px 8px 20px
-			.page-controls
-				gap: 4px
-			.page-btn
-				min-width: 30px
-				height: 32px
-				padding: 0 7px
-				font-size: 13px
-				border-radius: 7px
-			.page-btn.nav-prev,
-			.page-btn.nav-next
-				min-width: 32px
-				padding: 0 8px
 		.speakers-toolbar
 			padding: 6px 8px 0
 			gap: 6px

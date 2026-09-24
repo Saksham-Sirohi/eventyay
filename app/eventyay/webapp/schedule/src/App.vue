@@ -101,30 +101,21 @@
 			@unfav="unfav($event)")
 		.no-results(v-if="sessions && !sessions.length && (searchQuery || (isFeaturedPage && featuredRemote))")
 			.no-results-text No sessions match your search.
-		.featured-sessions-pagination(v-if="isFeaturedPage && featuredTotalPages > 1")
-			p.page-status(v-if="featuredPageStatus") {{ featuredPageStatus }}
-			nav.page-controls(:aria-label="$t('Featured sessions pagination')")
-				button.page-btn.nav-prev(
-					type="button",
-					:disabled="featuredPage <= 1 || featuredPageLoading",
-					:aria-label="$t('Previous page')",
-					@click="fetchFeaturedPage(featuredPage - 1)"
-				) {{ $t('Prev') }}
-				button.page-btn(
-					v-for="(item, idx) in featuredVisiblePages",
-					:key="`${item}-${idx}`",
-					type="button",
-					:class="{current: item === featuredPage, ellipsis: item === 'ellipsis'}",
-					:disabled="item === 'ellipsis' || featuredPageLoading",
-					:aria-current="item === featuredPage ? 'page' : null",
-					@click="item !== 'ellipsis' && fetchFeaturedPage(item)"
-				) {{ item === 'ellipsis' ? '…' : item }}
-				button.page-btn.nav-next(
-					type="button",
-					:disabled="featuredPage >= featuredTotalPages || featuredPageLoading",
-					:aria-label="$t('Next page')",
-					@click="fetchFeaturedPage(featuredPage + 1)"
-				) {{ $t('Next') }}
+		list-pagination(
+			v-if="isFeaturedPage && featuredTotalPages > 1",
+			compact,
+			:current-page="featuredPage",
+			:total-pages="featuredTotalPages",
+			:items="featuredVisiblePages",
+			:status="featuredPageStatus",
+			:aria-label="$t('Featured sessions pagination')",
+			:previous-label="$t('Prev')",
+			:previous-aria-label="$t('Previous page')",
+			:next-label="$t('Next')",
+			:next-aria-label="$t('Next page')",
+			:loading="featuredPageLoading",
+			@change="fetchFeaturedPage"
+		)
 	bunt-progress-circular(v-else, size="huge", :page="true")
 	.error-messages(v-if="errorMessages.length")
 		.error-message(v-for="message in errorMessages", :key="message")
@@ -157,11 +148,12 @@ import GridScheduleWrapper from '~/components/GridScheduleWrapper'
 import FavButton from '~/components/FavButton'
 import Session from '~/components/Session'
 import SessionModal from '~/components/SessionModal'
+import ListPagination from '~/components/ListPagination.vue'
 const SpeakersList = defineAsyncComponent(() => import('~/components/SpeakersList'))
 const FeaturedSpeakers = defineAsyncComponent(() => import('~/components/FeaturedSpeakers'))
 const SpeakerDetail = defineAsyncComponent(() => import('~/components/SpeakerDetail'))
 const TalkDetail = defineAsyncComponent(() => import('~/components/TalkDetail'))
-import { findScrollParent, getLocalizedString, getSessionTime, getSessionTypeLabel, isProperSession, isPopularityFeatureEnabled, isPopularitySortAvailable, isPopularityVisibleOnSchedule, normalizePopularityCount, computeTalkExporters, areScheduleExportsDisabled, resolveScheduleApiBase, talksToScheduleSessions, buildSessionsBySpeaker, talkToSession, sortSessionsByStart, isTalkSchedulePending, getCsrfToken, loadStarredSharingPreference, updateStarredSharingPreference, fetchWidgetScheduleData } from '~/utils'
+import { findScrollParent, getLocalizedString, getSessionTime, getSessionTypeLabel, isProperSession, isPopularityFeatureEnabled, isPopularitySortAvailable, isPopularityVisibleOnSchedule, normalizePopularityCount, computeTalkExporters, areScheduleExportsDisabled, resolveScheduleApiBase, talksToScheduleSessions, buildSessionsBySpeaker, talkToSession, sortSessionsByStart, isTalkSchedulePending, visiblePageItems, pageStatusRange, getCsrfToken, loadStarredSharingPreference, updateStarredSharingPreference, fetchWidgetScheduleData } from '~/utils'
 import { changeScheduleLanguage } from './i18n.js'
 import { isShiftSchedule, resolveMode } from './teamshifts-adapter'
 import { logOperational } from './operationalLog.js'
@@ -192,7 +184,7 @@ const markdownIt = MarkdownIt({
 
 export default {
 	name: 'PretalxSchedule',
-	components: { FavButton, LinearSchedule, GridScheduleWrapper, Session, SessionModal, ScheduleToolbar, SpeakersList, FeaturedSpeakers, SpeakerDetail, TalkDetail },
+	components: { FavButton, LinearSchedule, GridScheduleWrapper, Session, SessionModal, ScheduleToolbar, SpeakersList, FeaturedSpeakers, SpeakerDetail, TalkDetail, ListPagination },
 	props: {
 		eventUrl: String,
 		locale: String,
@@ -620,29 +612,12 @@ export default {
 		},
 		featuredPageStatus () {
 			if (!this.isFeaturedPage || this.featuredTotalPages <= 1 || !this.featuredTotalCount) return ''
-			const start = ((this.featuredPage - 1) * this.featuredPageSize) + 1
-			const end = Math.min(this.featuredPage * this.featuredPageSize, this.featuredTotalCount)
-			return this.$t('Showing {{start}}–{{end}} of {{total}} featured sessions', {
-				start,
-				end,
-				total: this.featuredTotalCount,
-			})
+			const range = pageStatusRange(this.featuredPage, this.featuredPageSize, this.featuredTotalCount)
+			if (!range) return ''
+			return this.$t('Showing {{start}}–{{end}} of {{total}} featured sessions', range)
 		},
 		featuredVisiblePages () {
-			const total = this.featuredTotalPages
-			const current = this.featuredPage
-			if (total <= 1) return []
-			if (total <= 7) return Array.from({length: total}, (_, index) => index + 1)
-			const wanted = new Set([1, total, current, current - 1, current + 1])
-			const pages = [...wanted].filter(page => page >= 1 && page <= total).sort((a, b) => a - b)
-			const items = []
-			let last = 0
-			for (const page of pages) {
-				if (last && page - last > 1) items.push('ellipsis')
-				items.push(page)
-				last = page
-			}
-			return items
+			return visiblePageItems(this.featuredTotalPages, this.featuredPage)
 		},
 		resolvedTalk () {
 			if (!this.talkCode || !this.sessions) return null
@@ -1433,52 +1408,6 @@ export default {
 </script>
 <style lang="stylus">
 @import 'styles/global.styl'
-.featured-sessions-pagination
-	display: flex
-	flex-direction: column
-	align-items: center
-	gap: 8px
-	padding: 8px 16px 24px
-	.page-status
-		margin: 0
-		font-size: 13px
-		color: $clr-secondary-text-light
-	.page-controls
-		display: flex
-		flex-wrap: nowrap
-		justify-content: center
-		align-items: center
-		gap: 6px
-		width: 100%
-		overflow-x: auto
-	.page-btn
-		appearance: none
-		flex: 0 0 auto
-		min-width: 36px
-		height: 36px
-		padding: 0 10px
-		border: 1px solid var(--pretalx-clr-primary, #3aa57c)
-		background: #fff
-		color: var(--pretalx-clr-primary, #3aa57c)
-		border-radius: 8px
-		font-size: 14px
-		font-weight: 600
-		cursor: pointer
-		&:hover, &:focus-visible
-			background: var(--pretalx-clr-primary, #3aa57c)
-			color: #fff
-			outline: none
-		&.current
-			background: var(--pretalx-clr-primary, #3aa57c)
-			color: #fff
-		&.ellipsis, &:disabled
-			cursor: default
-			opacity: 0.55
-		&.ellipsis:disabled
-			border-color: transparent
-			background: transparent
-			color: $clr-secondary-text-light
-			opacity: 1
 .schedule-error
 	color: $clr-error
 	font-size: 18px

@@ -96,10 +96,20 @@ def landing_featured_widget_cache_key(event, *, limit: int = LANDING_FEATURED_SP
     return f'eagenda:landing-featured:{public_schedule_cache_variant(event)}:{limit}'
 
 
-def speakers_list_query_digest(request: HttpRequest) -> str:
+def _query_digest(parts) -> str:
+    raw = json.dumps(parts, separators=(',', ':')) if parts else 'default'
+    return hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()
+
+
+def request_query_digest(request: HttpRequest, keys, multi_keys=frozenset()) -> str:
+    """Stable cache fragment for a fixed set of GET keys.
+
+    Scalar keys keep the last value. Multi-value keys are sorted so order does not matter.
+    Page 1 is omitted so it shares a key with a request that has no page parameter.
+    """
     parts = []
-    for key in SPEAKERS_LIST_JSON_QUERY_KEYS:
-        if key in SPEAKERS_LIST_MULTI_QUERY_KEYS:
+    for key in keys:
+        if key in multi_keys:
             values = sorted(str(value) for value in request.GET.getlist(key) if value)
         else:
             value = request.GET.get(key)
@@ -108,8 +118,11 @@ def speakers_list_query_digest(request: HttpRequest) -> str:
             values = [value for value in values if value != '1']
         if values:
             parts.append((key, values))
-    raw = json.dumps(parts, separators=(',', ':')) if parts else 'default'
-    return hashlib.md5(raw.encode(), usedforsecurity=False).hexdigest()
+    return _query_digest(parts)
+
+
+def speakers_list_query_digest(request: HttpRequest) -> str:
+    return request_query_digest(request, SPEAKERS_LIST_JSON_QUERY_KEYS, SPEAKERS_LIST_MULTI_QUERY_KEYS)
 
 
 def speakers_list_json_cache_key(request: HttpRequest) -> str:
@@ -132,15 +145,23 @@ def speakers_json_next_url(request: HttpRequest, next_page: int | None) -> str |
     return speakers_json_page_url(request, next_page)
 
 
-def get_cached_speakers_list_json_payload(request: HttpRequest) -> dict | None:
-    cached = cache.get(speakers_list_json_cache_key(request))
+def get_cached_payload(cache_key: str) -> dict | None:
+    cached = cache.get(cache_key)
     if cached is None:
         return None
     return copy.deepcopy(cached)
 
 
+def store_cached_payload(cache_key: str, payload: dict) -> None:
+    cache.set(cache_key, copy.deepcopy(payload), CACHE_TTL)
+
+
+def get_cached_speakers_list_json_payload(request: HttpRequest) -> dict | None:
+    return get_cached_payload(speakers_list_json_cache_key(request))
+
+
 def store_speakers_list_json_payload(request: HttpRequest, payload: dict) -> None:
-    cache.set(speakers_list_json_cache_key(request), copy.deepcopy(payload), CACHE_TTL)
+    store_cached_payload(speakers_list_json_cache_key(request), payload)
 
 
 def build_google_calendar_url(title, dates, location, details) -> str:
@@ -904,25 +925,23 @@ def _featured_sessions_sort(request):
     return sort
 
 
-def _ordered_featured_submission_codes(event, *, sort, query):
-    """Codes for the public featured-sessions list, cheap enough to page before building talk JSON."""
+def _featured_submission_queryset(event, *, sort, query):
+    """Featured submissions in list order, without loading every row."""
     submissions = featured_submissions_for_event(event)
     if query:
         submissions = submissions.filter(Q(title__icontains=query) | Q(abstract__icontains=query))
     if sort == 'popularity':
-        submissions = submissions.annotate(_fav_count=Count('favourites')).order_by('-_fav_count', 'title', 'code')
-    elif sort == 'title_desc':
-        submissions = submissions.order_by('-title', 'code')
-    else:
-        submissions = submissions.order_by('title', 'code')
-    return list(submissions.values_list('code', flat=True))
+        return submissions.annotate(_fav_count=Count('favourites')).order_by('-_fav_count', 'title', 'code')
+    if sort == 'title_desc':
+        return submissions.order_by('-title', 'code')
+    return submissions.order_by('title', 'code')
 
 
 def _featured_sessions_page(event, *, sort, query, page):
-    codes = _ordered_featured_submission_codes(event, sort=sort, query=query)
-    if not codes:
-        return [], 0, 1, 1
+    codes = _featured_submission_queryset(event, sort=sort, query=query).values_list('code', flat=True)
     paginator = Paginator(codes, FEATURED_SESSIONS_PAGE_SIZE)
+    if paginator.count == 0:
+        return [], 0, 1, 1
     try:
         page_obj = paginator.page(page)
     except (EmptyPage, PageNotAnInteger):
@@ -945,12 +964,15 @@ def _limit_featured_page_collections(data):
 
 
 def _featured_sessions_cache_key(event, *, page, sort, query, public_times):
-    version = get_schedule_cache_version(event.pk)
-    digest = hashlib.sha256(f'{sort}|{query}|{get_language()}'.encode()).hexdigest()[:16]
-    schedule_pk = event.current_schedule.pk if event.current_schedule else 0
+    parts = []
+    if page != 1:
+        parts.append(('page', [str(page)]))
+    if query:
+        parts.append(('q', [query]))
+    parts.append(('sort', [sort]))
     return (
-        f'eagenda:featured-sessions:{event.pk}:{version}:{schedule_pk}:'
-        f'{int(public_times)}:{page}:{digest}'
+        f'eagenda:featured-sessions:{public_schedule_cache_variant(event)}:'
+        f'pub={int(bool(public_times))}:{_query_digest(parts)}'
     )
 
 
@@ -965,30 +987,13 @@ def build_featured_schedule_payload(request: HttpRequest) -> dict:
         requested_page = 1
 
     published = event.current_schedule
-    public_times = bool(
-        published
-        and event.talks_published
-        and event.get_feature_flag('show_schedule')
-        and not event.private_testmode_talks_enabled
-    )
-    cache_key = _featured_sessions_cache_key(
-        event,
-        page=max(requested_page, 1),
-        sort=sort,
-        query=query,
-        public_times=public_times,
-    )
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-
+    public_times = can_view_public_schedule_sessions(request.user, event, published)
     page_codes, total, page, num_pages = _featured_sessions_page(
         event,
         sort=sort,
         query=query,
         page=requested_page,
     )
-    # The cache key used the requested page; store under the page we actually returned.
     cache_key = _featured_sessions_cache_key(
         event,
         page=page,
@@ -996,6 +1001,9 @@ def build_featured_schedule_payload(request: HttpRequest) -> dict:
         query=query,
         public_times=public_times,
     )
+    cached = get_cached_payload(cache_key)
+    if cached is not None:
+        return cached
     featured = are_featured_submissions_visible(request.user, event)
     featured_by_code = {}
     if page_codes:
@@ -1047,7 +1055,7 @@ def build_featured_schedule_payload(request: HttpRequest) -> dict:
     data['page'] = page
     data['num_pages'] = num_pages
     data['page_size'] = FEATURED_SESSIONS_PAGE_SIZE
-    cache.set(cache_key, data, CACHE_TTL)
+    store_cached_payload(cache_key, data)
     return data
 
 
