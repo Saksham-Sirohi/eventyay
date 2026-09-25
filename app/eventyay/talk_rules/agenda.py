@@ -226,40 +226,28 @@ def public_speakers_list_available(user, event):
     return event_obj.speakers.exists()
 
 
-def featured_speakers_page_public(user, event):
-    """Whether anonymous visitors may open the speakers page for featured speakers only."""
-    event_obj = getattr(event, 'event', event)
-    if not event_obj or event_obj.private_testmode_talks_enabled:
-        return False
-    return has_public_featured_speakers(user, event_obj)
-
-
 def public_speakers_nav_available(user, event):
     """Whether the Speakers header tab may be shown.
 
-    The full list follows a released public schedule. Featured speakers stay
-    linked before that release when their own setting makes them public.
+    The speakers page follows a released public schedule. Featured speakers on
+    the info page use their own setting and do not open this list.
     """
-    event_obj = getattr(event, 'event', event)
-    if public_speakers_list_available(user, event_obj):
-        return True
-    return featured_speakers_page_public(user, event_obj)
+    return public_speakers_list_available(user, event)
 
 
 def agenda_speakers_page_reachable(user, event):
-    """Whether the speakers list view may run and show schedule-style redirects."""
+    """Whether the speakers list view may run and show schedule-style redirects.
+
+    A public released schedule opens the page. Otherwise the view may still run
+    so it can redirect, as long as the schedule is meant to be public. Featured
+    speakers do not open this page on their own.
+    """
     event_obj = getattr(event, 'event', event)
-    if not event_obj:
+    if not event_obj or not event_obj.get_feature_flag('show_schedule'):
         return False
     if can_list_released_schedule_speakers(user, event):
         return True
-    if has_public_featured_speakers(user, event):
-        return True
-    if not event_obj.get_feature_flag('show_schedule'):
-        return False
-    if event_obj.current_schedule and event_obj.speakers.exists():
-        return True
-    return False
+    return bool(event_obj.current_schedule or event_obj.talks_published)
 
 
 def should_hide_public_speaker_sessions(user, event, *, wip_preview=False):

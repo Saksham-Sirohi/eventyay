@@ -43,7 +43,6 @@ from eventyay.schedule.exporters import FavedICalExporter, filter_featured_publi
 from eventyay.talk_rules.agenda import (
     can_list_released_schedule_speakers,
     can_view_public_schedule_sessions,
-    featured_speakers_page_public,
     has_public_featured_speakers,
     is_submission_visible_via_featured,
     pending_public_submission_codes_for_speaker,
@@ -1359,12 +1358,7 @@ def build_speakers_list_schedule_json(request: HttpRequest) -> str:
     event = request.event
     user = request.user
     if not can_list_released_schedule_speakers(user, event):
-        if not featured_speakers_page_public(user, event):
-            return ''
-        data = build_featured_only_schedule_data(event)
-        if not data:
-            return ''
-        return serialize_widget_schedule_data(data, event=event)
+        return ''
     schedule = event.current_schedule
     featured = include_public_featured_speaker_metadata(user, event)
     with scope(event=event):

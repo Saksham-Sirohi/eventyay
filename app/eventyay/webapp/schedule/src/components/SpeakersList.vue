@@ -174,6 +174,8 @@
 		:loading="isLoadingMore",
 		@change="goToPage"
 	)
+	.view-all-speakers(v-if="showViewAllSpeakers")
+		a.view-all-speakers-link(:href="speakersPageUrl") {{ t.view_all_speakers }}
 	.loading(v-if="isLoadingMore", :class="{'is-initial': !filteredSpeakers.length}", role="status", :aria-label="t.loading")
 		bunt-progress-circular(:size="filteredSpeakers.length ? 'big' : 'huge'", :page="true")
 	.backdrop(v-if="openDropdown || mobileFiltersOpen || mobileMoreOpen", @click="closeToolbarOverlays")
@@ -360,15 +362,21 @@ export default {
 				next_page: m.next_page || this.$t('Next page'),
 				more_pages: m.more_pages || this.$t('More pages'),
 				featured_speakers: m.featured_speakers || this.$t('Featured Speakers'),
+				view_all_speakers: m.view_all_speakers || this.$t('View all speakers'),
 			}
 		},
+		showViewAllSpeakers() {
+			return this.featuredOnly && this.scheduleData?.schedule?.speakers_list_public === true
+		},
+		speakersPageUrl() {
+			const base = String(this.eventUrl || '').replace(/\/?$/, '/')
+			return `${base}speakers/`
+		},
 		usesLocalSpeakers() {
+			if (this.featuredOnly) return true
 			if (this.speakers?.length) return true
 			// Video always injects scheduleLoaded as a boolean. Agenda omits it so pagination can run.
 			if (this.scheduleData?.scheduleLoaded !== undefined) return true
-			if (this.featuredOnly) {
-				return this.scheduleData?.schedule?.speakers_list_public === false
-			}
 			if (this.scheduleData?.schedule?.speakers?.length) return true
 			return Boolean((this.scheduleData?.schedule?.talks || []).length)
 		},
@@ -1217,6 +1225,20 @@ export default {
 			color: $clr-secondary-text-light
 			.session-title
 				font-style: italic
+	.view-all-speakers
+		display: flex
+		justify-content: center
+		padding: 8px 16px 4px
+		.view-all-speakers-link
+			color: var(--pretalx-clr-primary, var(--clr-primary))
+			font-size: 14px
+			font-weight: 500
+			line-height: 1.3
+			text-decoration: none
+			cursor: pointer
+			&:hover, &:focus-visible
+				text-decoration: underline
+				outline: none
 	.empty
 		padding: 32px
 		min-height: 400px

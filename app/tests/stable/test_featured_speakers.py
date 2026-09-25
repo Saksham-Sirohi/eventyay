@@ -73,8 +73,8 @@ def test_featured_speaker_without_talks_still_viewable_after_schedule_release(cl
 
 
 @pytest.mark.django_db
-def test_featured_speakers_list_visible_before_public_schedule_release(client, event):
-    """Anonymous visitors can open featured speakers before the full list is public."""
+def test_featured_speakers_list_hidden_until_public_schedule_release(client, event):
+    """The speakers page waits for a public schedule. Featured speakers stay on the info page."""
     with scope(event=event):
         user = User.objects.create_user(
             email='featured-pre-release@example.com',
@@ -125,18 +125,18 @@ def test_featured_speakers_list_visible_before_public_schedule_release(client, e
             'organizer': event.organizer.slug,
         },
     )
-    speakers_page = client.get(speakers_list_url)
+    speakers_page = client.get(speakers_list_url, follow=True)
     assert speakers_page.status_code == 200
-    speakers_body = speakers_page.content.decode()
-    assert user.fullname in speakers_body
-    assert 'Regular Hidden Speaker' not in speakers_body
-    assert 'fa-group' in speakers_body
-    assert 'fa-group' in landing.content.decode()
+    assert speakers_page.request['PATH_INFO'].rstrip('/') == _event_base_path(event)
+    landing_body = landing.content.decode()
+    assert user.fullname in landing_body
+    assert 'Regular Hidden Speaker' not in landing_body
+    assert 'fa-group' not in landing_body
 
 
 @pytest.mark.django_db
 def test_featured_speakers_json_without_released_schedule(client, event):
-    """Featured speakers stay in the speakers API when no schedule version exists."""
+    """The speakers API stays closed until a schedule version is released."""
     with scope(event=event):
         user = User.objects.create_user(
             email='featured-no-schedule@example.com',
@@ -168,11 +168,7 @@ def test_featured_speakers_json_without_released_schedule(client, event):
         },
     )
     response = client.get(speakers_list_url, {'format': 'json'})
-    assert response.status_code == 200
-    payload = response.json()
-    names = [speaker['name'] for speaker in payload['results']]
-    assert names == ['No Schedule Featured Speaker']
-    assert payload['count'] == 1
+    assert response.status_code == 404
 
 
 @pytest.mark.django_db

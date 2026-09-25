@@ -3539,6 +3539,7 @@ button.btn-speaker-not-arrived {
 .feedback-confirm-dialog-actions {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
 }
 
 .feedback-confirm-dialog-btn-cancel {

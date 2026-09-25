@@ -382,7 +382,7 @@ class ScheduleView(PermissionRequired, ScheduleMixin, TemplateView):
         return ctx
 
 
-@cache_page(60 * 60 * 24, key_prefix='schedule-messages-v7')
+@cache_page(60 * 60 * 24, key_prefix='schedule-messages-v8')
 def schedule_messages(request, **kwargs):
     """Cached for static exports; bump key_prefix when message keys or copy change."""
     strings = {
@@ -453,6 +453,7 @@ def schedule_messages(request, **kwargs):
         'search': _('Search'),
         'featured_speakers': _('Featured Speakers'),
         'view_profile': _('View speaker profile'),
+        'view_all_speakers': _('View all speakers'),
         'no_starred_sessions': _('No starred sessions.'),
         'schedule_do_not_record': _('This session will not be recorded.'),
         'schedule_room_has_interpretation': _('This room has live interpretation.'),

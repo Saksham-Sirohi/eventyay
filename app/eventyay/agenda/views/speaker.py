@@ -23,10 +23,10 @@ from i18nfield.utils import I18nJSONEncoder
 from eventyay.agenda.export_resources import public_resource_attachments, public_resource_links
 from eventyay.agenda.views.utils import (
     WipAgendaPreviewPageMixin,
+    build_enriched_schedule_json,
     build_google_calendar_url,
     build_speaker_cards,
     build_speaker_schedule_json,
-    build_speakers_list_schedule_json,
     escape_json_for_script,
     get_cached_speakers_list_json_payload,
     get_or_build_speakers_list_meta,
@@ -54,7 +54,6 @@ from eventyay.common.views.mixins import (
 from eventyay.talk_rules.agenda import (
     agenda_speaker_talks,
     can_list_released_schedule_speakers,
-    featured_speakers_page_public,
     is_speaker_viewable,
     should_hide_public_speaker_sessions,
 )
@@ -127,27 +126,18 @@ class SpeakerList(EventPermissionRequired, Filterable, ListView):
         return super().render_to_response(context, **response_kwargs)
 
     def has_permission(self):
-        user = self.request.user
-        event = self.request.event
-        return can_list_released_schedule_speakers(user, event) or featured_speakers_page_public(user, event)
+        return can_list_released_schedule_speakers(self.request.user, self.request.event)
 
     def dispatch(self, request, *args, **kwargs):
         if is_public_speakers_list_empty(request):
             return redirect_to_presale_with_warning(request, _('No published speakers.'))
-        full_list = can_list_released_schedule_speakers(request.user, request.event)
-        if not full_list and not featured_speakers_page_public(request.user, request.event):
+        if not can_list_released_schedule_speakers(request.user, request.event):
             return redirect_when_public_speakers_unavailable(request)
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self):
         event = self.request.event
-        full_list = can_list_released_schedule_speakers(self.request.user, event)
-        if full_list:
-            qs = SpeakerProfile.objects.filter(user__in=event.speakers, event=event)
-        else:
-            # Featured speakers can be public before any schedule release, so they
-            # are not limited to ``event.speakers`` (released-schedule speakers).
-            qs = SpeakerProfile.objects.filter(event=event, is_featured=True)
+        qs = SpeakerProfile.objects.filter(user__in=event.speakers, event=event)
         qs = qs.select_related('user', 'event', 'event__organizer').prefetch_related('social_links')
         sort = self.request.GET.get('sort')
         if sort == 'a-z':
@@ -157,7 +147,7 @@ class SpeakerList(EventPermissionRequired, Filterable, ListView):
         else:
             qs = qs.order_by('-is_featured', *speaker_profile_display_order())
         featured = (self.request.GET.get('featured') or '').lower()
-        if full_list and featured in {'1', 'true', 'yes'}:
+        if featured in {'1', 'true', 'yes'}:
             qs = qs.filter(is_featured=True)
         # Searching session titles joins the speakers M2M, which can duplicate rows.
         return self.filter_queryset(qs).distinct()
@@ -200,8 +190,6 @@ class SpeakerList(EventPermissionRequired, Filterable, ListView):
         context = super().get_context_data(**kwargs)
         meta = get_or_build_speakers_list_meta(self.request.event)
         context['speakers_meta_json'] = escape_json_for_script(json.dumps(meta, cls=I18nJSONEncoder))
-        if not can_list_released_schedule_speakers(self.request.user, self.request.event):
-            context['schedule_json'] = build_speakers_list_schedule_json(self.request)
         return context
 
 
@@ -280,6 +268,13 @@ class WipSpeakerView(WipAgendaPreviewPageMixin, SpeakerView):
 
 class WipSpeakerList(WipAgendaPreviewPageMixin, TemplateView):
     template_name = 'agenda/speakers.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # The public speakers API follows the released schedule. The preview
+        # embeds the WIP schedule so organisers still see unpublished sessions.
+        context['schedule_json'] = build_enriched_schedule_json(self.request, wip_preview=True)
+        return context
 
 
 class SpeakerRedirect(DetailView):
