@@ -134,27 +134,24 @@
 							.caption.text-center
 								h4 {{ speaker.name || t.speaker_fallback }}
 								markdown-content.featured-speaker-preview-bio(v-if="speaker.biography", :markdown="speaker.biography")
-					.featured-speaker-details
-						speaker-social-links(:links="speaker.social_links", alignment="flex-start")
-						template(v-if="speaker.sessions && speaker.sessions.length")
-							hr.featured-speaker-divider(v-if="speaker.social_links && speaker.social_links.length")
-							hr.featured-speaker-divider(v-else)
-							.featured-speaker-sessions
-								h4 {{ t.sessions }}
-								.featured-speaker-session(v-for="session in speaker.sessions", :key="session.slot_id || session.id")
-									small.featured-speaker-session-time(v-if="!sessionIsPending(session)") {{ formatSessionDateTime(session) }}
-									small.featured-speaker-session-room(v-if="sessionRoomName(session) && !sessionIsPending(session)") {{ sessionRoomName(session) }}
-									a.featured-speaker-session-link(
-										:class="{'featured-speaker-session-pending': sessionIsPending(session)}",
-										:href="getSessionLink(session)",
-										:style="getSessionStyle(session)",
-										@click="onSessionClick($event, session)"
-									)
-										span.featured-speaker-session-slot {{ sessionIsPending(session) ? t.coming_soon : formatSessionSlot(session) }}
-										span.featured-speaker-session-title {{ getLocalizedString(session.title) }}
-								p.schedule-pending-note(v-if="hasPendingSession(speaker)") {{ t.tentative_session }}
-						.featured-speaker-profile-link
-							a(:href="getSpeakerLink(speaker)", @click="onSpeakerClick($event, speaker)") {{ t.view_profile }}
+						.featured-speaker-social-row
+							speaker-social-links(:links="speaker.social_links", alignment="flex-start")
+							a.featured-speaker-profile-link(:href="getSpeakerLink(speaker)", @click="onSpeakerClick($event, speaker)") {{ t.view_profile }}
+					.featured-speaker-details(v-if="speaker.sessions && speaker.sessions.length")
+						.featured-speaker-sessions
+							h4 {{ t.sessions }}
+							.featured-speaker-session(v-for="session in speaker.sessions", :key="session.slot_id || session.id")
+								small.featured-speaker-session-time(v-if="!sessionIsPending(session)") {{ formatSessionDateTime(session) }}
+								small.featured-speaker-session-room(v-if="sessionRoomName(session) && !sessionIsPending(session)") {{ sessionRoomName(session) }}
+								a.featured-speaker-session-link(
+									:class="{'featured-speaker-session-pending': sessionIsPending(session)}",
+									:href="getSessionLink(session)",
+									:style="getSessionStyle(session)",
+									@click="onSessionClick($event, session)"
+								)
+									span.featured-speaker-session-slot {{ sessionIsPending(session) ? t.coming_soon : formatSessionSlot(session) }}
+									span.featured-speaker-session-title {{ getLocalizedString(session.title) }}
+							p.schedule-pending-note(v-if="hasPendingSession(speaker)") {{ t.tentative_session }}
 	.empty(v-if="loadError")
 		| {{ t.load_error }}
 	.empty(v-else-if="!isLoadingMore && !filteredSpeakers.length")
@@ -1149,15 +1146,25 @@ export default {
 			font-weight: 600
 			line-height: 1.3
 
+		.featured-speaker-social-row
+			display: none
+			align-items: center
+			gap: 1rem
+			flex-wrap: wrap
+			padding: 10px 12px
+
+		.featured-speaker-card[open] .featured-speaker-social-row
+			display: flex
+
 		.featured-speaker-profile-link
-			margin-top: 12px
-			text-align: right
-			a
-				color: var(--pretalx-clr-primary, var(--clr-primary))
-				text-decoration: none
-				cursor: pointer
-				&:hover
-					text-decoration: underline
+			margin-left: auto
+			color: var(--pretalx-clr-primary, var(--clr-primary))
+			text-decoration: none
+			white-space: nowrap
+			font-size: 14px
+			cursor: pointer
+			&:hover
+				text-decoration: underline
 	.speaker-card
 		display: flex
 		align-items: flex-start
