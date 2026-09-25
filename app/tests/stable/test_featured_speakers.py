@@ -135,6 +135,47 @@ def test_featured_speakers_list_visible_before_public_schedule_release(client, e
 
 
 @pytest.mark.django_db
+def test_featured_speakers_json_without_released_schedule(client, event):
+    """Featured speakers stay in the speakers API when no schedule version exists."""
+    with scope(event=event):
+        user = User.objects.create_user(
+            email='featured-no-schedule@example.com',
+            password='testpass123',
+            fullname='No Schedule Featured Speaker',
+        )
+        SpeakerProfile.objects.create(
+            event=event,
+            user=user,
+            biography='Featured biography.',
+            is_featured=True,
+        )
+        regular = User.objects.create_user(
+            email='regular-no-schedule@example.com',
+            password='testpass123',
+            fullname='No Schedule Hidden Speaker',
+        )
+        SpeakerProfile.objects.create(event=event, user=regular, biography='Hidden biography.')
+        event.feature_flags['show_featured_speakers'] = 'always'
+        event.talks_published = False
+        event.save(update_fields=['feature_flags', 'talks_published'])
+        assert event.current_schedule is None
+
+    speakers_list_url = reverse(
+        'agenda:speakers',
+        kwargs={
+            'event': event.slug,
+            'organizer': event.organizer.slug,
+        },
+    )
+    response = client.get(speakers_list_url, {'format': 'json'})
+    assert response.status_code == 200
+    payload = response.json()
+    names = [speaker['name'] for speaker in payload['results']]
+    assert names == ['No Schedule Featured Speaker']
+    assert payload['count'] == 1
+
+
+@pytest.mark.django_db
 def test_speakers_list_blocked_when_no_schedule_released(client, event):
     """Speakers list redirects to the info page when no schedule version has been released."""
     with scope(event=event):

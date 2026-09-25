@@ -380,6 +380,10 @@ def test_orga_can_toggle_schedule_visibility(orga_client, event):
     from eventyay.base.models import Event
 
     assert event.feature_flags["show_schedule"] is True
+    orga_client.get(event.orga_urls.toggle_schedule)
+    event = Event.objects.get(pk=event.pk)
+    assert event.feature_flags["show_schedule"] is True
+
     page = orga_client.get(event.orga_urls.schedule)
     assert page.status_code == 200
     assert page.text.count("Unpublish schedule") == 1

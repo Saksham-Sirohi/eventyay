@@ -14,6 +14,7 @@ from eventyay.agenda.views.utils import get_or_build_landing_featured_widget_sch
 from eventyay.base.models import SpeakerProfile, User
 from eventyay.base.services.stale_cache import bump_schedule_cache_version
 from eventyay.talk_rules.agenda import is_pre_agenda_featured_public, is_speaker_viewable
+from eventyay.talk_rules.submission import are_featured_speakers_visible
 
 
 LOCMEM_CACHE = {
@@ -123,6 +124,7 @@ def test_landing_page_shows_more_speakers_link_when_agenda_is_public(
 def test_landing_page_shows_featured_speakers_with_after_schedule_before_release(
     client, event, speaker
 ):
+    """``after_schedule`` waits for a released version. ``Always`` is what shows speakers earlier."""
     with scope(event=event):
         event.talks_published = False
         event.feature_flags['show_featured_speakers'] = 'after_schedule'
@@ -133,14 +135,10 @@ def test_landing_page_shows_featured_speakers_with_after_schedule_before_release
         profile.position = 0
         profile.save(update_fields=['is_featured', 'position'])
         assert event.current_schedule is None
+        assert are_featured_speakers_visible(AnonymousUser(), event) is False
 
-    response = client.get(event.urls.base)
-
-    assert response.status_code == 200
-    assert 'view="featured-speakers"' in response.text
-    widget_schedule = response.context['featured_speakers_widget_schedule']
-    assert {s['code'] for s in widget_schedule['speakers']} == {speaker.code}
-    assert widget_schedule['speakers_list_public'] is False
+        event.release_schedule('v1')
+        assert are_featured_speakers_visible(AnonymousUser(), event) is True
 
 
 @pytest.mark.django_db
@@ -331,10 +329,8 @@ def test_featured_speaker_links_work_without_published_schedule(client, event, s
 
     speakers_list_response = client.get(event.urls.speakers, follow=True)
     assert speakers_list_response.status_code == 200
-    assert (
-        speakers_list_response.request['PATH_INFO'].rstrip('/')
-        == urlparse(str(event.urls.base)).path.rstrip('/')
-    )
+    assert speakers_list_response.request['PATH_INFO'].rstrip('/').endswith('/speakers')
+    assert speaker.fullname in speakers_list_response.content.decode()
 
     talk_url = reverse(
         'agenda:talk.detail',

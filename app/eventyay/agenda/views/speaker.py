@@ -141,7 +141,13 @@ class SpeakerList(EventPermissionRequired, Filterable, ListView):
 
     def get_queryset(self):
         event = self.request.event
-        qs = SpeakerProfile.objects.filter(user__in=event.speakers, event=event)
+        full_list = can_list_released_schedule_speakers(self.request.user, event)
+        if full_list:
+            qs = SpeakerProfile.objects.filter(user__in=event.speakers, event=event)
+        else:
+            # Featured speakers can be public before any schedule release, so they
+            # are not limited to ``event.speakers`` (released-schedule speakers).
+            qs = SpeakerProfile.objects.filter(event=event, is_featured=True)
         qs = qs.select_related('user', 'event', 'event__organizer').prefetch_related('social_links')
         sort = self.request.GET.get('sort')
         if sort == 'a-z':
@@ -151,9 +157,7 @@ class SpeakerList(EventPermissionRequired, Filterable, ListView):
         else:
             qs = qs.order_by('-is_featured', *speaker_profile_display_order())
         featured = (self.request.GET.get('featured') or '').lower()
-        if featured in {'1', 'true', 'yes'}:
-            qs = qs.filter(is_featured=True)
-        elif not can_list_released_schedule_speakers(self.request.user, event):
+        if full_list and featured in {'1', 'true', 'yes'}:
             qs = qs.filter(is_featured=True)
         # Searching session titles joins the speakers M2M, which can duplicate rows.
         return self.filter_queryset(qs).distinct()

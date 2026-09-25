@@ -126,7 +126,7 @@ def speakers_list_query_digest(request: HttpRequest) -> str:
 
 
 def speakers_list_json_cache_key(request: HttpRequest) -> str:
-    return f'eagenda:speakers:{public_schedule_cache_variant(request.event)}:{speakers_list_query_digest(request)}'
+    return f'eagenda:speakers:v2:{public_schedule_cache_variant(request.event)}:{speakers_list_query_digest(request)}'
 
 
 def speakers_list_meta_cache_key(event) -> str:
