@@ -51,6 +51,7 @@ from eventyay.talk_rules.agenda import (
     require_wip_schedule_access,
     speaker_may_show_pending_sessions,
 )
+from eventyay.person.services import build_public_speaker_role
 from eventyay.talk_rules.submission import (
     are_featured_exports_available,
     are_featured_speakers_visible,
@@ -354,6 +355,7 @@ def build_speaker_cards(profiles, event):
             'code': user.code,
             'name': user.fullname or None,
             'biography': (profile.biography or '') if include_biography else '',
+            'speaker_role': build_public_speaker_role(profile, event),
             'is_featured': is_featured,
             'featured_position': profile.position if is_featured else None,
             'avatar': None,
@@ -446,6 +448,7 @@ def speaker_dict_from_profile(
         'code': user.code,
         'name': user.fullname or None,
         'biography': (profile.biography or '') if include_biography else '',
+        'speaker_role': build_public_speaker_role(profile, event),
         'is_featured': is_featured,
         'featured_position': profile.position if is_featured else None,
     }
