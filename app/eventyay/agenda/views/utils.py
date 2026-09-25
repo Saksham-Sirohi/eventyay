@@ -1320,6 +1320,10 @@ def build_speaker_schedule_json_for_schedule(event, schedule, speaker_code, feat
             if speaker_data:
                 data.setdefault('speakers', []).append(speaker_data)
 
+    # A confirmed session can appear on the speaker card before it has a public
+    # slot. Keep that session on the profile as well.
+    _append_missing_pending_submissions(data, event, AnonymousUser(), {speaker_code})
+
     if not talk_codes:
         data['exports_disabled'] = True
 
@@ -1340,7 +1344,7 @@ def build_speaker_schedule_json(request: HttpRequest, speaker_code: str) -> str:
     schedule = event.current_schedule
     if schedule and can_view_public_schedule_sessions(request.user, event, schedule):
         if schedule.version:
-            cache_key = f'eagenda:speaker:{schedule.pk}:{speaker_code}:{int(featured)}'
+            cache_key = f'eagenda:speaker:v2:{schedule.pk}:{speaker_code}:{int(featured)}'
             cached = cache.get(cache_key)
             if cached is not None:
                 return cached

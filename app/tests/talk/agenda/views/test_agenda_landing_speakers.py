@@ -11,7 +11,7 @@ from django.urls import reverse
 from django_scopes import scope, scopes_disabled
 
 from eventyay.agenda.views.utils import get_or_build_landing_featured_widget_schedule
-from eventyay.base.models import SpeakerProfile, User
+from eventyay.base.models import SpeakerProfile, Submission, User
 from eventyay.base.services.stale_cache import bump_schedule_cache_version
 from eventyay.talk_rules.agenda import is_pre_agenda_featured_public, is_speaker_viewable
 from eventyay.talk_rules.submission import are_featured_speakers_visible
@@ -75,6 +75,42 @@ def test_landing_page_shows_featured_speakers_in_custom_order(
     assert 'pretalx-schedule-data' in response.text
     assert 'view="featured-speakers"' in response.text
     assert response.context['featured_speakers_widget_schedule']['speakers_list_public'] is True
+
+
+@pytest.mark.django_db
+def test_speaker_profile_includes_confirmed_session_without_public_slot(
+    client, event, slot, speaker, submission_data
+):
+    """A confirmed session shown on the speaker card also appears on the profile."""
+    with scope(event=event):
+        event.live = True
+        event.talks_published = True
+        event.feature_flags['show_schedule'] = True
+        event.feature_flags['show_featured_speakers'] = 'always'
+        event.save(update_fields=['live', 'talks_published', 'feature_flags'])
+        profile = speaker.event_profile(event)
+        profile.is_featured = True
+        profile.save(update_fields=['is_featured'])
+        extra = Submission.objects.create(**{**submission_data, 'title': 'Unscheduled confirmed talk'})
+        extra.speakers.add(speaker)
+        extra.accept()
+        extra.confirm()
+        extra_code = extra.code
+        scheduled_code = slot.submission.code
+
+    response = client.get(
+        reverse(
+            'agenda:speaker',
+            kwargs={'code': speaker.code, 'event': event.slug, 'organizer': event.organizer.slug},
+        )
+    )
+    assert response.status_code == 200
+    talks = {talk['code']: talk for talk in json.loads(response.context['schedule_json'])['talks']}
+    assert scheduled_code in talks
+    assert talks[scheduled_code]['start']
+    assert extra_code in talks
+    assert talks[extra_code]['schedule_pending'] is True
+    assert talks[extra_code]['start'] is None
 
 
 @pytest.mark.django_db

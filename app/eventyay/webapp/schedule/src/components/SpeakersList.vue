@@ -117,43 +117,44 @@
 						| {{ getLocalizedString(session.title) }}
 						span.separator(v-if="s_idx < speaker.sessions.length - 1") ,&nbsp;
 	.speakers-details(v-else-if="filteredSpeakers.length && activeViewMode === 'details'")
-		.featured-speakers-grid
-			.featured-speaker-column(v-for="speaker in filteredSpeakers", :key="speaker.code")
-				details.featured-speaker-card
-					summary.featured-speaker-summary
-						.thumbnail
-							img(
-								v-if="speaker.avatar_thumbnail_default || speaker.avatar_thumbnail_tiny",
-								:src="speaker.avatar_thumbnail_default || speaker.avatar_thumbnail_tiny",
-								:alt="speaker.name || t.speaker_fallback",
-								loading="lazy",
-								decoding="async"
-							)
-							.avatar-placeholder(v-else)
-								svg(viewBox="0 0 24 24")
-									path(fill="currentColor", d="M12,1A5.8,5.8 0 0,1 17.8,6.8A5.8,5.8 0 0,1 12,12.6A5.8,5.8 0 0,1 6.2,6.8A5.8,5.8 0 0,1 12,1M12,15C18.63,15 24,17.67 24,21V23H0V21C0,17.67 5.37,15 12,15Z")
-							.caption.text-center
-								h4 {{ speaker.name || t.speaker_fallback }}
-								p.speaker-role-caption(v-if="speaker.speaker_role") {{ speaker.speaker_role }}
-								markdown-content.featured-speaker-preview-bio(v-if="speaker.biography", :markdown="speaker.biography")
-						.featured-speaker-social-row
-							speaker-social-links(:links="speaker.social_links", alignment="flex-start")
-							a.featured-speaker-profile-link(:href="getSpeakerLink(speaker)", @click="onSpeakerClick($event, speaker)") {{ t.view_profile }}
-					.featured-speaker-details(v-if="speaker.sessions && speaker.sessions.length")
-						.featured-speaker-sessions
-							h4 {{ t.sessions }}
-							.featured-speaker-session(v-for="session in speaker.sessions", :key="session.slot_id || session.id")
-								small.featured-speaker-session-time(v-if="!sessionIsPending(session)") {{ formatSessionDateTime(session) }}
-								small.featured-speaker-session-room(v-if="sessionRoomName(session) && !sessionIsPending(session)") {{ sessionRoomName(session) }}
-								a.featured-speaker-session-link(
-									:class="{'featured-speaker-session-pending': sessionIsPending(session)}",
-									:href="getSessionLink(session)",
-									:style="getSessionStyle(session)",
-									@click="onSessionClick($event, session)"
+		.featured-speakers-grid(ref="featuredSpeakersGrid")
+			.featured-speaker-stack(v-for="(column, colIndex) in featuredColumns", :key="colIndex")
+				.featured-speaker-column(v-for="speaker in column", :key="speaker.code")
+					details.featured-speaker-card
+						summary.featured-speaker-summary
+							.thumbnail
+								img(
+									v-if="speaker.avatar_thumbnail_default || speaker.avatar_thumbnail_tiny",
+									:src="speaker.avatar_thumbnail_default || speaker.avatar_thumbnail_tiny",
+									:alt="speaker.name || t.speaker_fallback",
+									loading="lazy",
+									decoding="async"
 								)
-									span.featured-speaker-session-slot {{ sessionIsPending(session) ? t.coming_soon : formatSessionSlot(session) }}
-									span.featured-speaker-session-title {{ getLocalizedString(session.title) }}
-							p.schedule-pending-note(v-if="hasPendingSession(speaker)") {{ t.tentative_session }}
+								.avatar-placeholder(v-else)
+									svg(viewBox="0 0 24 24")
+										path(fill="currentColor", d="M12,1A5.8,5.8 0 0,1 17.8,6.8A5.8,5.8 0 0,1 12,12.6A5.8,5.8 0 0,1 6.2,6.8A5.8,5.8 0 0,1 12,1M12,15C18.63,15 24,17.67 24,21V23H0V21C0,17.67 5.37,15 12,15Z")
+								.caption.text-center
+									h4 {{ speaker.name || t.speaker_fallback }}
+									p.speaker-role-caption(v-if="speaker.speaker_role") {{ speaker.speaker_role }}
+									markdown-content.featured-speaker-preview-bio(v-if="speaker.biography", :markdown="speaker.biography")
+							.featured-speaker-social-row
+								speaker-social-links(:links="speaker.social_links", alignment="flex-start")
+								a.featured-speaker-profile-link(:href="getSpeakerLink(speaker)", @click="onSpeakerClick($event, speaker)") {{ t.view_profile }}
+						.featured-speaker-details(v-if="speaker.sessions && speaker.sessions.length")
+							.featured-speaker-sessions
+								h4 {{ t.sessions }}
+								.featured-speaker-session(v-for="session in speaker.sessions", :key="session.slot_id || session.id")
+									small.featured-speaker-session-time(v-if="!sessionIsPending(session)") {{ formatSessionDateTime(session) }}
+									small.featured-speaker-session-room(v-if="sessionRoomName(session) && !sessionIsPending(session)") {{ sessionRoomName(session) }}
+									a.featured-speaker-session-link(
+										:class="{'featured-speaker-session-pending': sessionIsPending(session)}",
+										:href="getSessionLink(session)",
+										:style="getSessionStyle(session)",
+										@click="onSessionClick($event, session)"
+									)
+										span.featured-speaker-session-slot {{ sessionIsPending(session) ? t.coming_soon : formatSessionSlot(session) }}
+										span.featured-speaker-session-title {{ getLocalizedString(session.title) }}
+								p.schedule-pending-note(v-if="hasPendingSession(speaker)") {{ t.tentative_session }}
 	.empty(v-if="loadError")
 		| {{ t.load_error }}
 	.empty(v-else-if="!isLoadingMore && !filteredSpeakers.length")
@@ -258,6 +259,8 @@ export default {
 			openDropdown: null,
 			activeViewMode: this.viewMode,
 			mobileFiltersOpen: false,
+			speakersGridWidth: typeof window === 'undefined' ? 360 : window.innerWidth,
+			featuredCardWidth: 360,
 			mobileMoreOpen: false,
 			selectedLanguages: [],
 			selectedTracks: [],
@@ -295,6 +298,10 @@ export default {
 			this.fetchSpeakers({page: this.currentPage})
 		}
 		this.filtersReady = true
+		this.syncFeaturedCardWidth()
+		this.featuredCardMedia = window.matchMedia('(min-width: 768px)')
+		this.featuredCardMedia.addEventListener('change', this.syncFeaturedCardWidth)
+		this.observeFeaturedSpeakersGrid()
 	},
 	watch: {
 		featuredSortAvailable(available) {
@@ -321,6 +328,8 @@ export default {
 	beforeUnmount() {
 		document.removeEventListener('click', this.onOutsideClick, true)
 		if (this.searchTimeout) clearTimeout(this.searchTimeout)
+		this.featuredCardMedia?.removeEventListener('change', this.syncFeaturedCardWidth)
+		this.featuredSpeakersGridObserver?.disconnect()
 	},
 	computed: {
 		speakerCodeFromAny() {
@@ -392,6 +401,19 @@ export default {
 		showPagination() {
 			if (this.featuredOnly) return this.resolvedTotalPages > 1
 			return !this.usesLocalSpeakers && this.resolvedTotalPages > 1
+		},
+		featuredColumns() {
+			const speakers = this.filteredSpeakers
+			const card = this.featuredCardWidth
+			const gap = 18
+			const available = this.speakersGridWidth || card
+			const count = Math.max(1, Math.floor((available + gap) / (card + gap)))
+			const columnCount = Math.min(count, Math.max(speakers.length, 1))
+			const columns = Array.from({length: columnCount}, () => [])
+			speakers.forEach((speaker, index) => {
+				columns[index % columnCount].push(speaker)
+			})
+			return columns
 		},
 		pageStatusLabel() {
 			if (!this.resolvedTotalCount || this.resolvedTotalPages <= 1) return ''
@@ -764,6 +786,26 @@ export default {
 
 		toggleView() {
 			this.activeViewMode = this.activeViewMode === 'list' ? 'details' : 'list'
+			this.observeFeaturedSpeakersGrid()
+		},
+		syncFeaturedCardWidth() {
+			this.featuredCardWidth = window.matchMedia('(min-width: 768px)').matches ? 360 : 400
+		},
+		observeFeaturedSpeakersGrid() {
+			this.$nextTick(() => {
+				const grid = this.$refs.featuredSpeakersGrid
+				if (!grid) return
+				if (!this.featuredSpeakersGridObserver) {
+					this.featuredSpeakersGridObserver = new ResizeObserver((entries) => {
+						const width = Math.round(entries[0]?.contentRect?.width || 0)
+						if (width > 0 && width !== this.speakersGridWidth) this.speakersGridWidth = width
+					})
+				}
+				this.featuredSpeakersGridObserver.disconnect()
+				this.featuredSpeakersGridObserver.observe(grid)
+				const width = Math.round(grid.getBoundingClientRect().width)
+				if (width > 0) this.speakersGridWidth = width
+			})
 		}
 	}
 }
@@ -990,19 +1032,25 @@ export default {
 
 		.featured-speakers-grid
 			display: flex
-			flex-wrap: wrap
 			justify-content: center
+			align-items: flex-start
 			gap: 18px
+			width: 100%
+
+		.featured-speaker-stack
+			display: flex
+			flex-direction: column
+			gap: 18px
+			width: 400px
+			max-width: 100%
+			flex: 0 0 400px
+			@media (min-width: 768px)
+				width: 360px
+				flex-basis: 360px
 
 		.featured-speaker-column
-				/* Default for smaller devices */
-				width: 400px
-				max-width: 100%
-
-				/* Desktop and large / mid tablets: use 350px */
-				@media (min-width: 768px)
-					width: 360px
-					max-width: 100%
+			width: 100%
+			max-width: 100%
 
 		.featured-speaker-card
 			margin: 0
