@@ -13,13 +13,13 @@
     </p>
     {% if valid %}
         {% if form.cleaned_data.subevent %}
-            {% abseventurl request.event "presale:event.index" subevent=form.cleaned_data.subevent.pk as indexurl %}
+            {% abseventurl request.event 'presale:event.index' subevent=form.cleaned_data.subevent.pk as indexurl %}
         {% else %}
-            {% abseventurl request.event "presale:event.index" as indexurl %}
+            {% abseventurl request.event 'presale:event.index' as indexurl %}
         {% endif %}
         <p>
             {% blocktrans trimmed %}
-                The shop keeps its own styles and ignores the website theme and other scripts on the page.
+                The shop keeps its own styles. The website theme and ordinary script lookups do not restyle or rewrite it.
             {% endblocktrans %}
         </p>
         <div data-embed-formats>
@@ -33,7 +33,7 @@
                         Copy this into the <code>&lt;head&gt;</code> of your website:
                     {% endblocktrans %}
                 </p>
-                <pre>&lt;link rel="stylesheet" type="text/css" href="{% abseventurl request.event "presale:event.widget.css" %}"&gt;
+                <pre>&lt;link rel="stylesheet" type="text/css" href="{% abseventurl request.event 'presale:event.widget.css' %}"&gt;
 &lt;script type="text/javascript" src="{{ urlprefix }}{% url "presale:widget.js" lang=form.cleaned_data.language %}" async&gt;&lt;/script&gt;</pre>
                 <p>
                     {% blocktrans trimmed %}
@@ -41,7 +41,7 @@
                     {% endblocktrans %}
                 </p>
                 {% if form.cleaned_data.compatibility_mode %}
-                    <pre>&lt;div class="eventyay-widget-compat" event="{% abseventurl request.event "presale:event.index" %}"{% if form.cleaned_data.subevent %} subevent="{{ form.cleaned_data.subevent.pk }}"{% endif %}{% if form.cleaned_data.voucher %} voucher="{{ form.cleaned_data.voucher }}"{% endif %}&gt;&lt;/div&gt;
+                    <pre>&lt;div class="eventyay-widget-compat" event="{% abseventurl request.event 'presale:event.index' %}"{% if form.cleaned_data.subevent %} subevent="{{ form.cleaned_data.subevent.pk }}"{% endif %}{% if form.cleaned_data.voucher %} voucher="{{ form.cleaned_data.voucher }}"{% endif %}&gt;&lt;/div&gt;
 &lt;noscript&gt;
    &lt;div class="pretix-widget"&gt;
         &lt;div class="pretix-widget-info-message"&gt;
@@ -53,7 +53,7 @@
     &lt;/div&gt;
 &lt;/noscript&gt;</pre>
                 {% else %}
-                    <pre>&lt;eventyay-widget event="{% abseventurl request.event "presale:event.index" %}"{% if form.cleaned_data.subevent %} subevent="{{ form.cleaned_data.subevent.pk }}"{% endif %}{% if form.cleaned_data.voucher %} voucher="{{ form.cleaned_data.voucher }}"{% endif %}&gt;&lt;/eventyay-widget&gt;
+                    <pre>&lt;eventyay-widget event="{% abseventurl request.event 'presale:event.index' %}"{% if form.cleaned_data.subevent %} subevent="{{ form.cleaned_data.subevent.pk }}"{% endif %}{% if form.cleaned_data.voucher %} voucher="{{ form.cleaned_data.voucher }}"{% endif %}&gt;&lt;/eventyay-widget&gt;
 &lt;noscript&gt;
    &lt;div class="pretix-widget"&gt;
         &lt;div class="pretix-widget-info-message"&gt;
@@ -81,11 +81,11 @@
                     {% endblocktrans %}
                 </p>
                 {% if form.cleaned_data.compatibility_mode %}
-                    <pre>&lt;link rel="stylesheet" type="text/css" href="{% abseventurl request.event "presale:event.widget.css" %}"&gt;
+                    <pre>&lt;link rel="stylesheet" type="text/css" href="{% abseventurl request.event 'presale:event.widget.css' %}"&gt;
 &lt;script type="text/javascript" src="{{ urlprefix }}{% url "presale:widget.js" lang=form.cleaned_data.language %}" async&gt;&lt;/script&gt;
 
 &lt;div class="not-prose"&gt;
-&lt;div class="eventyay-widget-compat" event="{% abseventurl request.event "presale:event.index" %}"{% if form.cleaned_data.subevent %} subevent="{{ form.cleaned_data.subevent.pk }}"{% endif %}{% if form.cleaned_data.voucher %} voucher="{{ form.cleaned_data.voucher }}"{% endif %}&gt;&lt;/div&gt;
+&lt;div class="eventyay-widget-compat" event="{% abseventurl request.event 'presale:event.index' %}"{% if form.cleaned_data.subevent %} subevent="{{ form.cleaned_data.subevent.pk }}"{% endif %}{% if form.cleaned_data.voucher %} voucher="{{ form.cleaned_data.voucher }}"{% endif %}&gt;&lt;/div&gt;
 &lt;noscript&gt;
    &lt;div class="pretix-widget"&gt;
         &lt;div class="pretix-widget-info-message"&gt;
@@ -98,11 +98,11 @@
 &lt;/noscript&gt;
 &lt;/div&gt;</pre>
                 {% else %}
-                    <pre>&lt;link rel="stylesheet" type="text/css" href="{% abseventurl request.event "presale:event.widget.css" %}"&gt;
+                    <pre>&lt;link rel="stylesheet" type="text/css" href="{% abseventurl request.event 'presale:event.widget.css' %}"&gt;
 &lt;script type="text/javascript" src="{{ urlprefix }}{% url "presale:widget.js" lang=form.cleaned_data.language %}" async&gt;&lt;/script&gt;
 
 &lt;div class="not-prose"&gt;
-&lt;eventyay-widget event="{% abseventurl request.event "presale:event.index" %}"{% if form.cleaned_data.subevent %} subevent="{{ form.cleaned_data.subevent.pk }}"{% endif %}{% if form.cleaned_data.voucher %} voucher="{{ form.cleaned_data.voucher }}"{% endif %}&gt;&lt;/eventyay-widget&gt;
+&lt;eventyay-widget event="{% abseventurl request.event 'presale:event.index' %}"{% if form.cleaned_data.subevent %} subevent="{{ form.cleaned_data.subevent.pk }}"{% endif %}{% if form.cleaned_data.voucher %} voucher="{{ form.cleaned_data.voucher }}"{% endif %}&gt;&lt;/eventyay-widget&gt;
 &lt;noscript&gt;
    &lt;div class="pretix-widget"&gt;
         &lt;div class="pretix-widget-info-message"&gt;
