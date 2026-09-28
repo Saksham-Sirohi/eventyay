@@ -44,8 +44,8 @@ if [ "$1" = "celery" ]; then
 fi
 
 python manage.py migrate
-python manage.py updatestyles
 python manage.py compilemessages -i .venv
+python manage.py updatestyles
 find /usr/src/app/eventyay/locale -name "*.mo" -exec sh -c 'chown --reference="${1%.mo}.po" "$1" 2>/dev/null || true' _ {} \;
 
 # Web-only development initialization
