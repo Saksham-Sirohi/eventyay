@@ -1123,6 +1123,7 @@ class Event(
             tz,
         )
 
+    @scopes_disabled()
     def copy_data_from(self, other, clone_options=None):
         from ..signals import event_copy_data
         from . import (
