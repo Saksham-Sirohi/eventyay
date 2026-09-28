@@ -1236,29 +1236,32 @@ class Event(
                             v.product = i
                             v.save()
 
-                for imv in ProductMetaValue.objects.filter(product__event=other).prefetch_related('product', 'property'):
-                    imv.pk = None
-                    imv.property = product_meta_properties_map.get(imv.property.pk)
-                    imv.product = product_map.get(imv.product.pk)
-                    imv.save()
+                with scope(organizer=dest_organizer):
+                    for imv in ProductMetaValue.objects.filter(product__event=other).prefetch_related(
+                        'product', 'property'
+                    ):
+                        imv.pk = None
+                        imv.property = product_meta_properties_map.get(imv.property.pk)
+                        imv.product = product_map.get(imv.product.pk)
+                        imv.save()
 
-                for ia in ProductAddOn.objects.filter(base_product__event=other).prefetch_related(
-                    'base_product', 'addon_category'
-                ):
-                    ia.pk = None
-                    ia.base_product = product_map.get(ia.base_product.pk)
-                    ia.addon_category = category_map.get(ia.addon_category.pk)
-                    ia.save()
+                    for ia in ProductAddOn.objects.filter(base_product__event=other).prefetch_related(
+                        'base_product', 'addon_category'
+                    ):
+                        ia.pk = None
+                        ia.base_product = product_map.get(ia.base_product.pk)
+                        ia.addon_category = category_map.get(ia.addon_category.pk)
+                        ia.save()
 
-                for ia in ProductBundle.objects.filter(base_product__event=other).prefetch_related(
-                    'base_product', 'bundled_product', 'bundled_variation'
-                ):
-                    ia.pk = None
-                    ia.base_product = product_map.get(ia.base_product.pk)
-                    ia.bundled_product = product_map.get(ia.bundled_product.pk)
-                    if ia.bundled_variation:
-                        ia.bundled_variation = variation_map.get(ia.bundled_variation.pk)
-                    ia.save()
+                    for ia in ProductBundle.objects.filter(base_product__event=other).prefetch_related(
+                        'base_product', 'bundled_product', 'bundled_variation'
+                    ):
+                        ia.pk = None
+                        ia.base_product = product_map.get(ia.base_product.pk)
+                        ia.bundled_product = product_map.get(ia.bundled_product.pk)
+                        if ia.bundled_variation:
+                            ia.bundled_variation = variation_map.get(ia.bundled_variation.pk)
+                        ia.save()
 
                 with scope(organizer=source_organizer):
                     source_quotas = list(
