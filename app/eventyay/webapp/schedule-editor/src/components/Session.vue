@@ -1,5 +1,5 @@
 <template lang="pug">
-.c-linear-schedule-session(:style="style", @pointerdown.stop="onPointerDown", :class="classes")
+.c-linear-schedule-session(:style="style", @pointerdown.stop="onPointerDown", @click="onSessionClick", :class="classes")
 	.time-box
 		.start(:class="{'has-ampm': startTime?.ampm}", v-if="startTime")
 			.time {{ startTime.time }}
@@ -178,11 +178,17 @@ const durationPretty = computed<string | undefined>(() => {
 
 function onPointerDown(event: PointerEvent): void {
   if (!event.isPrimary || event.button !== 0) return
+  if (showUnschedule.value) return
   const el = event.target as HTMLElement
   if (el && el.releasePointerCapture) {
     try { el.releasePointerCapture(event.pointerId) } catch (_) {}
   }
   emit('startDragging', { session: props.session, event })
+}
+
+function onSessionClick(): void {
+  if (!showUnschedule.value) return
+  emit('editSession', props.session)
 }
 
 function onUnschedule(): void {
