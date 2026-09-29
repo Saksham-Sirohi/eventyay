@@ -2,7 +2,7 @@
 .pretalx-schedule(:style="{'--scrollparent-width': scrollParentWidth + 'px'}", :class="[draggedSession ? 'is-dragging' : '', !caps.canDrag ? 'is-public-shifts' : '']", @pointerup="caps.canDrag ? stopDragging() : null")
 	template(v-if="schedule")
 		#main-wrapper
-			#unassigned.no-print(v-if="caps.canDrag", v-scrollbar.y="", :class="{'is-collapsed': isUnassignedCollapsed}", @pointerenter="isUnassigning = true", @pointerleave="onUnassignedLeave")
+			#unassigned.no-print(v-if="caps.canDrag", v-scrollbar.y="", :class="{'is-collapsed': isUnassignedCollapsed}", @pointerenter="onUnassignedEnter", @pointerleave="onUnassignedLeave")
 				.unassigned-mobile-header(@click="isUnassignedCollapsed = !isUnassignedCollapsed")
 					span.unassigned-title
 						i.fa.fa-list
@@ -11,6 +11,7 @@
 					span.unassigned-collapse-icon
 						i.fa(:class="isUnassignedCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'")
 				.unassigned-body
+					p.unschedule-hint(v-if="unscheduleHint", role="status") {{ unscheduleHint }}
 					.unassigned-header
 						.density-controls
 							button.density-btn(:class="{active: condensedView}", @click="toggleCondensedView", :title="condensedView ? $t('Normal view') : $t('Condensed view')", :aria-pressed="condensedView.toString()")
@@ -417,6 +418,8 @@ function onConfirmDialogCancel() {
   confirmDialogAction = null
 }
 const isUnassigning = ref<boolean>(false)
+const unscheduleHint = ref<string>('')
+let unscheduleHintTimer: ReturnType<typeof setTimeout> | null = null
 const locales = ref<string[]>(['en'])
 const unassignedFilterString = ref<string>('')
 const unassignedSort = ref<string>('title')
@@ -984,6 +987,27 @@ function onNewBreakKeydown(event: KeyboardEvent) {
   }
 }
 
+function onUnassignedEnter() {
+  isUnassigning.value = true
+  if (isScheduledTalkDrag()) showUnscheduleHint()
+}
+
+function isScheduledTalkDrag(): boolean {
+  const session = draggedSession.value
+  if (!session || mode !== 'talks') return false
+  return Boolean(session.code && session.start && !session.deletedRoom)
+}
+
+function showUnscheduleHint() {
+  unscheduleHint.value = $t('Click the cross on the session to remove it from the schedule')
+  isUnassignedCollapsed.value = false
+  if (unscheduleHintTimer) clearTimeout(unscheduleHintTimer)
+  unscheduleHintTimer = setTimeout(() => {
+    unscheduleHint.value = ''
+    unscheduleHintTimer = null
+  }, 5000)
+}
+
 function onUnassignedLeave() {
   isUnassigning.value = false
   removeNewBreakHint()
@@ -1047,6 +1071,8 @@ async function stopDragging(): Promise<void> {
           movedSession.room = undefined
           await saveTalk(movedSession)
           await fetchAdditionalScheduleData()
+        } else if (draggedSession.value.start) {
+          showUnscheduleHint()
         }
       } else if (draggedSession.value.deletedRoom) {
         const movedSession = schedule.value?.talks.find((s) => s.id === draggedSession.value!.id)
@@ -1150,6 +1176,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (unscheduleHintTimer) clearTimeout(unscheduleHintTimer)
   document.removeEventListener('touchmove', preventScrollOnDrag)
   window.removeEventListener('click', onWindowClick)
   window.removeEventListener('resize', onWindowResize)
@@ -1384,6 +1411,14 @@ onUnmounted(() => {
 			border-radius: 4px
 			pointer-events: none
 			margin: 0 12px 8px 8px
+		.unschedule-hint
+			margin: 8px 8px 0
+			padding: 8px 10px
+			border-radius: 4px
+			background-color: #fff4e5
+			color: #7a4b00
+			font-size: 13px
+			line-height: 1.4
 		#unassigned-sort-menu
 			color: $clr-primary-text-light
 			display: flex
