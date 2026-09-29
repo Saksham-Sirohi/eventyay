@@ -1024,12 +1024,17 @@ async function unscheduleSession(session: { id: number | string; code?: string |
   movedSession.room = undefined
   try {
     await saveTalk(movedSession)
-    await fetchAdditionalScheduleData()
   } catch (error) {
     movedSession.start = previous.start
     movedSession.end = previous.end
     movedSession.room = previous.room
     console.error('Failed to remove session from schedule', { sessionId: movedSession.id, error })
+    return
+  }
+  try {
+    await fetchAdditionalScheduleData()
+  } catch (error) {
+    console.error('Failed to refresh schedule data after removing session', { sessionId: movedSession.id, error })
   }
 }
 
