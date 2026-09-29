@@ -347,6 +347,11 @@ sessionTextExpand()
 		font-size: 16px
 		.warning-icon span
 			padding-right: 4px
+	&:has(.unschedule-btn)
+		.info
+			padding-right: 26px
+		.warning
+			right: 28px
 	.unschedule-btn
 		position: absolute
 		top: 4px
@@ -363,8 +368,6 @@ sessionTextExpand()
 		background-color: $clr-white
 		color: $clr-secondary-text-light
 		cursor: pointer
-		opacity: 0
-		pointer-events: none
 		.fa
 			font-size: 14px
 			pointer-events: none
@@ -376,31 +379,9 @@ sessionTextExpand()
 			outline-offset: 1px
 
 	@media (hover: hover) and (pointer: fine)
-		&:hover:not(.dragging):not(.clone)
-			.unschedule-btn
-				opacity: 1
-				pointer-events: auto
-		&:focus-within:not(.dragging):not(.clone)
-			.unschedule-btn
-				opacity: 1
-				pointer-events: auto
-		&:hover:not(.dragging):not(.clone):has(.unschedule-btn)
-			.warning
-				right: 28px
-		&:focus-within:not(.dragging):not(.clone):has(.unschedule-btn)
-			.warning
-				right: 28px
 		&:hover:not(.dragging, .clone)
 			.title.title-clamped, .speakers.speakers-clamped
 				sessionTextExpand()
-
-	@media (hover: none)
-		&:not(.dragging):not(.clone):has(.unschedule-btn)
-			.unschedule-btn
-				opacity: 1
-				pointer-events: auto
-			.warning
-				right: 28px
 
 @media print
 	.c-linear-schedule-session .unschedule-btn

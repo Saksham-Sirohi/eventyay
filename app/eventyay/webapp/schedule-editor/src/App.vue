@@ -7,7 +7,7 @@
 					span.unassigned-title
 						i.fa.fa-list
 						span {{ translations.unassignedTitle }} ({{ unscheduled.length }})
-						span.drop-hint(v-if="draggedSession")  - {{ $t('Drop here to unassign') }}
+						span.drop-hint(v-if="draggedSession && caps.showRoles")  - {{ $t('Drop here to unassign') }}
 					span.unassigned-collapse-icon
 						i.fa(:class="isUnassignedCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'")
 				.unassigned-body
@@ -1010,14 +1010,6 @@ function startDragging({ event, session }: DragStartEvent) {
   draggedSession.value = session as SessionData
 }
 
-async function unscheduleTalk(movedSession: Talk): Promise<void> {
-  movedSession.start = null
-  movedSession.end = null
-  movedSession.room = undefined
-  await saveTalk(movedSession)
-  await fetchAdditionalScheduleData()
-}
-
 async function unscheduleSession(session: { id: number | string; code?: string | null }): Promise<void> {
   if (!schedule.value || !session.code || mode !== 'talks') return
   const movedSession = schedule.value.talks.find((s) => s.id === Number(session.id))
@@ -1027,8 +1019,12 @@ async function unscheduleSession(session: { id: number | string; code?: string |
     end: movedSession.end,
     room: movedSession.room,
   }
+  movedSession.start = null
+  movedSession.end = null
+  movedSession.room = undefined
   try {
-    await unscheduleTalk(movedSession)
+    await saveTalk(movedSession)
+    await fetchAdditionalScheduleData()
   } catch (error) {
     movedSession.start = previous.start
     movedSession.end = previous.end
@@ -1042,14 +1038,10 @@ async function stopDragging(): Promise<void> {
     if (isUnassigning.value && draggedSession.value) {
       if (draggedSession.value.code && !draggedSession.value.deletedRoom) {
         const movedSession = schedule.value?.talks.find((s) => s.id === draggedSession.value!.id)
-        if (movedSession) {
-          if (mode === 'shifts' || mode === 'public-shifts') {
-            movedSession.room = undefined
-            await saveTalk(movedSession)
-            await fetchAdditionalScheduleData()
-          } else {
-            await unscheduleTalk(movedSession)
-          }
+        if (movedSession && (mode === 'shifts' || mode === 'public-shifts')) {
+          movedSession.room = undefined
+          await saveTalk(movedSession)
+          await fetchAdditionalScheduleData()
         }
       } else if (draggedSession.value.deletedRoom) {
         const movedSession = schedule.value?.talks.find((s) => s.id === draggedSession.value!.id)
