@@ -2,13 +2,13 @@ name: Documentation
 
 on:
   push:
-    branches: [ dev, main ]
+    branches: [ development, master ]
     paths-ignore:
       - 'src/pretix/locale/**'
       - 'src/pretix/static/**'
       - 'src/tests/**'
   pull_request:
-    branches: [ dev, main ]
+    branches: [ development, master ]
     paths-ignore:
       - 'src/pretix/locale/**'
       - 'src/pretix/static/**'
@@ -30,7 +30,7 @@ jobs:
           version: latest
           enable-cache: true
       - name: Install system packages
-        run: sudo apt-get update && sudo apt-get install -y libenchant-2-dev enchant-2 hunspell aspell-en
+        run: sudo apt update && sudo apt install enchant hunspell aspell-en
       - name: Install Python dependencies
         run: uv sync --extra docs
         working-directory: ./app/

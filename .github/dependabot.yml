@@ -36,12 +36,7 @@ updates:
       # Ignore all setuptools updates; issue is not version-specific.
       # Can be removed once Dependabot handles no-op uv updates.
       - dependency-name: "setuptools"
-      # Version updates do not change uv.lock. Security updates stay open.
       - dependency-name: "setuptools-rust"
-        update-types:
-          - "version-update:semver-major"
-          - "version-update:semver-minor"
-          - "version-update:semver-patch"
       # Git plugins are not on PyPI; pins are updated by update-plugin-pins.yml.
       - dependency-name: "exhibition"
       - dependency-name: "eventyay-paypal"
