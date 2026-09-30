@@ -32,7 +32,7 @@ jobs:
       - name: Install system packages
         run: sudo apt update && sudo apt install enchant hunspell aspell-en
       - name: Install Python dependencies
-        run: uv sync --extra docs
+        run: uv sync --group docs
         working-directory: ./app/
       - name: Spellcheck docs
         run: ../app/.venv/bin/sphinx-build -b spelling -d _build/doctrees . _build/spelling
