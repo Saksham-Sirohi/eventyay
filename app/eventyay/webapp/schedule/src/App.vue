@@ -764,6 +764,7 @@ export default {
 		},
 		currentTimezone () {
 			if (!this._initialized || !this.schedule?.compact) return
+			this._compactTimezoneGeneration = (this._compactTimezoneGeneration || 0) + 1
 			this.reloadCompactIndex()
 		},
 		sessionsMode () {
@@ -783,6 +784,7 @@ export default {
 		}
 	},
 	async created () {
+		this._compactTimezoneGeneration = 0
 		// Gotta get the fragment early, before anything else sneakily modifies it
 		const fragment = window.location.hash.slice(1)
 		await changeScheduleLanguage(this.locale)
@@ -987,12 +989,15 @@ export default {
 		},
 		async reloadCompactIndex () {
 			if (!this.schedule?.compact) return
+			const generation = this._compactTimezoneGeneration || 0
+			const timezone = this.compactRequestTimezone()
 			const payload = await fetchWidgetScheduleData(this.eventUrl, {
 				version: this.version || '',
 				compact: true,
 				indexOnly: true,
-				timezone: this.compactRequestTimezone(),
+				timezone,
 			})
+			if (generation !== (this._compactTimezoneGeneration || 0) || timezone !== this.compactRequestTimezone()) return
 			if (!payload?.days) return
 			this.schedule.days = payload.days
 			this.schedule.view_timezone = payload.view_timezone || this.currentTimezone
@@ -1014,7 +1019,7 @@ export default {
 			const loaded = !!this.loadedScheduleDays[day]
 			const textReady = !!this.textReadyDays[day]
 			if (loaded && (!includeText || textReady)) return
-			const key = `${this.compactRequestTimezone()}|${day}|${includeText ? 'text' : 'cards'}`
+			const key = `${this._compactTimezoneGeneration || 0}|${this.compactRequestTimezone()}|${day}|${includeText ? 'text' : 'cards'}`
 			if (!this._dayPromises) this._dayPromises = {}
 			if (this._dayPromises[key]) return this._dayPromises[key]
 			const promise = this.fetchCompactDay(day, includeText)
@@ -1029,13 +1034,16 @@ export default {
 		 * @throws {Error} when the schedule day request fails
 		 */
 		async fetchCompactDay (day, includeText) {
+			const generation = this._compactTimezoneGeneration || 0
+			const timezone = this.compactRequestTimezone()
 			const payload = await fetchWidgetScheduleData(this.eventUrl, {
 				version: this.version || '',
 				compact: true,
 				date: day,
-				timezone: this.compactRequestTimezone(),
+				timezone,
 				includeText,
 			})
+			if (generation !== (this._compactTimezoneGeneration || 0) || timezone !== this.compactRequestTimezone()) return
 			if (!payload) return
 			mergeCompactScheduleDay(this.schedule, payload)
 			this.loadedScheduleDays = { ...this.loadedScheduleDays, [day]: true }

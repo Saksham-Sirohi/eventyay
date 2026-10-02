@@ -98,6 +98,22 @@ const getSliceName = function (date) {
 	return `slice-${date.format('MM-DD-HH-mm')}`
 }
 
+const sliceDayKey = function (date, timezone) {
+	const zoned = timezone ? date.clone().tz(timezone) : date.clone()
+	return zoned.format('YYYY-MM-DD')
+}
+
+const keepScheduleSlice = function (slice, occupiedDays, timezone) {
+	if (!slice || !occupiedDays?.size) return true
+	if (occupiedDays.has(sliceDayKey(slice.date, timezone))) return true
+	return Boolean(slice.hasEnd)
+}
+
+const scheduleDayShowsCurrentTime = function (now, occupiedDays, timezone) {
+	if (!now || !occupiedDays?.size) return true
+	return occupiedDays.has(sliceDayKey(now, timezone))
+}
+
 export default {
 	components: { TalkSession, ShiftSession, GridBreak },
 	props: {
@@ -372,9 +388,7 @@ export default {
 			// remove gap at the end of the schedule
 			if (compactedSlices[compactedSlices.length - 1]?.gap) compactedSlices.pop()
 			const occupiedDays = this.occupiedDayKeys
-			const visibleSlices = occupiedDays.size
-				? compactedSlices.filter(slice => occupiedDays.has(slice.date.clone().tz(this.timezone).format('YYYY-MM-DD')))
-				: compactedSlices
+			const visibleSlices = compactedSlices.filter(slice => keepScheduleSlice(slice, occupiedDays, this.timezone))
 			for (let i = 0; i < visibleSlices.length; i++) {
 				const next = visibleSlices[i + 1]
 				visibleSlices[i].dayEnd = Boolean(next?.datebreak || !next)
@@ -415,6 +429,7 @@ export default {
 			}
 		},
 		nowSlice () {
+			if (!this.now || !scheduleDayShowsCurrentTime(this.now, this.occupiedDayKeys, this.timezone)) return null
 			const minimumSliceMins = this.timeDensityMinutes || 30
 			let slice
 			let sliceIdx = -1
