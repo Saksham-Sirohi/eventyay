@@ -2108,11 +2108,11 @@ export default {
 			order: 20
 		.version-area
 			order: 30
-		.exporter-area
-			order: 40
-		.density-area
-			order: 50
 		.print-btn
+			order: 40
+		.exporter-area
+			order: 50
+		.density-area
 			order: 60
 		.fullscreen-desktop
 			order: 70
