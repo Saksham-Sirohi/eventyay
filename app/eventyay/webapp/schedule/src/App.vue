@@ -365,10 +365,10 @@ export default {
 			sortIncludeDate: (() => {
 				try {
 					const stored = localStorage.getItem('schedule-include-datetime')
-					if (stored === null) return false
+					if (stored === null) return true
 					return stored === 'true'
 				} catch {
-					return false
+					return true
 				}
 			})(),
 		}
