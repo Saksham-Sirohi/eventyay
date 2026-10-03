@@ -22,7 +22,8 @@ Turn Session videos on
 4. Turn the switch on, then click **Save** at the bottom of the page.
 
 Until you save, the Sessions list has no Video column, and the public page
-and the API do not show the links.
+and public API do not show the links. The organiser's ``GET /answers/`` can
+still return saved answers when Session videos is disabled.
 
 .. image:: images/01-questions-page.png
    :alt: Forms page with the Session videos switch off
@@ -103,8 +104,8 @@ from the same list when you no longer need it.
 
 A personal token is created in user settings at ``/orga/me``, under
 **API Access**. That section is shown when your user belongs to a team.
-Limit the token to this event and allow create, update, and delete on
-answers.
+Limit the token to this event. Keep **Read list** enabled on ``questions``
+and ``answers``. Allow create, update, and delete on ``answers``.
 
 .. image:: images/09-personal-tokens.png
    :alt: User settings API Access form for a personal Talk API token
@@ -140,7 +141,7 @@ If another product calls the API for an organiser, that product uses OAuth:
       :width: 720px
       :class: screenshot
 
-3. Send the organiser through the connect flow with the ``write`` scope.
+3. Send the organiser through the connect flow with the ``read write`` scope.
 4. Call the same URLs below with ``Authorization: Bearer ACCESS_TOKEN``.
 
 The access token lasts one day. Use the refresh token to get a new one.
@@ -202,9 +203,11 @@ Open the public session page once the session is public::
 
 A session becomes public when it is on a published schedule, or when it is
 marked featured and **Talk settings** has **Show featured sessions** set to
-**Always** (or to the matching schedule option). Each embeddable line is a
-player. Nothing starts until the viewer presses play. A timestamp on the URL
-is kept.
+**Always** (or to the matching schedule option). An accepted session can
+also be public when one of its speakers is featured and **Show featured
+speakers** is set to **Always**, even if the session is not featured and no
+schedule is published. Each embeddable line is a player. Nothing starts
+until the viewer presses play. A timestamp on the URL is kept.
 
 .. image:: images/12-public-session.png
    :alt: Public session page for Opening keynote with a YouTube player
