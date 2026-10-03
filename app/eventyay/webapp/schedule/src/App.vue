@@ -1021,6 +1021,10 @@ export default {
 			if (this.currentDay && !payload.days.includes(this.currentDay)) {
 				this.currentDay = payload.days[0] || this.currentDay
 			}
+			// currentDay's watcher does not run when the selected day is still in the new index.
+			if (this._initialized && payload.days.length) {
+				await this.syncCompactCoverage()
+			}
 		},
 		async ensureScheduleDay (day, { includeText = false } = {}) {
 			if (!this.schedule?.compact || !day) return
