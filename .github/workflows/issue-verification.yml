@@ -21,17 +21,22 @@ jobs:
       cancel-in-progress: false
     permissions:
       issues: write
-      # Required to read fossasia team membership. The organization must allow
-      # Actions to read members, otherwise the job fails instead of mislabeling.
-      members: read
     env:
+      # Issue and label changes use the repository token. Team membership is an
+      # organization permission, which GITHUB_TOKEN cannot be granted.
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TEAM_READ_TOKEN: ${{ secrets.ORG_MEMBERS_READ_TOKEN }}
       ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
       REPO: ${{ github.repository }}
     steps:
       - name: Label issue verified or not verified
         run: |
           set -euo pipefail
+
+          if [ -z "${TEAM_READ_TOKEN}" ]; then
+            echo "ORG_MEMBERS_READ_TOKEN is not set. Add a fine-grained token or GitHub App token with Members: read on the fossasia organization."
+            exit 1
+          fi
 
           issue="$(gh api "repos/${REPO}/issues/${ISSUE_NUMBER}")"
           if [ "$(jq -r '.pull_request != null' <<<"$issue")" = "true" ]; then
@@ -47,14 +52,14 @@ jobs:
 
           verified=0
           for team in eventyay-core eventyay-devs; do
-            if ! gh api "orgs/fossasia/teams/${team}" >/dev/null; then
-              echo "Cannot read fossasia/${team}. Grant this workflow members:read on the fossasia organization."
+            if ! GH_TOKEN="$TEAM_READ_TOKEN" gh api "orgs/fossasia/teams/${team}" >/dev/null; then
+              echo "Cannot read fossasia/${team}. ORG_MEMBERS_READ_TOKEN needs Members: read on the fossasia organization."
               exit 1
             fi
 
             err="$(mktemp)"
             set +e
-            body="$(gh api "orgs/fossasia/teams/${team}/memberships/${author}" 2>"$err")"
+            body="$(GH_TOKEN="$TEAM_READ_TOKEN" gh api "orgs/fossasia/teams/${team}/memberships/${author}" 2>"$err")"
             status=$?
             set -e
             if [ "$status" -eq 0 ]; then
