@@ -24,8 +24,9 @@ jobs:
     env:
       # Issue and label changes use the repository token. Team membership is an
       # organization permission, which GITHUB_TOKEN cannot be granted.
+      # EVENTYAY_TOKEN is the existing GitHub token used by the Docker workflows.
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TEAM_READ_TOKEN: ${{ secrets.ORG_MEMBERS_READ_TOKEN }}
+      TEAM_READ_TOKEN: ${{ secrets.EVENTYAY_TOKEN }}
       ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue_number }}
       REPO: ${{ github.repository }}
     steps:
@@ -34,7 +35,7 @@ jobs:
           set -euo pipefail
 
           if [ -z "${TEAM_READ_TOKEN}" ]; then
-            echo "ORG_MEMBERS_READ_TOKEN is not set. Add a fine-grained token or GitHub App token with Members: read on the fossasia organization."
+            echo "EVENTYAY_TOKEN is not set. Team membership checks need that token to have Members: read on the fossasia organization."
             exit 1
           fi
 
@@ -53,7 +54,7 @@ jobs:
           verified=0
           for team in eventyay-core eventyay-devs; do
             if ! GH_TOKEN="$TEAM_READ_TOKEN" gh api "orgs/fossasia/teams/${team}" >/dev/null; then
-              echo "Cannot read fossasia/${team}. ORG_MEMBERS_READ_TOKEN needs Members: read on the fossasia organization."
+              echo "Cannot read fossasia/${team}. EVENTYAY_TOKEN needs Members: read on the fossasia organization."
               exit 1
             fi
 
