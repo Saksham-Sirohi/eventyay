@@ -1,7 +1,7 @@
 name: Issue verification
 
-# Labels issues verified or not verified.
-# Active members of fossasia/eventyay-core and fossasia/eventyay-devs are verified.
+# verified: active member of fossasia/eventyay-core or eventyay-devs.
+# not verified: everyone else. Pull requests are rejected.
 on:
   issues:
     types: [opened, transferred]
@@ -9,151 +9,83 @@ on:
     inputs:
       all_open:
         description: Label every open issue
-        required: false
         type: boolean
         default: false
       issue_number:
-        description: One issue number. Ignored when every open issue is selected.
-        required: false
+        description: One issue number. Ignored when labeling every open issue.
         type: string
 
 jobs:
   verify-issues:
     runs-on: ubuntu-latest
     if: github.repository_owner == 'fossasia'
-    # github.run_id stays short. Combining github.event.issue with || can
-    # stringify the whole issue payload and exceed the 400 character limit.
     concurrency:
       group: issue-verification-${{ github.run_id }}
       cancel-in-progress: false
     permissions:
       issues: write
     env:
-      # Issue and label changes use the repository token. Team membership is an
-      # organization permission, which GITHUB_TOKEN cannot be granted.
-      # EVENTYAY_TOKEN is the existing GitHub token used by the Docker workflows.
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       TEAM_READ_TOKEN: ${{ secrets.EVENTYAY_TOKEN }}
       REPO: ${{ github.repository }}
     steps:
-      - name: Label issues verified or not verified
+      - name: Label issues
         run: |
           set -euo pipefail
-
-          if [ -z "${TEAM_READ_TOKEN}" ]; then
-            echo "EVENTYAY_TOKEN is not set. Team membership checks need that token to have Members: read on the fossasia organization."
-            exit 1
-          fi
+          [ -n "${TEAM_READ_TOKEN}" ] || { echo "EVENTYAY_TOKEN is not set." >&2; exit 1; }
 
           members="$(
             for team in eventyay-core eventyay-devs; do
-              if ! GH_TOKEN="$TEAM_READ_TOKEN" gh api --paginate "orgs/fossasia/teams/${team}/members" --jq '.[].login'; then
-                echo "Cannot read fossasia/${team}. EVENTYAY_TOKEN needs access to that team." >&2
-                exit 1
-              fi
+              GH_TOKEN="$TEAM_READ_TOKEN" gh api --paginate "orgs/fossasia/teams/${team}/members" --jq '.[].login'
             done
           )"
 
-          ensure_label() {
-            local name="$1" color="$2" description="$3" label_err code
-            label_err="$(mktemp)"
+          ensure() {
+            local err code
+            err="$(mktemp)"
             set +e
-            gh api "repos/${REPO}/labels/$(jq -rn --arg n "$name" '$n|@uri')" >/dev/null 2>"$label_err"
+            gh api "repos/${REPO}/labels/$(jq -rn --arg n "$1" '$n|@uri')" >/dev/null 2>"$err"
             code=$?
             set -e
             if [ "$code" -ne 0 ]; then
-              if grep -q 'HTTP 404' "$label_err"; then
-                gh label create "$name" --repo "$REPO" --color "$color" --description "$description"
-              else
-                cat "$label_err" >&2
-                rm -f "$label_err"
-                return 1
-              fi
+              grep -q 'HTTP 404' "$err" || { cat "$err" >&2; rm -f "$err"; return 1; }
+              gh label create "$1" --repo "$REPO" --color "$2" --description "$3"
             fi
-            rm -f "$label_err"
+            rm -f "$err"
           }
-
-          ensure_label "verified" "0E8A16" "Opened by a member of eventyay-core or eventyay-devs"
-          ensure_label "not verified" "FBCA04" "Opened by someone outside the eventyay maintainer teams"
+          ensure verified 0E8A16 "Opened by a member of eventyay-core or eventyay-devs"
+          ensure "not verified" FBCA04 "Opened by someone outside the eventyay maintainer teams"
 
           label_issue() {
-            local number="$1" issue author label other current
-            if ! issue="$(gh api "repos/${REPO}/issues/${number}")"; then
-              echo "Could not fetch issue #${number}." >&2
-              return 1
-            fi
-            if [ "$(jq -r '.pull_request != null' <<<"$issue")" = "true" ]; then
-              echo "#${number} is a pull request. This workflow only labels issues." >&2
-              return 1
-            fi
+            local issue author label other current
+            issue="$(gh api "repos/${REPO}/issues/$1")" || return 1
+            [ "$(jq -r '.pull_request != null' <<<"$issue")" = true ] && { echo "#$1 is a pull request." >&2; return 1; }
             author="$(jq -r '.user.login // empty' <<<"$issue")"
-            if [ -z "$author" ]; then
-              echo "Could not determine the author of issue #${number}." >&2
-              return 1
-            fi
-            if grep -Fxq "$author" <<<"$members"; then
-              label="verified"
-              other="not verified"
-            else
-              label="not verified"
-              other="verified"
-            fi
-            if ! gh issue edit "$number" --repo "$REPO" --add-label "$label"; then
-              echo "Could not add '${label}' to issue #${number}." >&2
-              return 1
-            fi
-            if ! current="$(gh issue view "$number" --repo "$REPO" --json labels --jq '.labels[].name')"; then
-              echo "Could not read labels on issue #${number}." >&2
-              return 1
-            fi
-            if grep -Fxq "$other" <<<"$current"; then
-              if ! gh issue edit "$number" --repo "$REPO" --remove-label "$other"; then
-                echo "Could not remove '${other}' from issue #${number}." >&2
-                return 1
-              fi
-            fi
-            echo "Issue #${number} by ${author}: ${label}"
+            [ -n "$author" ] || return 1
+            if grep -Fxq "$author" <<<"$members"; then label=verified; other="not verified"; else label="not verified"; other=verified; fi
+            gh issue edit "$1" --repo "$REPO" --add-label "$label" || return 1
+            current="$(gh issue view "$1" --repo "$REPO" --json labels --jq '.labels[].name')" || return 1
+            if grep -Fxq "$other" <<<"$current"; then gh issue edit "$1" --repo "$REPO" --remove-label "$other" || return 1; fi
+            echo "#$1 ${author}: ${label}"
           }
 
           numbers=()
-          if [ "$(jq -r '.inputs.all_open // false' "$GITHUB_EVENT_PATH")" = "true" ]; then
-            if ! issue_numbers="$(gh api --paginate -X GET search/issues -f q="repo:${REPO} is:issue is:open" -f per_page=100 --jq '.items[].number')"; then
-              echo "Could not list open issues." >&2
-              exit 1
-            fi
-            if ! search_meta="$(gh api -X GET search/issues -f q="repo:${REPO} is:issue is:open" -f per_page=1 --jq '{total:.total_count,incomplete:.incomplete_results}')"; then
-              echo "Could not check the open issue count." >&2
-              exit 1
-            fi
-            if [ "$(jq -r '.incomplete' <<<"$search_meta")" = "true" ]; then
-              echo "Open issue search was incomplete. Not labeling a partial list." >&2
-              exit 1
-            fi
-            mapfile -t numbers <<<"$issue_numbers"
-            collected="$(printf '%s\n' "${numbers[@]}" | sed '/^$/d' | wc -l | tr -d ' ')"
-            expected="$(jq -r '.total' <<<"$search_meta")"
-            if [ "$collected" -ne "$expected" ]; then
-              echo "Expected ${expected} open issues but collected ${collected}. Not labeling a partial list." >&2
-              exit 1
-            fi
-          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+          if [ "$(jq -r '.inputs.all_open // false' "$GITHUB_EVENT_PATH")" = true ]; then
+            meta="$(gh api -X GET search/issues -f q="repo:${REPO} is:issue is:open" -f per_page=1 --jq '{total:.total_count,incomplete:.incomplete_results}')"
+            [ "$(jq -r .incomplete <<<"$meta")" = true ] && { echo "Issue search was incomplete." >&2; exit 1; }
+            mapfile -t numbers < <(gh api --paginate -X GET search/issues -f q="repo:${REPO} is:issue is:open" -f per_page=100 --jq '.items[].number')
+            [ "$(printf '%s\n' "${numbers[@]}" | sed '/^$/d' | wc -l | tr -d ' ')" = "$(jq -r .total <<<"$meta")" ] || { echo "Open issue list was partial." >&2; exit 1; }
+          elif [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
             numbers=("$(jq -r '.inputs.issue_number // empty' "$GITHUB_EVENT_PATH")")
           else
             numbers=("$(jq -r '.issue.number // empty' "$GITHUB_EVENT_PATH")")
           fi
-
-          if [ "${#numbers[@]}" -eq 0 ] || [ -z "${numbers[0]}" ]; then
-            echo "No issues to label."
-            exit 1
-          fi
+          [ -n "${numbers[0]:-}" ] || { echo "No issues to label." >&2; exit 1; }
 
           failed=0
           for number in "${numbers[@]}"; do
-            if ! label_issue "$number"; then
-              failed=$((failed + 1))
-            fi
+            [ -n "$number" ] || continue
+            label_issue "$number" || failed=$((failed + 1))
           done
-          echo "Labeled ${#numbers[@]} issue(s); failures: ${failed}"
-          if [ "$failed" -ne 0 ]; then
-            exit 1
-          fi
+          echo "failures:${failed}"
+          [ "$failed" -eq 0 ]
