@@ -5,6 +5,10 @@ name: Issue verification
 on:
   issues:
     types: [opened, transferred]
+  # pull_request_target gives fork PRs a token that can set labels.
+  # The job does not checkout the pull request.
+  pull_request_target:
+    types: [opened]
   workflow_dispatch:
     inputs:
       all_open:
@@ -28,6 +32,7 @@ jobs:
       cancel-in-progress: false
     permissions:
       issues: write
+      pull-requests: write
     env:
       # Issue and label changes use the repository token. Team membership is an
       # organization permission, which GITHUB_TOKEN cannot be granted.
@@ -82,10 +87,6 @@ jobs:
               echo "Could not fetch issue #${number}." >&2
               return 1
             fi
-            if [ "$(jq -r '.pull_request != null' <<<"$issue")" = "true" ]; then
-              echo "#${number} is a pull request; skipping."
-              return 0
-            fi
             author="$(jq -r '.user.login // empty' <<<"$issue")"
             if [ -z "$author" ]; then
               echo "Could not determine the author of issue #${number}." >&2
@@ -117,11 +118,14 @@ jobs:
 
           numbers=()
           if [ "$(jq -r '.inputs.all_open // false' "$GITHUB_EVENT_PATH")" = "true" ]; then
+            # Issues only. Open pull requests are labeled when they are opened.
             if ! issue_numbers="$(gh api --paginate "repos/${REPO}/issues?state=open&per_page=100" --jq '.[] | select(.pull_request == null) | .number')"; then
               echo "Could not list open issues." >&2
               exit 1
             fi
             mapfile -t numbers <<<"$issue_numbers"
+          elif [ "$GITHUB_EVENT_NAME" = "pull_request" ] || [ "$GITHUB_EVENT_NAME" = "pull_request_target" ]; then
+            numbers=("$(jq -r '.pull_request.number // empty' "$GITHUB_EVENT_PATH")")
           elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             numbers=("$(jq -r '.inputs.issue_number // empty' "$GITHUB_EVENT_PATH")")
           else
