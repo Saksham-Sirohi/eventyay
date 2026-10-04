@@ -78,7 +78,10 @@ jobs:
 
           label_issue() {
             local number="$1" issue author label other current
-            issue="$(gh api "repos/${REPO}/issues/${number}")"
+            if ! issue="$(gh api "repos/${REPO}/issues/${number}")"; then
+              echo "Could not fetch issue #${number}." >&2
+              return 1
+            fi
             if [ "$(jq -r '.pull_request != null' <<<"$issue")" = "true" ]; then
               echo "#${number} is a pull request; skipping."
               return 0
@@ -95,17 +98,30 @@ jobs:
               label="not verified"
               other="verified"
             fi
-            gh issue edit "$number" --repo "$REPO" --add-label "$label"
-            current="$(gh issue view "$number" --repo "$REPO" --json labels --jq '.labels[].name')"
+            if ! gh issue edit "$number" --repo "$REPO" --add-label "$label"; then
+              echo "Could not add '${label}' to issue #${number}." >&2
+              return 1
+            fi
+            if ! current="$(gh issue view "$number" --repo "$REPO" --json labels --jq '.labels[].name')"; then
+              echo "Could not read labels on issue #${number}." >&2
+              return 1
+            fi
             if grep -Fxq "$other" <<<"$current"; then
-              gh issue edit "$number" --repo "$REPO" --remove-label "$other"
+              if ! gh issue edit "$number" --repo "$REPO" --remove-label "$other"; then
+                echo "Could not remove '${other}' from issue #${number}." >&2
+                return 1
+              fi
             fi
             echo "Issue #${number} by ${author}: ${label}"
           }
 
           numbers=()
           if [ "$(jq -r '.inputs.all_open // false' "$GITHUB_EVENT_PATH")" = "true" ]; then
-            mapfile -t numbers < <(gh issue list --repo "$REPO" --state open --limit 500 --json number --jq '.[].number')
+            if ! issue_numbers="$(gh api --paginate "repos/${REPO}/issues?state=open&per_page=100" --jq '.[] | select(.pull_request == null) | .number')"; then
+              echo "Could not list open issues." >&2
+              exit 1
+            fi
+            mapfile -t numbers <<<"$issue_numbers"
           elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
             numbers=("$(jq -r '.inputs.issue_number // empty' "$GITHUB_EVENT_PATH")")
           else
