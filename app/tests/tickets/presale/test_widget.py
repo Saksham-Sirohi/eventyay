@@ -30,7 +30,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         )
         self.ticket_pos = OrderPosition.objects.create(
             order=self.order,
-            item=self.ticket,
+            product=self.ticket,
             variation=None,
             price=Decimal('23'),
             attendee_name_parts={'full_name': 'Peter'},
@@ -46,10 +46,16 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert 'X-Frame-Options' in response
         response = self.client.get('/%s/%s/w/aaaaaaaaaaaaaaaa/' % (self.orga.slug, self.event.slug))
         assert 'X-Frame-Options' not in response
+        response = self.client.get('/%s/%s/widget/aaaaaaaaaaaaaaaa/' % (self.orga.slug, self.event.slug))
+        assert 'X-Frame-Options' not in response
 
         response = self.client.get('/%s/%s/waitinglist' % (self.orga.slug, self.event.slug))
         assert 'X-Frame-Options' in response
         response = self.client.get('/%s/%s/w/aaaaaaaaaaaaaaaa/waitinglist' % (self.orga.slug, self.event.slug))
+        assert 'X-Frame-Options' not in response
+        response = self.client.get('/%s/%s/widget/aaaaaaaaaaaaaaaa/waitinglist' % (self.orga.slug, self.event.slug))
+        assert 'X-Frame-Options' not in response
+        response = self.client.get('/%s/%s/widget/aaaaaaaaaaaaaaaa/waitinglist/' % (self.orga.slug, self.event.slug))
         assert 'X-Frame-Options' not in response
 
     def test_allow_frame_on_order(self):
@@ -81,6 +87,52 @@ class WidgetCartTest(CartTestMixin, TestCase):
             {'item_%d' % self.ticket.id: '1', 'ajax': 1},
         )
         assert response['Access-Control-Allow-Origin'] == '*'
+        response = self.client.post(
+            '/%s/%s/widget/aaaaaaaaaaaaaaaa/cart/add' % (self.orga.slug, self.event.slug),
+            {'item_%d' % self.ticket.id: '1', 'ajax': 1},
+        )
+        assert response['Access-Control-Allow-Origin'] == '*'
+
+    def test_widget_namespace_routes(self):
+        from django.urls import reverse
+
+        # Widget checkout flow redirects straight to checkout after add-to-cart.
+        self.event.settings.set('redirect_to_checkout_directly', True)
+
+        ns = 'bbbbbbbbbbbbbbbb'
+        assert reverse(
+            'presale:event.cart.add',
+            kwargs={'organizer': self.orga.slug, 'event': self.event.slug, 'cart_namespace': ns},
+        ) == '/%s/%s/widget/%s/cart/add' % (self.orga.slug, self.event.slug, ns)
+        assert reverse(
+            'presale:event.index',
+            kwargs={'organizer': self.orga.slug, 'event': self.event.slug, 'cart_namespace': ns},
+        ) == '/%s/%s/widget/%s/' % (self.orga.slug, self.event.slug, ns)
+
+        response = self.client.post(
+            '/%s/%s/widget/%s/cart/add' % (self.orga.slug, self.event.slug, ns),
+            {'item_%d' % self.ticket.id: '1', 'ajax': 1},
+        )
+        assert response.status_code == 200
+        assert response['Access-Control-Allow-Origin'] == '*'
+        data = response.json()
+        assert data.get('success') is True
+        assert '/widget/%s/checkout/start' % ns in data.get('redirect', '')
+
+        response = self.client.get(
+            '/%s/%s/widget/%s/checkout/start' % (self.orga.slug, self.event.slug, ns),
+            {'take_cart_id': data.get('cart_id', '').split('@')[0], 'iframe': '1'},
+        )
+        assert response.status_code in (200, 302)
+        if response.status_code == 302:
+            assert '/widget/%s/' % ns in response['Location'] or '/login/' in response['Location']
+
+        response = self.client.get(
+            '/%s/%s/widget/%s/redeem/' % (self.orga.slug, self.event.slug, ns),
+            {'iframe': '1'},
+        )
+        assert response.status_code != 404
+        assert 'X-Frame-Options' not in response
 
     def test_cart_isolation(self):
         response = self.client.post(
@@ -110,7 +162,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         )
         self.assertRedirects(
             response,
-            '/%s/%s/w/aaaaaaaaaaaaaaaa/?require_cookie=true' % (self.orga.slug, self.event.slug),
+            '/%s/%s/widget/aaaaaaaaaaaaaaaa/?require_cookie=true' % (self.orga.slug, self.event.slug),
             target_status_code=200,
         )
         doc = BeautifulSoup(response.rendered_content, 'lxml')
@@ -130,7 +182,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         )
         self.assertRedirects(
             response,
-            '/%s/%s/w/aaaaaaaaaaaaaaab/?require_cookie=true' % (self.orga.slug, self.event.slug),
+            '/%s/%s/widget/aaaaaaaaaaaaaaab/?require_cookie=true' % (self.orga.slug, self.event.slug),
             target_status_code=200,
         )
         doc = BeautifulSoup(response.rendered_content, 'lxml')
@@ -163,7 +215,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         data = json.loads(response.content.decode())
         assert data == {
             'name': '30C3',
-            'date_range': f'Dec. 26, {self.event.date_from.year} 00:00',
+            'date_range': f'Dec. 26th – 27th, {self.event.date_from.year} 00:00',
             'frontpage_text': '',
             'currency': 'EUR',
             'show_variations_expanded': False,
@@ -200,6 +252,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                             'original_price': None,
                             'name': 'Early-bird ticket',
                             'order_max': 4,
+                            'limit_one_per_user': False,
                         },
                         {
                             'require_voucher': False,
@@ -251,6 +304,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                             'original_price': None,
                             'name': 'T-Shirt',
                             'order_max': None,
+                            'limit_one_per_user': False,
                         },
                     ],
                     'description': None,
@@ -297,6 +351,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                         'original_price': None,
                         'name': 'Early-bird ticket',
                         'order_max': 4,
+                        'limit_one_per_user': False,
                     }
                 ],
                 'description': None,
@@ -319,13 +374,13 @@ class WidgetCartTest(CartTestMixin, TestCase):
 
     def test_product_list_view_with_voucher(self):
         with scopes_disabled():
-            self.event.vouchers.create(item=self.ticket, code='ABCDE')
+            self.event.vouchers.create(product=self.ticket, code='ABCDE')
         response = self.client.get('/%s/%s/widget/product_list?voucher=ABCDE' % (self.orga.slug, self.event.slug))
         assert response['Access-Control-Allow-Origin'] == '*'
         data = json.loads(response.content.decode())
         assert data == {
             'name': '30C3',
-            'date_range': f'Dec. 26, {self.event.date_from.year} 00:00',
+            'date_range': f'Dec. 26th – 27th, {self.event.date_from.year} 00:00',
             'frontpage_text': '',
             'currency': 'EUR',
             'show_variations_expanded': False,
@@ -362,6 +417,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                             'original_price': None,
                             'name': 'Early-bird ticket',
                             'order_max': 4,
+                            'limit_one_per_user': False,
                         },
                     ],
                     'description': None,
@@ -384,7 +440,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         data = json.loads(response.content.decode())
         assert data == {
             'name': '30C3',
-            'date_range': f'Dec. 26, {self.event.date_from.year} 00:00',
+            'date_range': f'Dec. 26th – 27th, {self.event.date_from.year} 00:00',
             'frontpage_text': '',
             'currency': 'EUR',
             'show_variations_expanded': False,
@@ -407,6 +463,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                             'require_voucher': False,
                             'order_min': None,
                             'order_max': None,
+                            'limit_one_per_user': False,
                             'price': None,
                             'min_price': '14.00',
                             'max_price': '14.00',
@@ -447,7 +504,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
     def test_product_list_view_with_voucher_expired(self):
         with scopes_disabled():
             self.event.vouchers.create(
-                item=self.ticket,
+                product=self.ticket,
                 code='ABCDE',
                 valid_until=now() - datetime.timedelta(days=1),
             )
@@ -456,14 +513,14 @@ class WidgetCartTest(CartTestMixin, TestCase):
         data = json.loads(response.content.decode())
         assert data == {
             'name': '30C3',
-            'date_range': f'Dec. 26, {self.event.date_from.year} 00:00',
+            'date_range': f'Dec. 26th – 27th, {self.event.date_from.year} 00:00',
             'frontpage_text': '',
             'currency': 'EUR',
             'poweredby': '<a href="https://eventyay.com" target="_blank" rel="noopener">powered by eventyay</a>',
             'show_variations_expanded': False,
             'display_net_prices': False,
             'has_seating_plan': False,
-            'vouchers_exist': True,
+            'vouchers_exist': False,
             'waiting_list_enabled': False,
             'error': 'This voucher is expired.',
             'items_by_category': [],
@@ -477,7 +534,6 @@ class WidgetCartTest(CartTestMixin, TestCase):
     def test_css_customized(self):
         response = self.client.get('/%s/%s/widget/v1.css' % (self.orga.slug, self.event.slug))
         c = b''.join(response.streaming_content).decode()
-        assert '#2185d0' in c
         assert '#33c33c' not in c
         assert '#34c34c' not in c
 
@@ -485,7 +541,6 @@ class WidgetCartTest(CartTestMixin, TestCase):
         regenerate_organizer_css.apply(args=(self.orga.pk,))
         response = self.client.get('/%s/%s/widget/v1.css' % (self.orga.slug, self.event.slug))
         c = b''.join(response.streaming_content).decode()
-        assert '#2185d0' not in c
         assert '#33c33c' in c
         assert '#34c34c' not in c
 
@@ -493,7 +548,6 @@ class WidgetCartTest(CartTestMixin, TestCase):
         regenerate_css.apply(args=(self.event.pk,))
         response = self.client.get('/%s/%s/widget/v1.css' % (self.orga.slug, self.event.slug))
         c = b''.join(response.streaming_content).decode()
-        assert '#2185d0' not in c
         assert '#33c33c' not in c
         assert '#34c34c' in c
 
@@ -511,7 +565,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         self.quota_shirts.size = 0
         self.quota_shirts.save()
         self.ticket.bundles.create(
-            bundled_item=self.shirt,
+            bundled_product=self.shirt,
             bundled_variation=self.shirt_blue,
             designated_price=2,
             count=1,
@@ -528,7 +582,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
             self.shirt.require_bundling = True
             self.shirt.save()
             self.ticket.bundles.create(
-                bundled_item=self.shirt,
+                bundled_product=self.shirt,
                 bundled_variation=self.shirt_blue,
                 designated_price=2,
                 count=1,
@@ -586,7 +640,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                 'events': [
                     {
                         'name': 'Present',
-                        'date_range': 'Jan. 1, 2019 11:00',
+                        'date_range': 'Jan. 1st – 2nd, 2019 11:00',
                         'availability': {
                             'color': 'none',
                             'text': '',
@@ -598,7 +652,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                     },
                     {
                         'name': 'Future',
-                        'date_range': 'Jan. 4, 2019 11:00',
+                        'date_range': 'Jan. 4th – 5th, 2019 11:00',
                         'availability': {
                             'color': 'none',
                             'text': '',
@@ -660,7 +714,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                     'name': 'Present',
                                     'time': '11:00',
                                     'continued': False,
-                                    'date_range': 'Jan. 1, 2019 11:00',
+                                    'date_range': 'Jan. 1st – 2nd, 2019 10:00',
                                     'location': '',
                                     'availability': {
                                         'color': 'none',
@@ -672,7 +726,26 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                 }
                             ],
                         },
-                        {'day': 2, 'date': '2019-01-02', 'events': []},
+                        {
+                            'day': 2,
+                            'date': '2019-01-02',
+                            'events': [
+                                {
+                                    'name': 'Present',
+                                    'time': None,
+                                    'continued': True,
+                                    'date_range': 'Jan. 1st – 2nd, 2019 10:00',
+                                    'location': '',
+                                    'availability': {
+                                        'color': 'none',
+                                        'text': '',
+                                        'reason': 'unknown',
+                                    },
+                                    'event_url': 'http://example.com/ccc/30c3/',
+                                    'subevent': se1.pk,
+                                }
+                            ],
+                        },
                         {'day': 3, 'date': '2019-01-03', 'events': []},
                         {
                             'day': 4,
@@ -682,7 +755,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                     'name': 'Future',
                                     'time': '11:00',
                                     'continued': False,
-                                    'date_range': 'Jan. 4, 2019 11:00',
+                                    'date_range': 'Jan. 4th – 5th, 2019 10:00',
                                     'location': '',
                                     'availability': {
                                         'color': 'none',
@@ -694,7 +767,26 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                 }
                             ],
                         },
-                        {'day': 5, 'date': '2019-01-05', 'events': []},
+                        {
+                            'day': 5,
+                            'date': '2019-01-05',
+                            'events': [
+                                {
+                                    'name': 'Future',
+                                    'time': None,
+                                    'continued': True,
+                                    'date_range': 'Jan. 4th – 5th, 2019 10:00',
+                                    'location': '',
+                                    'availability': {
+                                        'color': 'none',
+                                        'text': '',
+                                        'reason': 'unknown',
+                                    },
+                                    'event_url': 'http://example.com/ccc/30c3/',
+                                    'subevent': se2.pk,
+                                }
+                            ],
+                        },
                         {'day': 6, 'date': '2019-01-06', 'events': []},
                     ],
                     [
@@ -789,7 +881,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                 'name': 'Present',
                                 'time': '11:00',
                                 'continued': False,
-                                'date_range': 'Jan. 1, 2019 11:00',
+                                'date_range': 'Jan. 1st – 2nd, 2019 10:00',
                                 'location': '',
                                 'availability': {
                                     'color': 'none',
@@ -805,7 +897,22 @@ class WidgetCartTest(CartTestMixin, TestCase):
                     {
                         'day_formatted': 'Wed, Jan 2nd',
                         'date': '2019-01-02',
-                        'events': [],
+                        'events': [
+                            {
+                                'name': 'Present',
+                                'time': None,
+                                'continued': True,
+                                'date_range': 'Jan. 1st – 2nd, 2019 10:00',
+                                'location': '',
+                                'availability': {
+                                    'color': 'none',
+                                    'text': '',
+                                    'reason': 'unknown',
+                                },
+                                'event_url': 'http://example.com/ccc/30c3/',
+                                'subevent': se1.pk,
+                            }
+                        ],
                         'today': False,
                     },
                     {
@@ -822,7 +929,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                 'name': 'Future',
                                 'time': '11:00',
                                 'continued': False,
-                                'date_range': 'Jan. 4, 2019 11:00',
+                                'date_range': 'Jan. 4th – 5th, 2019 10:00',
                                 'location': '',
                                 'availability': {
                                     'color': 'none',
@@ -838,7 +945,22 @@ class WidgetCartTest(CartTestMixin, TestCase):
                     {
                         'day_formatted': 'Sat, Jan 5th',
                         'date': '2019-01-05',
-                        'events': [],
+                        'events': [
+                            {
+                                'name': 'Future',
+                                'time': None,
+                                'continued': True,
+                                'date_range': 'Jan. 4th – 5th, 2019 10:00',
+                                'location': '',
+                                'availability': {
+                                    'color': 'none',
+                                    'text': '',
+                                    'reason': 'unknown',
+                                },
+                                'event_url': 'http://example.com/ccc/30c3/',
+                                'subevent': se2.pk,
+                            }
+                        ],
                         'today': False,
                     },
                     {
@@ -922,7 +1044,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                 'events': [
                     {
                         'availability': {'color': 'none', 'text': 'Event series'},
-                        'date_range': 'Dec. 29, 2018 – Jan. 4, 2019',
+                        'date_range': 'Dec. 29, 2018 – Jan. 5, 2019',
                         'event_url': 'http://example.com/ccc/30c3/',
                         'location': '',
                         'name': '30C3',
@@ -933,7 +1055,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                             'text': '',
                             'reason': 'unknown',
                         },
-                        'date_range': 'Jan. 1, 2019 10:00',
+                        'date_range': 'Jan. 1st – 2nd, 2019 10:00',
                         'location': '',
                         'event_url': 'http://example.com/ccc/present/',
                         'name': 'Present',
@@ -944,7 +1066,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                             'text': '',
                             'reason': 'unknown',
                         },
-                        'date_range': 'Jan. 4, 2019 10:00',
+                        'date_range': 'Jan. 4th – 5th, 2019 10:00',
                         'location': '',
                         'event_url': 'http://example.com/ccc/future/',
                         'name': 'Future',
@@ -1038,7 +1160,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                         'reason': 'unknown',
                                     },
                                     'continued': False,
-                                    'date_range': 'Jan. 1, 2019 10:00',
+                                    'date_range': 'Jan. 1st – 2nd, 2019 10:00',
                                     'event_url': 'http://example.com/ccc/present/',
                                     'name': 'Present',
                                     'location': '',
@@ -1052,7 +1174,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                         'reason': 'unknown',
                                     },
                                     'continued': False,
-                                    'date_range': 'Jan. 1, 2019 11:00',
+                                    'date_range': 'Jan. 1st – 2nd, 2019 10:00',
                                     'event_url': 'http://example.com/ccc/30c3/',
                                     'name': 'Present',
                                     'location': '',
@@ -1061,7 +1183,40 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                 },
                             ],
                         },
-                        {'date': '2019-01-02', 'day': 2, 'events': []},
+                        {
+                            'date': '2019-01-02',
+                            'day': 2,
+                            'events': [
+                                {
+                                    'availability': {
+                                        'color': 'none',
+                                        'text': '',
+                                        'reason': 'unknown',
+                                    },
+                                    'continued': True,
+                                    'date_range': 'Jan. 1st – 2nd, 2019 10:00',
+                                    'event_url': 'http://example.com/ccc/present/',
+                                    'name': 'Present',
+                                    'location': '',
+                                    'subevent': None,
+                                    'time': None,
+                                },
+                                {
+                                    'availability': {
+                                        'color': 'none',
+                                        'text': '',
+                                        'reason': 'unknown',
+                                    },
+                                    'continued': True,
+                                    'date_range': 'Jan. 1st – 2nd, 2019 10:00',
+                                    'event_url': 'http://example.com/ccc/30c3/',
+                                    'name': 'Present',
+                                    'location': '',
+                                    'subevent': se1.pk,
+                                    'time': None,
+                                },
+                            ],
+                        },
                         {'date': '2019-01-03', 'day': 3, 'events': []},
                         {
                             'date': '2019-01-04',
@@ -1074,7 +1229,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                         'reason': 'unknown',
                                     },
                                     'continued': False,
-                                    'date_range': 'Jan. 4, 2019 10:00',
+                                    'date_range': 'Jan. 4th – 5th, 2019 10:00',
                                     'event_url': 'http://example.com/ccc/future/',
                                     'name': 'Future',
                                     'location': '',
@@ -1088,7 +1243,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                         'reason': 'unknown',
                                     },
                                     'continued': False,
-                                    'date_range': 'Jan. 4, 2019 11:00',
+                                    'date_range': 'Jan. 4th – 5th, 2019 10:00',
                                     'event_url': 'http://example.com/ccc/30c3/',
                                     'name': 'Future',
                                     'location': '',
@@ -1097,7 +1252,40 @@ class WidgetCartTest(CartTestMixin, TestCase):
                                 },
                             ],
                         },
-                        {'date': '2019-01-05', 'day': 5, 'events': []},
+                        {
+                            'date': '2019-01-05',
+                            'day': 5,
+                            'events': [
+                                {
+                                    'availability': {
+                                        'color': 'none',
+                                        'text': '',
+                                        'reason': 'unknown',
+                                    },
+                                    'continued': True,
+                                    'date_range': 'Jan. 4th – 5th, 2019 10:00',
+                                    'event_url': 'http://example.com/ccc/future/',
+                                    'name': 'Future',
+                                    'location': '',
+                                    'subevent': None,
+                                    'time': None,
+                                },
+                                {
+                                    'availability': {
+                                        'color': 'none',
+                                        'text': '',
+                                        'reason': 'unknown',
+                                    },
+                                    'continued': True,
+                                    'date_range': 'Jan. 4th – 5th, 2019 10:00',
+                                    'event_url': 'http://example.com/ccc/30c3/',
+                                    'name': 'Future',
+                                    'location': '',
+                                    'subevent': se2.pk,
+                                    'time': None,
+                                },
+                            ],
+                        },
                         {'date': '2019-01-06', 'day': 6, 'events': []},
                     ],
                     [

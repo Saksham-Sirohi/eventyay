@@ -209,6 +209,16 @@ var site_is_secure = function () {
 };
 
 var widget_id = makeid(16);
+// /widget/<ns>/ keeps ACAO through production nginx (/widgets?/); legacy /w/<ns>/ still resolves.
+var cart_namespace_path = 'widget/' + widget_id;
+
+function eventRootFromCartAddUrl(responseUrl) {
+    var cartAddIdx = responseUrl.indexOf('/cart/add');
+    if (cartAddIdx < 0) {
+        return null;
+    }
+    return responseUrl.substring(0, cartAddIdx).replace(/\/(?:w|widget)\/[a-zA-Z0-9]{16}$/, '') + '/';
+}
 
 /* Vue Components */
 Vue.component('availbox', {
@@ -291,9 +301,9 @@ Vue.component('availbox', {
         waiting_list_url: function () {
             var u
             if (this.item.has_variations) {
-                u = this.$root.target_url + 'w/' + widget_id + '/waitinglist/?item=' + this.item.id + '&var=' + this.variation.id + '&widget_data=' + encodeURIComponent(this.$root.widget_data_json);
+                u = this.$root.target_url + cart_namespace_path + '/waitinglist?item=' + this.item.id + '&var=' + this.variation.id + '&widget_data=' + encodeURIComponent(this.$root.widget_data_json);
             } else {
-                u = this.$root.target_url + 'w/' + widget_id + '/waitinglist/?item=' + this.item.id + '&widget_data=' + encodeURIComponent(this.$root.widget_data_json);
+                u = this.$root.target_url + cart_namespace_path + '/waitinglist?item=' + this.item.id + '&widget_data=' + encodeURIComponent(this.$root.widget_data_json);
             }
             if (this.$root.subevent) {
                 u += '&subevent=' + this.$root.subevent
@@ -557,7 +567,10 @@ var shared_methods = {
     buy_error_callback: function (xhr, data) {
         if (xhr.status === 405 && typeof xhr.responseURL !== "undefined") {
             // Likely a redirect!
-            this.$root.target_url = xhr.responseURL.substr(0, xhr.responseURL.indexOf("/cart/add") - 18);
+            var recovered = eventRootFromCartAddUrl(xhr.responseURL);
+            if (recovered) {
+                this.$root.target_url = recovered;
+            }
             this.$root.overlay.frame_loading = false;
             this.buy();
             return;
@@ -641,7 +654,7 @@ var shared_methods = {
     },
     resume: function () {
         var redirect_url;
-        redirect_url = this.$root.target_url + 'w/' + widget_id + '/';
+        redirect_url = this.$root.target_url + cart_namespace_path + '/';
         if (this.$root.subevent && !this.$root.cart_id) {
             // button with subevent but no items
             redirect_url += this.$root.subevent + '/';
@@ -802,7 +815,7 @@ Vue.component('pretix-widget-event-form', {
         + '</button>'
         + '</div>'
         + '</form>'
-        + '<form method="get" :action="$root.voucherFormTarget" target="_blank" '
+        + '<form method="get" :action="$root.voucherFormTarget" :target="$root.formTarget" '
         + '      v-if="$root.vouchers_exist && !$root.disable_vouchers && !$root.voucher_code">'
         + '<div class="pretix-widget-voucher">'
         + '<h3 class="pretix-widget-voucher-headline">'+ strings['redeem_voucher'] +'</h3>'
@@ -1467,7 +1480,7 @@ var shared_root_methods = {
         });
     },
     startseating: function () {
-        var redirect_url = this.$root.target_url + 'w/' + widget_id;
+        var redirect_url = this.$root.target_url + cart_namespace_path;
         if (this.$root.subevent){
             redirect_url += '/' + this.$root.subevent;
         }
@@ -1500,6 +1513,9 @@ var shared_root_computed = {
         return "pretix_widget_" + this.target_url.replace(/[^a-zA-Z0-9]+/g, "_");
     },
     formTarget: function () {
+        if (this.useIframe) {
+            return this.widget_id;
+        }
         var is_firefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
         var is_android = navigator.userAgent.toLowerCase().indexOf("android") > -1;
         if (is_android && is_firefox) {
@@ -1513,7 +1529,7 @@ var shared_root_computed = {
         }
     },
     voucherFormTarget: function () {
-        var form_target = this.target_url + 'w/' + widget_id + '/redeem?iframe=1&locale=' + lang;
+        var form_target = this.target_url + cart_namespace_path + '/redeem/?iframe=1&locale=' + lang;
         var cookie = getCookie(this.cookieName);
         if (cookie) {
             form_target += "&take_cart_id=" + cookie;
@@ -1537,11 +1553,11 @@ var shared_root_computed = {
             }
             return target;
         }
-        var checkout_url = "/" + this.target_url.replace(/^[^\/]+:\/\/([^\/]+)\//, "") + "w/" + widget_id + "/";
+        var checkout_url = "/" + this.target_url.replace(/^[^\/]+:\/\/([^\/]+)\//, "") + cart_namespace_path + "/";
         if (!this.$root.cart_exists) {
             checkout_url += "checkout/start";
         }
-        var form_target = this.target_url + 'w/' + widget_id + '/cart/add?iframe=1&next=' + encodeURIComponent(checkout_url);
+        var form_target = this.target_url + cart_namespace_path + '/cart/add?iframe=1&next=' + encodeURIComponent(checkout_url);
         var cookie = getCookie(this.cookieName);
         if (cookie) {
             form_target += "&take_cart_id=" + cookie;
