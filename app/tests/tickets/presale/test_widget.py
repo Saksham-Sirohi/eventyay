@@ -135,6 +135,30 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert response.status_code != 404
         assert 'X-Frame-Options' not in response
 
+    def test_iframe_checkout_login_interstitial(self):
+        # Login itself is X-Frame-Options: DENY; widget iframes must not redirect there.
+        self.event.settings.set('require_registered_account_for_tickets', True)
+        self.event.settings.set('redirect_to_checkout_directly', True)
+
+        ns = 'cccccccccccccccc'
+        response = self.client.post(
+            '/%s/%s/widget/%s/cart/add' % (self.orga.slug, self.event.slug, ns),
+            {'item_%d' % self.ticket.id: '1', 'ajax': 1},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get('success') is True
+
+        response = self.client.get(
+            '/%s/%s/widget/%s/checkout/start' % (self.orga.slug, self.event.slug, ns),
+            {'take_cart_id': data.get('cart_id', '').split('@')[0], 'iframe': '1'},
+        )
+        assert response.status_code == 200
+        assert 'X-Frame-Options' not in response
+        assert b'/login/' in response.content
+        assert b'target="_blank"' in response.content
+        assert b'Please log in' in response.content
+
     def test_cart_isolation(self):
         response = self.client.post(
             '/%s/%s/cart/add' % (self.orga.slug, self.event.slug),

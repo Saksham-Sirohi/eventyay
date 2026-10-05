@@ -597,7 +597,7 @@ var shared_methods = {
                 data.redirect = this.$root.target_url.replace(/^([^\/]+:\/\/[^\/]+)\/.*$/, "$1") + data.redirect;
             }
             var url = data.redirect;
-            if (url.indexOf('?')) {
+            if (url.indexOf('?') >= 0) {
                 url = url + '&iframe=1&locale=' + lang + '&take_cart_id=' + this.$root.cart_id;
             } else {
                 url = url + '?iframe=1&locale=' + lang + '&take_cart_id=' + this.$root.cart_id;
@@ -701,7 +701,7 @@ var shared_iframe_fragment = (
     + '<div class="pretix-widget-frame-loading" v-show="$root.frame_loading">'
     + '<svg width="256" height="256" viewBox="0 0 1792 1792" xmlns="http://www.w3.org/2000/svg"><path class="pretix-widget-primary-color" d="M1152 896q0-106-75-181t-181-75-181 75-75 181 75 181 181 75 181-75 75-181zm512-109v222q0 12-8 23t-20 13l-185 28q-19 54-39 91 35 50 107 138 10 12 10 25t-9 23q-27 37-99 108t-94 71q-12 0-26-9l-138-108q-44 23-91 38-16 136-29 186-7 28-36 28h-222q-14 0-24.5-8.5t-11.5-21.5l-28-184q-49-16-90-37l-141 107q-10 9-25 9-14 0-25-11-126-114-165-168-7-10-7-23 0-12 8-23 15-21 51-66.5t54-70.5q-27-50-41-99l-183-27q-13-2-21-12.5t-8-23.5v-222q0-12 8-23t19-13l186-28q14-46 39-92-40-57-107-138-10-12-10-24 0-10 9-23 26-36 98.5-107.5t94.5-71.5q13 0 26 10l138 107q44-23 91-38 16-136 29-186 7-28 36-28h222q14 0 24.5 8.5t11.5 21.5l28 184q49 16 90 37l142-107q9-9 24-9 13 0 25 10 129 119 165 170 7 8 7 22 0 12-8 23-15 21-51 66.5t-54 70.5q26 50 41 98l183 28q13 2 21 12.5t8 23.5z"/></svg>'
     + '</div>'
-    + '<div class="pretix-widget-frame-inner" ref="frame-container" v-show="$root.frame_shown">'
+    + '<div class="pretix-widget-frame-inner" ref="frame-container" v-show="$root.frame_shown || $root.frame_loading">'
     + '<iframe frameborder="0" width="650px" height="650px" @load="iframeLoaded" '
     + '        :name="$root.parent.widget_id" src="about:blank" v-once>'
     + 'Please enable frames in your browser!'
@@ -760,10 +760,26 @@ Vue.component('pretix-overlay', {
         },
         close: function () {
             this.$root.frame_shown = false;
+            this.$root.frame_loading = false;
+            var container = this.$refs['frame-container'];
+            var iframe = container && container.children[0];
+            if (iframe) {
+                iframe.src = 'about:blank';
+            }
             this.$root.parent.frame_dismissed = true;
             this.$root.parent.reload();
         },
         iframeLoaded: function () {
+            // Ignore the initial about:blank load so it cannot clear the spinner
+            // before checkout navigation starts (first-open race).
+            var container = this.$refs['frame-container'];
+            var iframe = container && container.children[0];
+            if (iframe) {
+                var src = iframe.src || '';
+                if (!src || src.indexOf('about:blank') === 0) {
+                    return;
+                }
+            }
             if (this.$root.frame_loading) {
                 this.$root.frame_loading = false;
                 this.$root.frame_shown = true;
@@ -1352,7 +1368,7 @@ var shared_root_methods = {
         if (this.$root.useIframe) {
             event.preventDefault();
             var url = event.target.attributes.href.value;
-            if (url.indexOf('?')) {
+            if (url.indexOf('?') >= 0) {
                 url += '&iframe=1';
             } else {
                 url += '?iframe=1';
