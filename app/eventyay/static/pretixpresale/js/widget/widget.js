@@ -301,9 +301,9 @@ Vue.component('availbox', {
         waiting_list_url: function () {
             var u
             if (this.item.has_variations) {
-                u = this.$root.target_url + cart_namespace_path + '/waitinglist?item=' + this.item.id + '&var=' + this.variation.id + '&widget_data=' + encodeURIComponent(this.$root.widget_data_json);
+                u = this.$root.target_url + cart_namespace_path + '/waitinglist?product=' + this.item.id + '&var=' + this.variation.id + '&widget_data=' + encodeURIComponent(this.$root.widget_data_json);
             } else {
-                u = this.$root.target_url + cart_namespace_path + '/waitinglist?item=' + this.item.id + '&widget_data=' + encodeURIComponent(this.$root.widget_data_json);
+                u = this.$root.target_url + cart_namespace_path + '/waitinglist?product=' + this.item.id + '&widget_data=' + encodeURIComponent(this.$root.widget_data_json);
             }
             if (this.$root.subevent) {
                 u += '&subevent=' + this.$root.subevent
@@ -568,12 +568,12 @@ var shared_methods = {
         if (xhr.status === 405 && typeof xhr.responseURL !== "undefined") {
             // Likely a redirect!
             var recovered = eventRootFromCartAddUrl(xhr.responseURL);
-            if (recovered) {
+            if (recovered && recovered !== this.$root.target_url) {
                 this.$root.target_url = recovered;
+                this.$root.overlay.frame_loading = false;
+                this.buy();
+                return;
             }
-            this.$root.overlay.frame_loading = false;
-            this.buy();
-            return;
         }
         this.$root.overlay.error_message = strings['cart_error'];
         this.$root.overlay.frame_loading = false;

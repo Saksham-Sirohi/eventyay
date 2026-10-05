@@ -5,6 +5,7 @@ from decimal import Decimal
 from bs4 import BeautifulSoup
 from django.conf import settings
 from django.test import TestCase, override_settings
+from django.urls import reverse
 from django.utils.timezone import now
 from django_scopes import scopes_disabled
 from freezegun import freeze_time
@@ -94,8 +95,6 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert response['Access-Control-Allow-Origin'] == '*'
 
     def test_widget_namespace_routes(self):
-        from django.urls import reverse
-
         # Widget checkout flow redirects straight to checkout after add-to-cart.
         self.event.settings.set('redirect_to_checkout_directly', True)
 
@@ -123,9 +122,11 @@ class WidgetCartTest(CartTestMixin, TestCase):
             '/%s/%s/widget/%s/checkout/start' % (self.orga.slug, self.event.slug, ns),
             {'take_cart_id': data.get('cart_id', '').split('@')[0], 'iframe': '1'},
         )
-        assert response.status_code in (200, 302)
-        if response.status_code == 302:
-            assert '/widget/%s/' % ns in response['Location'] or '/login/' in response['Location']
+        self.assertRedirects(
+            response,
+            '/%s/%s/widget/%s/checkout/questions/' % (self.orga.slug, self.event.slug, ns),
+            fetch_redirect_response=False,
+        )
 
         response = self.client.get(
             '/%s/%s/widget/%s/redeem/' % (self.orga.slug, self.event.slug, ns),
