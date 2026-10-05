@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from bs4 import BeautifulSoup
 from django.conf import settings
+from django.contrib.staticfiles import finders
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils.timezone import now
@@ -162,8 +163,6 @@ class WidgetCartTest(CartTestMixin, TestCase):
     def test_widget_js_waitinglist_product_and_405_guard(self):
         # Regression for review: waiting-list URLs must use product=, and 405 recovery
         # must not retry buy() when the event root is unchanged/missing.
-        from django.contrib.staticfiles import finders
-
         path = finders.find('pretixpresale/js/widget/widget.js')
         assert path
         with open(path, encoding='utf-8') as fp:
