@@ -159,6 +159,39 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert b'target="_blank"' in response.content
         assert b'Please log in' in response.content
 
+    def test_widget_js_waitinglist_product_and_405_guard(self):
+        # Regression for review: waiting-list URLs must use product=, and 405 recovery
+        # must not retry buy() when the event root is unchanged/missing.
+        from django.contrib.staticfiles import finders
+
+        path = finders.find('pretixpresale/js/widget/widget.js')
+        assert path
+        with open(path, encoding='utf-8') as fp:
+            js = fp.read()
+        assert "waitinglist?product=" in js
+        assert "waitinglist?item=" not in js
+        assert 'recovered && recovered !== this.$root.target_url' in js
+        assert 'function eventRootFromCartAddUrl' in js
+
+    def test_widget_waitinglist_accepts_product_query_param(self):
+        self.event.settings.set('waiting_list_enabled', True)
+        self.ticket.allow_waitinglist = True
+        self.ticket.save()
+        response = self.client.get(
+            '/%s/%s/widget/aaaaaaaaaaaaaaaa/waitinglist' % (self.orga.slug, self.event.slug),
+            {'product': self.ticket.id},
+        )
+        assert response.status_code == 200
+        assert 'waiting list' in response.rendered_content.lower()
+
+        # Legacy item= is not accepted by WaitingView.product_and_variation.
+        response = self.client.get(
+            '/%s/%s/widget/aaaaaaaaaaaaaaaa/waitinglist' % (self.orga.slug, self.event.slug),
+            {'item': self.ticket.id},
+            follow=False,
+        )
+        assert response.status_code == 302
+
     def test_cart_isolation(self):
         response = self.client.post(
             '/%s/%s/cart/add' % (self.orga.slug, self.event.slug),
