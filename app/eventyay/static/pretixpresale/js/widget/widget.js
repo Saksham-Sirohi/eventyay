@@ -204,8 +204,12 @@ var makeid = function (length) {
     return text;
 };
 
-var site_is_secure = function () {
-    return /https.*/.test(document.location.protocol)
+var shop_is_secure = function (targetUrl) {
+    // Prefer the shop URL: an HTTP host page may still embed an HTTPS shop in an iframe.
+    if (targetUrl && /^https:/i.test(targetUrl)) {
+        return true;
+    }
+    return /^https:/i.test(document.location.protocol);
 };
 
 var widget_id = makeid(16);
@@ -213,11 +217,22 @@ var widget_id = makeid(16);
 var cart_namespace_path = 'widget/' + widget_id;
 
 function eventRootFromCartAddUrl(responseUrl) {
-    var cartAddIdx = responseUrl.indexOf('/cart/add');
-    if (cartAddIdx < 0) {
+    // Match the final namespaced cart-add path. Organizer/event slugs may contain
+    // "/cart/add", so taking the first occurrence would recover the wrong root.
+    var re = /\/(?:w|widget)\/[a-zA-Z0-9]{16}\/cart\/add(?=[/?#]|$)/g;
+    var match = null;
+    var m;
+    while ((m = re.exec(responseUrl)) !== null) {
+        match = m;
+    }
+    if (!match) {
         return null;
     }
-    return responseUrl.substring(0, cartAddIdx).replace(/\/(?:w|widget)\/[a-zA-Z0-9]{16}$/, '') + '/';
+    var root = responseUrl.substring(0, match.index);
+    if (root.charAt(root.length - 1) !== '/') {
+        root += '/';
+    }
+    return root;
 }
 
 /* Vue Components */
@@ -1581,7 +1596,7 @@ var shared_root_computed = {
         return form_target
     },
     useIframe: function () {
-        return !this.disable_iframe && (this.skip_ssl || site_is_secure());
+        return !this.disable_iframe && (this.skip_ssl || shop_is_secure(this.target_url));
     },
     showPrices: function () {
         var has_priced = false;

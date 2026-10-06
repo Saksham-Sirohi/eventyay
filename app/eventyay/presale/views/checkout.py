@@ -65,7 +65,11 @@ class CheckoutView(View):
             login_url = build_login_url_with_next(request.get_full_path())
             # The login page sends X-Frame-Options: DENY. Redirecting there from the
             # widget iframe leaves a blank popup; serve a framable interstitial instead.
-            if request.GET.get('iframe') or request.session.get('iframe_session'):
+            # Only trust iframe_session on namespaced widget carts so a prior ?iframe=1
+            # visit cannot change ordinary (unframed) checkout login redirects.
+            if 'iframe' in request.GET or (
+                request.session.get('iframe_session') and kwargs.get('cart_namespace')
+            ):
                 login_label = _('Log in')
                 message = _('Please log in to complete your order.')
                 html = (

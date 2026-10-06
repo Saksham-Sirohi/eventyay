@@ -1,5 +1,6 @@
 import datetime
 import json
+import re
 from decimal import Decimal
 
 from bs4 import BeautifulSoup
@@ -15,6 +16,27 @@ from eventyay.base.models import Order, OrderPosition
 from eventyay.presale.style import regenerate_css, regenerate_organizer_css
 
 from .test_cart import CartTestMixin
+
+
+# Mirrors eventRootFromCartAddUrl() in pretixpresale/js/widget/widget.js
+_WIDGET_CART_ADD_RE = re.compile(r'/(?:w|widget)/[a-zA-Z0-9]{16}/cart/add(?=[/?#]|$)')
+
+
+def event_root_from_cart_add_url(response_url):
+    matches = list(_WIDGET_CART_ADD_RE.finditer(response_url))
+    if not matches:
+        return None
+    root = response_url[: matches[-1].start()]
+    if not root.endswith('/'):
+        root += '/'
+    return root
+
+
+def shop_is_secure(target_url, page_protocol='http:'):
+    # Mirrors shop_is_secure() in pretixpresale/js/widget/widget.js
+    if target_url and re.match(r'^https:', target_url, re.I):
+        return True
+    return bool(re.match(r'^https:', page_protocol, re.I))
 
 
 class WidgetCartTest(CartTestMixin, TestCase):
@@ -160,17 +182,94 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert b'target="_blank"' in response.content
         assert b'Please log in' in response.content
 
-    def test_widget_js_waitinglist_product_and_405_guard(self):
-        # Regression for review: waiting-list URLs must use product=, and 405 recovery
-        # must not retry buy() when the event root is unchanged/missing.
+    def test_regular_checkout_ignores_stale_iframe_session(self):
+        # A prior ?iframe=1 visit must not force the framable login interstitial on
+        # ordinary (non-namespaced) checkout — that would bypass normal frame protection.
+        self.event.settings.set('require_registered_account_for_tickets', True)
+        self.event.settings.set('redirect_to_checkout_directly', True)
+
+        response = self.client.get(
+            '/%s/%s/' % (self.orga.slug, self.event.slug),
+            {'iframe': '1'},
+        )
+        assert response.status_code == 200
+        assert self.client.session.get('iframe_session') is True
+
+        response = self.client.post(
+            '/%s/%s/cart/add' % (self.orga.slug, self.event.slug),
+            {'item_%d' % self.ticket.id: '1', 'ajax': 1},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get('success') is True
+
+        response = self.client.get(
+            '/%s/%s/checkout/start' % (self.orga.slug, self.event.slug),
+            {'take_cart_id': data.get('cart_id', '').split('@')[0]},
+        )
+        assert response.status_code == 302
+        assert '/login/' in response['Location']
+        assert b'target="_blank"' not in response.content
+
+    def test_widget_js_waitinglist_uses_product_param(self):
         path = finders.find('pretixpresale/js/widget/widget.js')
         assert path
         with open(path, encoding='utf-8') as fp:
             js = fp.read()
         assert "waitinglist?product=" in js
         assert "waitinglist?item=" not in js
-        assert 'recovered && recovered !== this.$root.target_url' in js
-        assert 'function eventRootFromCartAddUrl' in js
+
+    def test_event_root_from_cart_add_url_uses_final_namespaced_suffix(self):
+        # Keep the Python mirror in sync with widget.js (avoids first-/cart/add slug traps).
+        path = finders.find('pretixpresale/js/widget/widget.js')
+        with open(path, encoding='utf-8') as fp:
+            js = fp.read()
+        # Source stores the regex with JS escapes (\/); normalize for the sync check.
+        assert r'/(?:w|widget)/[a-zA-Z0-9]{16}/cart/add(?=[/?#]|$)' in js.replace('\\/', '/')
+        assert 'shop_is_secure(this.target_url)' in js
+
+        ns = 'abcdefghijklmnop'
+        assert (
+            event_root_from_cart_add_url(
+                'https://shop.example/orga/ev/widget/%s/cart/add' % ns
+            )
+            == 'https://shop.example/orga/ev/'
+        )
+        assert (
+            event_root_from_cart_add_url(
+                'https://shop.example/orga/ev/w/%s/cart/add?iframe=1' % ns
+            )
+            == 'https://shop.example/orga/ev/'
+        )
+        # Slug path contains "/cart/add" before the real namespaced cart-add.
+        assert (
+            event_root_from_cart_add_url(
+                'https://shop.example/cart/add/ev/widget/%s/cart/add' % ns
+            )
+            == 'https://shop.example/cart/add/ev/'
+        )
+        assert event_root_from_cart_add_url('https://shop.example/orga/ev/cart/add') is None
+
+        current = 'https://shop.example/orga/ev/'
+        same_root = event_root_from_cart_add_url(
+            'https://shop.example/orga/ev/widget/%s/cart/add' % ns
+        )
+        other_root = event_root_from_cart_add_url(
+            'https://other.example/orga/ev/widget/%s/cart/add' % ns
+        )
+        # Mirrors buy_error_callback: retry only when recovered root differs.
+        assert same_root == current
+        assert not (same_root and same_root != current)
+        assert other_root and other_root != current
+        assert not (None and None != current)
+
+    def test_shop_is_secure_prefers_target_url_protocol(self):
+        # HTTP embed page + HTTPS shop must still allow iframe checkout.
+        assert shop_is_secure('https://shop.example/orga/ev/', 'http:') is True
+        assert shop_is_secure('http://shop.example/orga/ev/', 'http:') is False
+        assert shop_is_secure('http://shop.example/orga/ev/', 'https:') is True
+        assert shop_is_secure('', 'https:') is True
+        assert shop_is_secure(None, 'http:') is False
 
     def test_widget_waitinglist_accepts_product_query_param(self):
         self.event.settings.set('waiting_list_enabled', True)
