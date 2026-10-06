@@ -1073,7 +1073,9 @@ export default {
 			if (index < 0) return
 			const neighbors = [days[index - 1], days[index + 1]].filter(Boolean)
 			neighbors.forEach(neighbor => {
-				this.ensureScheduleDay(neighbor, { includeText: false }).catch(error => {
+				this.ensureScheduleDay(neighbor, { includeText: false }).then(() => {
+					this.pruneFavsAfterCompactCoverage()
+				}).catch(error => {
 					console.error('Failed to prefetch schedule day', neighbor, error)
 				})
 			})
@@ -1489,6 +1491,8 @@ export default {
 			const next = this.pruneFavs(this.favs, this.schedule)
 			if (next.length === this.favs.length && next.every((code, i) => code === this.favs[i])) return
 			this.favs = next
+			// Persist pruned list; keep UI state even if localStorage write fails.
+			this.saveFavs()
 		},
 		saveFavs () {
 			const storageKey = this.getFavStorageKey(this.loggedIn ? this.userCode : null)
