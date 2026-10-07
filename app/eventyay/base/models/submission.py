@@ -1194,10 +1194,10 @@ class Submission(GenerateCode, PretalxModel):
             )
 
     def send_invite(self, to, _from=None):
-        """Invites one or more speakers by email and sends right away.
+        """Invites one speaker by email and sends the invitation right away.
 
-        Returns the list of :class:`SpeakerInvitation` objects that were
-        created or refreshed, each carrying the delivery result.
+        Returns the :class:`SpeakerInvitation` carrying the delivery result,
+        or ``None`` if the address already belongs to a speaker.
         """
         if not _from:
             raise ValueError('Please enter a sender for this invitation.')
@@ -1210,72 +1210,43 @@ class Submission(GenerateCode, PretalxModel):
             speaker=_from.get_display_name(),
         )
 
-        if isinstance(to, str):
-            raw_addresses = [a.strip().lower() for a in to.split(',') if a.strip()]
-        elif isinstance(to, (list, tuple, set)):
-            raw_addresses = [str(a).strip().lower() for a in to if str(a).strip()]
-        else:
-            raw_addresses = [str(to or '').strip().lower()] if str(to or '').strip() else []
+        address = (to or '').strip().lower()
+        if not address or self.speakers.filter(email__iexact=address).exists():
+            return None
 
-        seen = set()
-        to_invite = []
-        for address in raw_addresses:
-            if not address or address in seen or self.speakers.filter(email__iexact=address).exists():
-                continue
-            seen.add(address)
-            to_invite.append(address)
+        record_speaker_invite_send(_from)
 
-        if not to_invite:
-            return []
-
-        record_speaker_invite_send(_from, amount=len(to_invite))
-
-        invitations = []
-        invitations_to_deliver = []
         with scope(event=self.event), transaction.atomic():
             locked_submission = type(self).all_objects.select_for_update().get(pk=self.pk)
-
-            to_invite = [a for a in to_invite if not locked_submission.speakers.filter(email__iexact=a).exists()]
-            if not to_invite:
-                return []
-
-            new_count = 0
-            for address in to_invite:
-                if not locked_submission.speaker_invitations.filter(email__iexact=address).exists():
-                    new_count += 1
-
-            if locked_submission.co_speaker_count + new_count > locked_submission.MAX_CO_SPEAKERS:
+            if locked_submission.speakers.filter(email__iexact=address).exists():
+                return None
+            is_new = not locked_submission.speaker_invitations.filter(email__iexact=address).exists()
+            if is_new and not locked_submission.can_invite_co_speakers:
                 raise ValidationError(phrases.cfp.invite_limit_reached.format(count=locked_submission.MAX_CO_SPEAKERS))
 
-            for address in to_invite:
-                invitation, created = SpeakerInvitation.objects.select_for_update().get_or_create(
-                    submission=locked_submission,
-                    email=address,
-                    defaults={'invited_by': _from},
-                )
-                if not created and (
-                    not invitation.is_pending or invitation.is_delivered or invitation.mail_id is not None
-                ):
-                    invitations.append(invitation)
-                    continue
+            invitation, created = SpeakerInvitation.objects.select_for_update().get_or_create(
+                submission=locked_submission,
+                email=address,
+                defaults={'invited_by': _from},
+            )
+            if not created and (
+                not invitation.is_pending or invitation.is_delivered or invitation.mail_id is not None
+            ):
+                return invitation
 
-                mail = QueuedMail.objects.create(
-                    event=self.event,
-                    to=address,
-                    subject=subject,
-                    text=text,
-                    locale=self.get_email_locale(),
-                )
-                mail.submissions.add(self)
-                invitation.mail = mail
-                invitation.save(update_fields=['mail', 'updated'])
-                invitations.append(invitation)
-                invitations_to_deliver.append((invitation, mail))
+            mail = QueuedMail.objects.create(
+                event=self.event,
+                to=address,
+                subject=subject,
+                text=text,
+                locale=self.get_email_locale(),
+            )
+            mail.submissions.add(self)
+            invitation.mail = mail
+            invitation.save(update_fields=['mail', 'updated'])
 
-        for invitation, mail in invitations_to_deliver:
-            invitation.deliver(mail=mail, send_immediately=True, requestor=_from)
-
-        return invitations
+        invitation.deliver(mail=mail, send_immediately=True, requestor=_from)
+        return invitation
 
     send_invite.alters_data = True
 

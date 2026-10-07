@@ -484,26 +484,25 @@ class SubmissionInviteView(LoggedInEventPageMixin, SubmissionViewMixin, FormView
 
     def form_valid(self, form):
         try:
-            invitations = form.save()
+            invitation = form.save()
         except ValidationError as e:
             messages.error(self.request, e.message if hasattr(e, 'message') else str(e))
             return redirect(self.submission.urls.user_base)
 
         self.submission.log_action('eventyay.submission.speakers.invite', person=self.request.user)
-        for invitation in invitations:
-            if invitation.mail_state == SpeakerInvitationMailStates.SENT:
-                messages.success(
-                    self.request,
-                    _('Invitation sent to {email}.').format(email=invitation.email),
-                )
-            else:
-                messages.error(
-                    self.request,
-                    _(
-                        'The invitation email to {email} could not be sent. '
-                        'You can resend it from the list of pending invitations.'
-                    ).format(email=invitation.email),
-                )
+        if invitation and invitation.mail_state == SpeakerInvitationMailStates.SENT:
+            messages.success(
+                self.request,
+                _('Invitation sent to {email}.').format(email=invitation.email),
+            )
+        elif invitation:
+            messages.error(
+                self.request,
+                _(
+                    'The invitation email to {email} could not be sent. '
+                    'You can resend it from the list of pending invitations.'
+                ).format(email=invitation.email),
+            )
         return super().form_valid(form)
 
     def get_success_url(self):

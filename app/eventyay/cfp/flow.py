@@ -849,7 +849,7 @@ class ProfileStep(GenericFlowStep, FormFlowStep):
         submission = getattr(request, 'submission', None)
         if not draft and additional_speaker and submission:
             try:
-                submission.send_invite(to=[additional_speaker], _from=request.user)
+                submission.send_invite(to=additional_speaker, _from=request.user)
             except ValidationError as exception:
                 messages.warning(request, exception.message if hasattr(exception, 'message') else str(exception))
             except SendMailException as exception:

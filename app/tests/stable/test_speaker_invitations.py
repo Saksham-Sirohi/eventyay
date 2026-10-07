@@ -132,17 +132,15 @@ class TestSubmitterInvitesSpeaker:
     def test_invitation_is_sent_immediately(self, event, submission, user):
         djmail.outbox = []
         with scope(event=event):
-            invitations = submission.send_invite(to='jane@example.net', _from=user)
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
 
-            assert len(invitations) == 1
-            invitation = invitations[0]
             assert invitation.status == SpeakerInvitationStates.PENDING
             assert invitation.mail_state == SpeakerInvitationMailStates.SENT
             assert len(djmail.outbox) == 1
 
     def test_invitation_mail_is_persisted(self, event, submission, user):
         with scope(event=event):
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
 
             assert invitation.mail.pk
             assert invitation.mail.sent is not None
@@ -158,7 +156,7 @@ class TestSubmitterInvitesSpeaker:
                 data={'speaker': 'jane@example.net', 'subject': 'Buy now', 'text': 'Spam'},
             )
             assert form.is_valid()
-            mail = form.save()[0].mail
+            mail = form.save().mail
 
             assert 'Buy now' not in mail.subject
             assert 'Spam' not in mail.text
@@ -170,20 +168,10 @@ class TestSubmitterInvitesSpeaker:
 
         monkeypatch.setattr('eventyay.common.mail.send_mail_now', explode)
         with scope(event=event):
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
 
             assert invitation.mail_state == SpeakerInvitationMailStates.FAILED
             assert invitation.can_resend
-
-    def test_invitation_to_several_addresses(self, event, submission, user):
-        djmail.outbox = []
-        with scope(event=event):
-            invitations = submission.send_invite(
-                to='jane@example.net,john@example.net', _from=user
-            )
-
-            assert len(invitations) == 2
-            assert len(djmail.outbox) == 2
 
 
 @pytest.mark.django_db
@@ -194,7 +182,7 @@ class TestInvitationLifecycle:
 
         monkeypatch.setattr('eventyay.common.mail.send_mail_now', explode)
         with scope(event=event):
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
             assert invitation.mail_state == SpeakerInvitationMailStates.FAILED
 
         monkeypatch.undo()
@@ -211,7 +199,7 @@ class TestInvitationLifecycle:
 
     def test_accept_marks_invitation_accepted(self, event, submission, user):
         with scope(event=event):
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
             assert invitation.is_pending
 
             invitation.accept()
@@ -238,7 +226,7 @@ class TestInvitationLifecycle:
 class TestInvitationIdentity:
     def test_email_is_normalised(self, event, submission, user):
         with scope(event=event):
-            invitation = submission.send_invite(to='Jane@Example.NET', _from=user)[0]
+            invitation = submission.send_invite(to='Jane@Example.NET', _from=user)
 
             assert invitation.email == 'jane@example.net'
 
@@ -262,7 +250,7 @@ class TestInvitationIdentity:
 
     def test_accepted_invitation_cannot_be_resent(self, event, submission, user):
         with scope(event=event):
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
             invitation.accept()
 
             assert not invitation.can_resend
@@ -270,7 +258,7 @@ class TestInvitationIdentity:
     def test_sent_invitation_is_resent_as_a_new_mail(self, event, submission, user):
         djmail.outbox = []
         with scope(event=event):
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
             first_mail = invitation.mail
             assert invitation.can_resend
 
@@ -293,7 +281,7 @@ class TestInvitationIdentity:
 
         monkeypatch.setattr('eventyay.common.mail.send_mail_now', explode)
         with scope(event=event):
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
             first_mail = invitation.mail
 
         monkeypatch.undo()
@@ -323,7 +311,7 @@ class TestInvitationIdentity:
 
         monkeypatch.setattr('eventyay.common.mail.send_mail_now', explode)
         with scope(event=event):
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
             assert invitation.mail_state == SpeakerInvitationMailStates.FAILED
 
         monkeypatch.undo()
@@ -382,7 +370,7 @@ class TestInvitationAcceptance:
 class TestRevokeInvitation:
     def test_revoke_removes_invitation(self, event, submission, user):
         with scope(event=event):
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
             sent_mail = invitation.mail
 
             invitation.revoke(person=user)
@@ -405,9 +393,9 @@ class TestRevokeInvitation:
     def test_revoked_address_can_be_invited_again(self, event, submission, user):
         djmail.outbox = []
         with scope(event=event):
-            submission.send_invite(to='jane@example.net', _from=user)[0].revoke()
+            submission.send_invite(to='jane@example.net', _from=user).revoke()
 
-            invitation = submission.send_invite(to='jane@example.net', _from=user)[0]
+            invitation = submission.send_invite(to='jane@example.net', _from=user)
 
             assert invitation.mail_state == SpeakerInvitationMailStates.SENT
             assert len(djmail.outbox) == 2
@@ -552,9 +540,7 @@ class TestCoSpeakerInviteHardening:
                 data={'speaker': 'partner@example.org'},
             )
             assert form.is_valid()
-            invitations = form.save()
-            assert len(invitations) == 1
-            invitation = invitations[0]
+            invitation = form.save()
             assert invitation.status == SpeakerInvitationStates.PENDING
             assert invitation.mail_state == SpeakerInvitationMailStates.SENT
             assert len(djmail.outbox) == 1
@@ -799,12 +785,12 @@ class TestCoSpeakerInviteHardening:
     def test_send_invite_concurrency_idempotence(self, event, submission, user):
         djmail.outbox = []
         with scope(event=event):
-            invites1 = submission.send_invite(to='concurrent@example.org', _from=user)
+            first = submission.send_invite(to='concurrent@example.org', _from=user)
             mail_count = QueuedMail.objects.filter(submissions=submission).count()
 
             # Calling send_invite again for the same address does not create duplicate mail
-            invites2 = submission.send_invite(to='concurrent@example.org', _from=user)
-            assert invites1[0].pk == invites2[0].pk
+            second = submission.send_invite(to='concurrent@example.org', _from=user)
+            assert first.pk == second.pk
             assert QueuedMail.objects.filter(submissions=submission).count() == mail_count
 
     def test_accepted_invitation_not_yet_speaker_counts_and_organizer_speakers_uncapped_on_recover(
@@ -895,9 +881,7 @@ class TestCoSpeakerInviteHardening:
                 status=SpeakerInvitationStates.ACCEPTED,
             )
             # send_invite for the same address does not double count towards new_count
-            invites = submission.send_invite(to=co_user.email, _from=user)
-            assert len(invites) == 1
-            assert invites[0].pk == inv.pk
+            assert submission.send_invite(to=co_user.email, _from=user).pk == inv.pk
 
     def test_accept_invitation_with_accepted_state_not_blocked_by_capacity(self, event, submission, user, rf):
         """Test that an invitation in ACCEPTED state is not blocked by capacity check if count reaches 10."""
@@ -937,7 +921,7 @@ class TestCoSpeakerInviteHardening:
     def test_resend_cap_enforced_at_max_resends(self, event, submission, user, rf):
         cache.clear()
         with scope(event=event):
-            inv = submission.send_invite(to='resend_test@example.org', _from=user)[0]
+            inv = submission.send_invite(to='resend_test@example.org', _from=user)
             assert inv.resend_count == 0
             assert inv.can_resend is True
 
@@ -975,7 +959,7 @@ class TestCoSpeakerInviteHardening:
     def test_failed_resend_is_not_counted(self, event, submission, user, monkeypatch):
         cache.clear()
         with scope(event=event):
-            inv = submission.send_invite(to='fail_resend@example.org', _from=user)[0]
+            inv = submission.send_invite(to='fail_resend@example.org', _from=user)
             assert inv.resend_count == 0
 
             # Simulate mail server failure
@@ -991,7 +975,7 @@ class TestCoSpeakerInviteHardening:
     def test_resend_view_reports_delivery_failure_on_last_resend(self, event, submission, user, rf, monkeypatch):
         cache.clear()
         with scope(event=event):
-            inv = submission.send_invite(to='last_resend@example.org', _from=user)[0]
+            inv = submission.send_invite(to='last_resend@example.org', _from=user)
             cache.set(get_invitation_resend_key(inv), inv.MAX_RESENDS - 1)
 
             def explode(*args, **kwargs):
@@ -1019,7 +1003,7 @@ class TestCoSpeakerInviteHardening:
     def test_organizer_resend_uncapped(self, event, submission, user):
         cache.clear()
         with scope(event=event):
-            inv = submission.send_invite(to='orga_resend@example.org', _from=user)[0]
+            inv = submission.send_invite(to='orga_resend@example.org', _from=user)
             cache.set(get_invitation_resend_key(inv), 5)
 
             assert inv.can_resend is False
@@ -1077,12 +1061,12 @@ class TestCoSpeakerInviteHardening:
         cache.clear()
         with scope(event=event):
             key = get_user_rate_limit_key(user.pk)
-            cache.set(key, 19)
+            cache.set(key, 20)
 
-            # Parallel or batch request exceeding 20 adds to counter first, sees > 20, and sends nothing
+            # A send over the limit adds to the counter first, sees > 20, and sends nothing
             initial_count = SpeakerInvitation.objects.count()
             with pytest.raises(ValidationError) as exc:
-                submission.send_invite(to=['over1@example.org', 'over2@example.org'], _from=user)
+                submission.send_invite(to='over@example.org', _from=user)
             assert 'maximum number of invitations for now' in str(exc.value)
             assert SpeakerInvitation.objects.count() == initial_count
 
@@ -1418,7 +1402,7 @@ class TestCoSpeakerInviteHardening:
         cache.clear()
         djmail.outbox = []
         with scope(event=event):
-            invitation = submission.send_invite(to='lifecycle@example.org', _from=user)[0]
+            invitation = submission.send_invite(to='lifecycle@example.org', _from=user)
             assert invitation.resend_count == 0
             assert submission.co_speaker_count == 1
             assert len(djmail.outbox) == 1
@@ -1434,7 +1418,7 @@ class TestCoSpeakerInviteHardening:
             assert not SpeakerInvitation.objects.filter(pk=invitation.pk).exists()
             assert submission.co_speaker_count == 0
 
-            new_invitation = submission.send_invite(to='lifecycle@example.org', _from=user)[0]
+            new_invitation = submission.send_invite(to='lifecycle@example.org', _from=user)
             assert new_invitation.pk != invitation.pk
             # Re-inviting the same address does not reset the resend count
             assert new_invitation.resend_count == 3
@@ -1521,7 +1505,7 @@ class TestCoSpeakerInviteHardening:
     def test_resend_race_condition_protection(self, event, submission, user):
         """Simulate concurrent parallel resends incrementing past MAX_RESENDS."""
         with scope(event=event):
-            invitation = submission.send_invite('target@example.org', _from=user)[0]
+            invitation = submission.send_invite('target@example.org', _from=user)
             assert invitation.resend_count == 0
 
             # A parallel request already used up the resends after our read
