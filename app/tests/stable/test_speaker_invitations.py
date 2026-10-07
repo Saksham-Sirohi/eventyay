@@ -972,7 +972,7 @@ class TestCoSpeakerInviteHardening:
             assert any('maximum of 3 times' in str(m) for m in messages)
 
     @override_settings(CACHES=LOCMEM_CACHE)
-    def test_resend_cap_counts_attempts_even_on_failure(self, event, submission, user, monkeypatch):
+    def test_failed_resend_is_not_counted(self, event, submission, user, monkeypatch):
         cache.clear()
         with scope(event=event):
             inv = submission.send_invite(to='fail_resend@example.org', _from=user)[0]
@@ -984,8 +984,8 @@ class TestCoSpeakerInviteHardening:
 
             monkeypatch.setattr('eventyay.common.mail.send_mail_now', explode)
             assert inv.resend(requestor=user, orga=False) is False
-            # Every attempt is counted toward the limit, even failed ones
-            assert inv.resend_count == 1
+            # Failed deliveries do not use up the resend limit
+            assert inv.resend_count == 0
 
     @override_settings(CACHES=LOCMEM_CACHE)
     def test_resend_view_reports_delivery_failure_on_last_resend(self, event, submission, user, rf, monkeypatch):
@@ -1013,6 +1013,7 @@ class TestCoSpeakerInviteHardening:
             messages = [str(m) for m in get_messages(req)]
             assert any('could not be sent' in m for m in messages)
             assert not any('maximum of' in m for m in messages)
+            assert inv.can_resend
 
     @override_settings(CACHES=LOCMEM_CACHE)
     def test_organizer_resend_uncapped(self, event, submission, user):

@@ -13,6 +13,7 @@ from eventyay.base.services.speaker_invite_limits import (
     get_invitation_resend_count,
     record_invitation_resend,
     record_speaker_invite_send,
+    release_invitation_resend,
 )
 from eventyay.common.exceptions import SendMailException
 from eventyay.common.text.phrases import phrases
@@ -208,7 +209,8 @@ class SpeakerInvitation(PretalxModel):
         """Sends the invitation email again; returns whether it was delivered.
 
         Speaker resends count against the resend and hourly send limits and
-        raise ValidationError when one of them refuses the resend.
+        raise ValidationError when one of them refuses the resend. A resend
+        that fails to deliver does not count against the resend limit.
         """
         if not self.mail:
             return False
@@ -228,7 +230,10 @@ class SpeakerInvitation(PretalxModel):
             self.mail = mail
             self.save(update_fields=['mail', 'updated'])
 
-        return self.deliver(mail=mail, send_immediately=True, requestor=requestor)
+        delivered = self.deliver(mail=mail, send_immediately=True, requestor=requestor)
+        if not orga and not delivered:
+            release_invitation_resend(self.pk)
+        return delivered
 
     resend.alters_data = True
 

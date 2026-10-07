@@ -43,6 +43,14 @@ def record_invitation_resend(invitation_pk, limit):
         raise ValidationError(phrases.cfp.invite_resend_limit_reached.format(count=limit))
 
 
+def release_invitation_resend(invitation_pk):
+    """Gives back a resend whose email could not be delivered."""
+    try:
+        cache.decr(get_invitation_resend_key(invitation_pk))
+    except Exception:
+        logger.exception('Could not release invitation resend count for %s', invitation_pk)
+
+
 def get_user_rate_limit_key(user_id):
     hour_bucket = datetime.now(UTC).strftime('%Y%m%d%H')
     return f'cfp_invite_sends:{user_id}:{hour_bucket}'
