@@ -850,6 +850,8 @@ class ProfileStep(GenericFlowStep, FormFlowStep):
         if not draft and additional_speaker and submission:
             try:
                 submission.send_invite(to=[additional_speaker], _from=request.user)
+            except ValidationError as exception:
+                messages.warning(request, exception.message if hasattr(exception, 'message') else str(exception))
             except SendMailException as exception:
                 logger.warning('Failed to send co-speaker invite email: %s', exception)
                 messages.warning(request, phrases.cfp.submission_email_fail)

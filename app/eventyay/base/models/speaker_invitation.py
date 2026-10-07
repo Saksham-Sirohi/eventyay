@@ -7,9 +7,16 @@ from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django_scopes import ScopedManager, scopes_disabled
 
+from eventyay.base.services.speaker_invite_limits import (
+    check_and_record_speaker_invite_send,
+    get_invitation_resend_count,
+    get_invitation_resend_key,
+    record_invitation_resend,
+)
 from eventyay.common.exceptions import SendMailException
 from eventyay.mail.signals import queuedmail_post_send
 
+from .mail import QueuedMail
 from .mixins import PretalxModel
 
 
@@ -79,6 +86,21 @@ class SpeakerInvitation(PretalxModel):
 
     objects = ScopedManager(event='submission__event')
 
+    MAX_RESENDS = 3
+
+    @property
+    def resend_count(self):
+        if not self.pk:
+            return 0
+        return get_invitation_resend_count(self.pk)
+
+    @resend_count.setter
+    def resend_count(self, value):
+        from django.core.cache import cache
+
+        if self.pk:
+            cache.set(get_invitation_resend_key(self.pk), int(value), timeout=90 * 86400)
+
     class Meta:
         ordering = ('created',)
         constraints = (
@@ -110,6 +132,10 @@ class SpeakerInvitation(PretalxModel):
 
     @property
     def can_resend(self):
+        return self.is_pending and self.mail_id is not None and self.resend_count < self.MAX_RESENDS
+
+    @property
+    def can_resend_orga(self):
         return self.is_pending and self.mail_id is not None
 
     @property
@@ -183,14 +209,27 @@ class SpeakerInvitation(PretalxModel):
 
     deliver.alters_data = True
 
-    def resend(self, requestor=None):
-        from .mail import QueuedMail
+    def resend(self, requestor=None, orga=False):
+        if not self.mail:
+            return False
+
+        if not orga:
+            if self.resend_count >= self.MAX_RESENDS:
+                return False
+            if requestor and not check_and_record_speaker_invite_send(requestor, amount=1):
+                return False
+            new_resends = record_invitation_resend(self.pk)
+            if new_resends is None or new_resends > self.MAX_RESENDS:
+                return False
 
         mail = self.mail
         if mail.sent:
             submissions = list(mail.submissions.all())
             mail = QueuedMail.objects.get(pk=mail.pk).copy_to_draft()
             mail.submissions.add(*submissions)
+            self.mail = mail
+            self.save(update_fields=['mail', 'updated'])
+
         return self.deliver(mail=mail, send_immediately=True, requestor=requestor)
 
     resend.alters_data = True

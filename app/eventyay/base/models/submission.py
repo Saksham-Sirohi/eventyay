@@ -5,12 +5,13 @@ import statistics
 from itertools import repeat
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
 from django.db import models, transaction
 from django.db.models import JSONField, Q
+from django.db.models.fields.files import FieldFile
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.db.models.fields.files import FieldFile
 from django.shortcuts import get_object_or_404
 from django.utils.crypto import get_random_string
 from django.utils.functional import cached_property
@@ -18,10 +19,11 @@ from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import ngettext_lazy as _n
 from django.utils.translation import override, pgettext_lazy
-from django_scopes import ScopedManager, scopes_disabled
+from django_scopes import ScopedManager, scope, scopes_disabled
 from rest_framework import serializers
 
 from eventyay.base.models import Choices, User
+from eventyay.base.services.speaker_invite_limits import check_and_record_speaker_invite_send
 from eventyay.common.exceptions import SubmissionError
 from eventyay.common.language import LANGUAGE_NAMES
 from eventyay.common.text.path import path_with_hash
@@ -55,7 +57,9 @@ from eventyay.talk_rules.submission import (
     orga_or_reviewer_can_change_submission,
 )
 
+from .mail import QueuedMail
 from .mixins import GenerateCode, PretalxModel
+from .speaker_invitation import SpeakerInvitation, SpeakerInvitationStates
 
 
 def generate_invite_code(length=32):
@@ -1048,6 +1052,37 @@ class Submission(GenerateCode, PretalxModel):
                 result += f'**{field_name}**: {field_content}\n\n'
             return result
 
+    MAX_CO_SPEAKERS = 10
+
+    @property
+    def confirmed_co_speakers_count(self):
+        return max(self.speakers.count() - 1, 0)
+
+    @property
+    def pending_invitations_count(self):
+        speaker_emails = [
+            e.strip().lower() for e in self.speakers.values_list('email', flat=True) if e and e.strip()
+        ]
+        return (
+            self.speaker_invitations.filter(
+                status__in=[
+                    SpeakerInvitationStates.PENDING,
+                    SpeakerInvitationStates.ACCEPTED,
+                ]
+            )
+            .exclude(user__in=self.speakers.all())
+            .exclude(email__in=speaker_emails)
+            .count()
+        )
+
+    @property
+    def co_speaker_count(self):
+        return self.confirmed_co_speakers_count + self.pending_invitations_count
+
+    @property
+    def can_invite_co_speakers(self):
+        return self.co_speaker_count < self.MAX_CO_SPEAKERS
+
     def has_speaker_email(self, email):
         email = (email or '').strip().lower()
         if not email:
@@ -1065,13 +1100,19 @@ class Submission(GenerateCode, PretalxModel):
         biography=None,
         send_immediately=True,
     ):
+        """Add a speaker from the organizer area.
+
+        Intentionally uncapped: ``MAX_CO_SPEAKERS`` and invite rate limits apply
+        only to speaker-initiated CfP invitations via :meth:`send_invite`, not
+        to organizer-managed speaker additions.
+        """
         from eventyay.common.urls import build_absolute_uri
+        from eventyay.person.services import create_user
 
         from .auth import User
         from .mail import MailTemplateRoles
         from .profile import SpeakerProfile
         from .speaker_invitation import SpeakerInvitation
-        from eventyay.person.services import create_user
 
         user_created = False
         context = {}
@@ -1088,7 +1129,11 @@ class Submission(GenerateCode, PretalxModel):
             user_created = True
             context['invitation_link'] = build_absolute_uri(
                 'cfp:event.new_recover',
-                kwargs={'organizer': self.event.organizer.slug, 'event': self.event.slug, 'token': speaker.pw_reset_token},
+                kwargs={
+                    'organizer': self.event.organizer.slug,
+                    'event': self.event.slug,
+                    'token': speaker.pw_reset_token,
+                },
             )
 
         if biography:
@@ -1160,9 +1205,6 @@ class Submission(GenerateCode, PretalxModel):
         Returns the list of :class:`SpeakerInvitation` objects that were
         created or refreshed, each carrying the delivery result.
         """
-        from .mail import QueuedMail
-        from .speaker_invitation import SpeakerInvitation
-
         if not _from:
             raise ValueError('Please enter a sender for this invitation.')
 
@@ -1173,31 +1215,76 @@ class Submission(GenerateCode, PretalxModel):
             url=self.urls.accept_invitation.full(),
             speaker=_from.get_display_name(),
         )
-        to = to.split(',') if isinstance(to, str) else to
-        invitations = []
-        for raw_address in to:
-            address = raw_address.strip().lower()
-            if not address:
-                continue
-            invitation, created = SpeakerInvitation.objects.get_or_create(
-                submission=self,
-                email=address,
-                defaults={'invited_by': _from},
-            )
-            if not created and (not invitation.is_pending or invitation.is_delivered):
-                invitations.append(invitation)
-                continue
 
-            mail = QueuedMail.objects.create(
-                event=self.event,
-                to=address,
-                subject=subject,
-                text=text,
-                locale=self.get_email_locale(),
-            )
-            mail.submissions.add(self)
+        if isinstance(to, str):
+            raw_addresses = [a.strip().lower() for a in to.split(',') if a.strip()]
+        elif isinstance(to, (list, tuple, set)):
+            raw_addresses = [str(a).strip().lower() for a in to if str(a).strip()]
+        else:
+            raw_addresses = [str(to or '').strip().lower()] if str(to or '').strip() else []
+
+        seen = set()
+        to_invite = []
+        for address in raw_addresses:
+            if not address or address in seen or self.speakers.filter(email__iexact=address).exists():
+                continue
+            seen.add(address)
+            to_invite.append(address)
+
+        if not to_invite:
+            return []
+
+        if not check_and_record_speaker_invite_send(_from, amount=len(to_invite)):
+            raise ValidationError(phrases.cfp.invite_rate_limit_reached)
+
+        invitations = []
+        invitations_to_deliver = []
+        with scope(event=self.event), transaction.atomic():
+            locked_submission = type(self).all_objects.select_for_update().get(pk=self.pk)
+
+            to_invite = [a for a in to_invite if not locked_submission.speakers.filter(email__iexact=a).exists()]
+            if not to_invite:
+                return []
+
+            new_count = 0
+            for address in to_invite:
+                if not locked_submission.speaker_invitations.filter(
+                    email__iexact=address,
+                    status__in=[SpeakerInvitationStates.PENDING, SpeakerInvitationStates.ACCEPTED],
+                ).exists():
+                    new_count += 1
+
+            if locked_submission.co_speaker_count + new_count > locked_submission.MAX_CO_SPEAKERS:
+                raise ValidationError(phrases.cfp.invite_limit_reached.format(count=locked_submission.MAX_CO_SPEAKERS))
+
+            for address in to_invite:
+                invitation, created = SpeakerInvitation.objects.select_for_update().get_or_create(
+                    submission=locked_submission,
+                    email=address,
+                    defaults={'invited_by': _from},
+                )
+                if not created and (
+                    not invitation.is_pending or invitation.is_delivered or invitation.mail_id is not None
+                ):
+                    invitations.append(invitation)
+                    continue
+
+                mail = QueuedMail.objects.create(
+                    event=self.event,
+                    to=address,
+                    subject=subject,
+                    text=text,
+                    locale=self.get_email_locale(),
+                )
+                mail.submissions.add(self)
+                invitation.mail = mail
+                invitation.save(update_fields=['mail', 'updated'])
+                invitations.append(invitation)
+                invitations_to_deliver.append((invitation, mail))
+
+        for invitation, mail in invitations_to_deliver:
             invitation.deliver(mail=mail, send_immediately=True, requestor=_from)
-            invitations.append(invitation)
+
         return invitations
 
     send_invite.alters_data = True
