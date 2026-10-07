@@ -1,6 +1,7 @@
 from unittest import mock
 
 import pytest
+from django.conf import settings
 from django.contrib.messages import get_messages
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.contrib.sessions.backends.db import SessionStore
@@ -41,6 +42,7 @@ from eventyay.common.text.phrases import phrases
 
 
 LOCMEM_CACHE = {
+    **settings.CACHES,
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'LOCATION': 'test-speaker-invitations',
