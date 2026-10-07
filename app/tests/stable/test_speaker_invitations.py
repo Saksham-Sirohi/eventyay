@@ -24,6 +24,7 @@ from eventyay.base.models import User as BaseUser
 from eventyay.base.services.speaker_invite_limits import (
     check_and_record_speaker_invite_send,
     check_speaker_invite_rate_limit,
+    get_invitation_resend_key,
     get_user_rate_limit_key,
 )
 from eventyay.cfp.flow import ProfileStep
@@ -988,7 +989,7 @@ class TestCoSpeakerInviteHardening:
         cache.clear()
         with scope(event=event):
             inv = submission.send_invite(to='orga_resend@example.org', _from=user)[0]
-            inv.resend_count = 5
+            cache.set(get_invitation_resend_key(inv.pk), 5)
 
             assert inv.can_resend is False
             assert inv.can_resend_orga is True

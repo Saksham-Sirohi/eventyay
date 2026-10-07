@@ -38,10 +38,8 @@ def record_invitation_resend(invitation_pk):
         return None
 
 
-def get_user_rate_limit_key(user_id, timestamp=None):
-    if timestamp is None:
-        timestamp = datetime.now(UTC)
-    hour_bucket = timestamp.strftime('%Y%m%d%H')
+def get_user_rate_limit_key(user_id):
+    hour_bucket = datetime.now(UTC).strftime('%Y%m%d%H')
     return f'cfp_invite_sends:{user_id}:{hour_bucket}'
 
 

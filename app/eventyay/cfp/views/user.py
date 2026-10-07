@@ -610,8 +610,6 @@ class SubmissionInviteAcceptView(LoggedInEventPageMixin, DetailView):
         is_already_speaker = submission.speakers.filter(pk=self.request.user.pk).exists()
         if not is_already_speaker:
             has_existing = submission.speaker_invitations.filter(
-                status__in=[SpeakerInvitationStates.PENDING, SpeakerInvitationStates.ACCEPTED],
-            ).filter(
                 models.Q(email__iexact=self.request.user.email) | models.Q(user=self.request.user)
             ).exists()
             if not has_existing and submission.co_speaker_count >= submission.MAX_CO_SPEAKERS:
@@ -641,8 +639,6 @@ class SubmissionInviteAcceptView(LoggedInEventPageMixin, DetailView):
             locked_submission = type(submission).all_objects.select_for_update().get(pk=submission.pk)
             is_already_speaker = locked_submission.speakers.filter(pk=self.request.user.pk).exists()
             has_existing = locked_submission.speaker_invitations.filter(
-                status__in=[SpeakerInvitationStates.PENDING, SpeakerInvitationStates.ACCEPTED],
-            ).filter(
                 models.Q(email__iexact=self.request.user.email) | models.Q(user=self.request.user)
             ).exists()
             new_slots = 0 if (is_already_speaker or has_existing) else 1

@@ -59,7 +59,7 @@ from eventyay.talk_rules.submission import (
 
 from .mail import QueuedMail
 from .mixins import GenerateCode, PretalxModel
-from .speaker_invitation import SpeakerInvitation, SpeakerInvitationStates
+from .speaker_invitation import SpeakerInvitation
 
 
 def generate_invite_code(length=32):
@@ -1064,13 +1064,7 @@ class Submission(GenerateCode, PretalxModel):
             e.strip().lower() for e in self.speakers.values_list('email', flat=True) if e and e.strip()
         ]
         return (
-            self.speaker_invitations.filter(
-                status__in=[
-                    SpeakerInvitationStates.PENDING,
-                    SpeakerInvitationStates.ACCEPTED,
-                ]
-            )
-            .exclude(user__in=self.speakers.all())
+            self.speaker_invitations.exclude(user__in=self.speakers.all())
             .exclude(email__in=speaker_emails)
             .count()
         )
@@ -1248,10 +1242,7 @@ class Submission(GenerateCode, PretalxModel):
 
             new_count = 0
             for address in to_invite:
-                if not locked_submission.speaker_invitations.filter(
-                    email__iexact=address,
-                    status__in=[SpeakerInvitationStates.PENDING, SpeakerInvitationStates.ACCEPTED],
-                ).exists():
+                if not locked_submission.speaker_invitations.filter(email__iexact=address).exists():
                     new_count += 1
 
             if locked_submission.co_speaker_count + new_count > locked_submission.MAX_CO_SPEAKERS:

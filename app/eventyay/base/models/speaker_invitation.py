@@ -10,7 +10,6 @@ from django_scopes import ScopedManager, scopes_disabled
 from eventyay.base.services.speaker_invite_limits import (
     check_and_record_speaker_invite_send,
     get_invitation_resend_count,
-    get_invitation_resend_key,
     record_invitation_resend,
 )
 from eventyay.common.exceptions import SendMailException
@@ -93,13 +92,6 @@ class SpeakerInvitation(PretalxModel):
         if not self.pk:
             return 0
         return get_invitation_resend_count(self.pk)
-
-    @resend_count.setter
-    def resend_count(self, value):
-        from django.core.cache import cache
-
-        if self.pk:
-            cache.set(get_invitation_resend_key(self.pk), int(value), timeout=90 * 86400)
 
     class Meta:
         ordering = ('created',)
