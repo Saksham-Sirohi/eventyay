@@ -1,5 +1,6 @@
 import logging
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Lower
 from django.dispatch import receiver
@@ -9,11 +10,12 @@ from django_scopes import ScopedManager, scopes_disabled
 
 from eventyay.base.services.speaker_invite_limits import (
     CFP_MAX_INVITE_RESENDS,
-    check_and_record_speaker_invite_send,
     get_invitation_resend_count,
     record_invitation_resend,
+    record_speaker_invite_send,
 )
 from eventyay.common.exceptions import SendMailException
+from eventyay.common.text.phrases import phrases
 from eventyay.mail.signals import queuedmail_post_send
 
 from .mail import QueuedMail
@@ -203,17 +205,20 @@ class SpeakerInvitation(PretalxModel):
     deliver.alters_data = True
 
     def resend(self, requestor=None, orga=False):
+        """Sends the invitation email again; returns whether it was delivered.
+
+        Speaker resends count against the resend and hourly send limits and
+        raise ValidationError when one of them refuses the resend.
+        """
         if not self.mail:
             return False
 
         if not orga:
             if self.resend_count >= self.MAX_RESENDS:
-                return False
-            if requestor and not check_and_record_speaker_invite_send(requestor, amount=1):
-                return False
-            new_resends = record_invitation_resend(self.pk)
-            if new_resends is None or new_resends > self.MAX_RESENDS:
-                return False
+                raise ValidationError(phrases.cfp.invite_resend_limit_reached.format(count=self.MAX_RESENDS))
+            if requestor:
+                record_speaker_invite_send(requestor)
+            record_invitation_resend(self.pk, self.MAX_RESENDS)
 
         mail = self.mail
         if mail.sent:

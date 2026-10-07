@@ -51,6 +51,7 @@ I’m looking forward to it!
     )
     invite_resend_limit_reached = _('This invitation has already been resent the maximum of {count} times.')
     invite_rate_limit_reached = _("You've sent the maximum number of invitations for now. Please try again later.")
+    invite_limit_unavailable = _('Invitations cannot be sent right now. Please try again later.')
 
     submission_email_fail = _(
         'We are experiencing difficulties when sending mails, but your session was submitted successfully!'

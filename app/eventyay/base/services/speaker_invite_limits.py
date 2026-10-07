@@ -3,6 +3,9 @@ from datetime import UTC, datetime
 
 from django.conf import settings
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
+
+from eventyay.common.text.phrases import phrases
 
 
 logger = logging.getLogger(__name__)
@@ -24,18 +27,20 @@ def get_invitation_resend_count(invitation_pk):
         return 0
 
 
-def record_invitation_resend(invitation_pk):
-    if not invitation_pk:
-        return None
+def record_invitation_resend(invitation_pk, limit):
+    """Counts one resend of an invitation.
+
+    Raises ValidationError if the resend limit is exceeded, or if the cache
+    backend is unavailable (fails closed).
+    """
     key = get_invitation_resend_key(invitation_pk)
-    timeout = 90 * 86400  # 90 days
     try:
-        if cache.add(key, 1, timeout=timeout):
-            return 1
-        return cache.incr(key)
+        count = 1 if cache.add(key, 1, timeout=90 * 86400) else cache.incr(key)
     except Exception:
         logger.exception('Could not increment invitation resend count for %s', invitation_pk)
-        return None
+        raise ValidationError(phrases.cfp.invite_limit_unavailable)
+    if count > limit:
+        raise ValidationError(phrases.cfp.invite_resend_limit_reached.format(count=limit))
 
 
 def get_user_rate_limit_key(user_id):
@@ -43,42 +48,40 @@ def get_user_rate_limit_key(user_id):
     return f'cfp_invite_sends:{user_id}:{hour_bucket}'
 
 
-def check_speaker_invite_rate_limit(user, limit=None):
-    """Checks whether the user is within their hourly CfP invitation send budget."""
+def _is_rate_limit_exempt(user):
     if not user or not getattr(user, 'pk', None) or not getattr(user, 'is_authenticated', False):
         return True
-    if getattr(user, 'is_administrator', False):
-        return True
+    return getattr(user, 'is_administrator', False)
 
+
+def validate_speaker_invite_rate_limit(user, limit=None):
+    """Raises ValidationError if the user has no hourly invitation budget left."""
+    if _is_rate_limit_exempt(user):
+        return
     limit = limit if limit is not None else CFP_MAX_INVITE_SENDS_PER_HOUR
-    key = get_user_rate_limit_key(user.pk)
     try:
-        current_count = int(cache.get(key, 0) or 0)
+        count = int(cache.get(get_user_rate_limit_key(user.pk), 0) or 0)
     except Exception:
-        logger.exception('Could not read speaker invite rate limit for user %s; failing closed', user.pk)
-        return False
-    return current_count < limit
+        logger.exception('Could not read speaker invite rate limit for user %s', user.pk)
+        raise ValidationError(phrases.cfp.invite_limit_unavailable)
+    if count >= limit:
+        raise ValidationError(phrases.cfp.invite_rate_limit_reached)
 
 
-def check_and_record_speaker_invite_send(user, amount=1, limit=None):
-    """Atomically increments the user's hourly send counter and checks the limit.
+def record_speaker_invite_send(user, amount=1, limit=None):
+    """Atomically counts invitation sends against the user's hourly budget.
 
-    Fails closed if the cache backend is unavailable.
+    Raises ValidationError if the budget is exceeded, or if the cache backend
+    is unavailable (fails closed).
     """
-    if not user or not getattr(user, 'pk', None) or not getattr(user, 'is_authenticated', False):
-        return True
-    if getattr(user, 'is_administrator', False):
-        return True
-
+    if _is_rate_limit_exempt(user):
+        return
     limit = limit if limit is not None else CFP_MAX_INVITE_SENDS_PER_HOUR
     key = get_user_rate_limit_key(user.pk)
-    timeout = 7200  # 2 hours
-
     try:
-        if cache.add(key, amount, timeout=timeout):
-            return amount <= limit
-        new_count = cache.incr(key, amount)
-        return new_count <= limit
+        count = amount if cache.add(key, amount, timeout=7200) else cache.incr(key, amount)
     except Exception:
-        logger.exception('Could not record speaker invite rate limit for user %s; failing closed', user.pk)
-        return False
+        logger.exception('Could not record speaker invite rate limit for user %s', user.pk)
+        raise ValidationError(phrases.cfp.invite_limit_unavailable)
+    if count > limit:
+        raise ValidationError(phrases.cfp.invite_rate_limit_reached)

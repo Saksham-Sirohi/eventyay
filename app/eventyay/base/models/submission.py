@@ -23,7 +23,7 @@ from django_scopes import ScopedManager, scope, scopes_disabled
 from rest_framework import serializers
 
 from eventyay.base.models import Choices, User
-from eventyay.base.services.speaker_invite_limits import check_and_record_speaker_invite_send
+from eventyay.base.services.speaker_invite_limits import record_speaker_invite_send
 from eventyay.common.exceptions import SubmissionError
 from eventyay.common.language import LANGUAGE_NAMES
 from eventyay.common.text.path import path_with_hash
@@ -1228,8 +1228,7 @@ class Submission(GenerateCode, PretalxModel):
         if not to_invite:
             return []
 
-        if not check_and_record_speaker_invite_send(_from, amount=len(to_invite)):
-            raise ValidationError(phrases.cfp.invite_rate_limit_reached)
+        record_speaker_invite_send(_from, amount=len(to_invite))
 
         invitations = []
         invitations_to_deliver = []

@@ -1,7 +1,7 @@
 from django import forms
 from django.utils.translation import gettext_lazy as _
 
-from eventyay.base.services.speaker_invite_limits import check_speaker_invite_rate_limit
+from eventyay.base.services.speaker_invite_limits import validate_speaker_invite_rate_limit
 from eventyay.common.text.phrases import phrases
 
 
@@ -30,8 +30,7 @@ class SubmissionInvitationForm(forms.Form):
             raise forms.ValidationError(
                 phrases.cfp.invite_limit_reached.format(count=self.submission.MAX_CO_SPEAKERS)
             )
-        if not check_speaker_invite_rate_limit(self.speaker):
-            raise forms.ValidationError(phrases.cfp.invite_rate_limit_reached)
+        validate_speaker_invite_rate_limit(self.speaker)
         return cleaned_data
 
     def save(self):

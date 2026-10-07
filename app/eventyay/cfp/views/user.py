@@ -33,7 +33,6 @@ from eventyay.base.models import (
     Submission,
     SubmissionStates,
 )
-from eventyay.base.services.speaker_invite_limits import check_speaker_invite_rate_limit
 from eventyay.cfp.forms.submissions import SubmissionInvitationForm
 from eventyay.cfp.views.event import LoggedInEventPageMixin
 from eventyay.common.forms.fields import SizeFileInput
@@ -529,21 +528,17 @@ class SubmissionInviteResendView(LoggedInEventPageMixin, SubmissionViewMixin, Vi
                 )
             else:
                 messages.warning(request, _('This invitation cannot be resent.'))
-        elif not check_speaker_invite_rate_limit(request.user):
-            messages.error(request, phrases.cfp.invite_rate_limit_reached)
+            return redirect(self.submission.urls.user_base)
+
+        try:
+            delivered = invitation.resend(requestor=request.user)
+        except ValidationError as e:
+            messages.error(request, e.message)
         else:
-            delivered = invitation.resend(requestor=request.user, orga=False)
             if delivered:
                 messages.success(
                     request,
                     _('Invitation sent to {email}.').format(email=invitation.email),
-                )
-            elif not check_speaker_invite_rate_limit(request.user):
-                messages.error(request, phrases.cfp.invite_rate_limit_reached)
-            elif invitation.resend_count >= invitation.MAX_RESENDS:
-                messages.warning(
-                    request,
-                    phrases.cfp.invite_resend_limit_reached.format(count=invitation.MAX_RESENDS),
                 )
             else:
                 messages.error(

@@ -23,10 +23,10 @@ from eventyay.base.models import (
 )
 from eventyay.base.models import User as BaseUser
 from eventyay.base.services.speaker_invite_limits import (
-    check_and_record_speaker_invite_send,
-    check_speaker_invite_rate_limit,
     get_invitation_resend_key,
     get_user_rate_limit_key,
+    record_speaker_invite_send,
+    validate_speaker_invite_rate_limit,
 )
 from eventyay.cfp.flow import ProfileStep
 from eventyay.cfp.forms.submissions import SubmissionInvitationForm
@@ -951,8 +951,9 @@ class TestCoSpeakerInviteHardening:
             assert inv.resend_count == 3
             assert inv.can_resend is False
 
-            # 4th resend via model returns False
-            assert inv.resend(requestor=user, orga=False) is False
+            # 4th resend via model is refused
+            with pytest.raises(ValidationError, match='maximum of 3 times'):
+                inv.resend(requestor=user, orga=False)
 
             # 4th resend via View returns warning message with dynamic count
             req = rf.post('/')
@@ -987,6 +988,33 @@ class TestCoSpeakerInviteHardening:
             assert inv.resend_count == 1
 
     @override_settings(CACHES=LOCMEM_CACHE)
+    def test_resend_view_reports_delivery_failure_on_last_resend(self, event, submission, user, rf, monkeypatch):
+        cache.clear()
+        with scope(event=event):
+            inv = submission.send_invite(to='last_resend@example.org', _from=user)[0]
+            cache.set(get_invitation_resend_key(inv.pk), inv.MAX_RESENDS - 1)
+
+            def explode(*args, **kwargs):
+                raise SendMailException('mail server down')
+
+            monkeypatch.setattr('eventyay.common.mail.send_mail_now', explode)
+
+            req = rf.post('/')
+            req.user = user
+            req.event = event
+            req.session = SessionStore()
+            req._messages = FallbackStorage(req)
+            req.LANGUAGE_CODE = 'en'
+
+            view = SubmissionInviteResendView()
+            view.request = req
+            view.kwargs = {'code': submission.code, 'pk': inv.pk}
+            view.post(req, code=submission.code, pk=inv.pk)
+            messages = [str(m) for m in get_messages(req)]
+            assert any('could not be sent' in m for m in messages)
+            assert not any('maximum of' in m for m in messages)
+
+    @override_settings(CACHES=LOCMEM_CACHE)
     def test_organizer_resend_uncapped(self, event, submission, user):
         cache.clear()
         with scope(event=event):
@@ -1011,10 +1039,11 @@ class TestCoSpeakerInviteHardening:
                     submission_type=submission.submission_type,
                 )
                 sub.speakers.add(user)
-                assert check_speaker_invite_rate_limit(user) is True
+                validate_speaker_invite_rate_limit(user)
                 sub.send_invite(to=f'ratelimit{i}@example.org', _from=user)
 
-            assert check_speaker_invite_rate_limit(user) is False
+            with pytest.raises(ValidationError, match='maximum number of invitations'):
+                validate_speaker_invite_rate_limit(user)
 
             # 21st send attempt raises ValidationError
             sub21 = Submission.objects.create(
@@ -1057,17 +1086,18 @@ class TestCoSpeakerInviteHardening:
             assert SpeakerInvitation.objects.count() == initial_count
 
     @override_settings(CACHES=LOCMEM_CACHE)
-    def test_check_and_record_speaker_invite_send_atomic_behavior(self, user):
+    def test_record_speaker_invite_send_atomic_behavior(self, user):
         cache.clear()
         key = get_user_rate_limit_key(user.pk)
         cache.set(key, 18)
 
         # Counter is incremented first: 18 + 2 = 20 <= 20 -> allowed
-        assert check_and_record_speaker_invite_send(user, amount=2) is True
+        record_speaker_invite_send(user, amount=2)
         assert cache.get(key) == 20
 
         # Counter is incremented first: 20 + 1 = 21 > 20 -> rejected
-        assert check_and_record_speaker_invite_send(user, amount=1) is False
+        with pytest.raises(ValidationError, match='maximum number of invitations'):
+            record_speaker_invite_send(user, amount=1)
         assert cache.get(key) == 21
 
     @override_settings(CACHES=LOCMEM_CACHE)
@@ -1081,7 +1111,7 @@ class TestCoSpeakerInviteHardening:
         cache.set(key, 50)
 
         # Admin is always permitted
-        assert check_speaker_invite_rate_limit(user) is True
+        validate_speaker_invite_rate_limit(user)
 
     @override_settings(CACHES=LOCMEM_CACHE)
     def test_rejected_addresses_strictly_rate_limited(self, event, submission, user, monkeypatch):
@@ -1299,11 +1329,11 @@ class TestCoSpeakerInviteHardening:
             monkeypatch.setattr(cache, 'add', broken_cache_op)
             monkeypatch.setattr(cache, 'incr', broken_cache_op)
 
-            assert check_and_record_speaker_invite_send(user, amount=1) is False
+            with pytest.raises(ValidationError, match='cannot be sent right now'):
+                record_speaker_invite_send(user, amount=1)
 
-            with pytest.raises(ValidationError) as exc:
+            with pytest.raises(ValidationError, match='cannot be sent right now'):
                 submission.send_invite(to='outage_test@example.org', _from=user)
-            assert 'maximum number of invitations for now' in str(exc.value)
 
             invitation = SpeakerInvitation.objects.create(
                 submission=submission,
@@ -1396,7 +1426,8 @@ class TestCoSpeakerInviteHardening:
                 assert invitation.resend(requestor=user, orga=False) is True
                 assert invitation.resend_count == i + 1
 
-            assert invitation.resend(requestor=user, orga=False) is False
+            with pytest.raises(ValidationError, match='maximum of 3 times'):
+                invitation.resend(requestor=user, orga=False)
 
             assert invitation.revoke(person=user, orga=False) is True
             assert not SpeakerInvitation.objects.filter(pk=invitation.pk).exists()
@@ -1489,19 +1520,20 @@ class TestCoSpeakerInviteHardening:
             invitation = submission.send_invite('target@example.org', _from=user)[0]
             assert invitation.resend_count == 0
 
-            # Mock record_invitation_resend returning 4 (over MAX_RESENDS=3)
+            # A parallel request already used up the resends after our read
+            cache.set(get_invitation_resend_key(invitation.pk), 3)
             with mock.patch(
-                'eventyay.base.models.speaker_invitation.record_invitation_resend',
-                return_value=4,
+                'eventyay.base.models.speaker_invitation.get_invitation_resend_count',
+                return_value=0,
             ):
-                assert invitation.resend(requestor=user, orga=False) is False
+                with pytest.raises(ValidationError, match='maximum of 3 times'):
+                    invitation.resend(requestor=user, orga=False)
 
     def test_cache_failure_fails_closed(self, user):
-        """Ensure check_speaker_invite_rate_limit fails closed if cache throws an exception."""
-        from eventyay.base.services.speaker_invite_limits import check_speaker_invite_rate_limit
-
+        """Ensure the rate limit check fails closed if the cache throws an exception."""
         with mock.patch('eventyay.base.services.speaker_invite_limits.cache.get', side_effect=Exception('Redis down')):
-            assert check_speaker_invite_rate_limit(user) is False
+            with pytest.raises(ValidationError, match='cannot be sent right now'):
+                validate_speaker_invite_rate_limit(user)
 
     def test_edit_view_pending_invitations_excludes_speaker_email_without_user_fk(self, event, submission, user):
         """Ensure SubmissionsEditView.pending_invitations excludes invitations by email even without user FK."""
