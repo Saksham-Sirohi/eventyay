@@ -1,3 +1,4 @@
+import hashlib
 import logging
 from datetime import UTC, datetime
 
@@ -14,41 +15,42 @@ CFP_MAX_INVITE_SENDS_PER_HOUR = getattr(settings, 'CFP_MAX_INVITE_SENDS_PER_HOUR
 CFP_MAX_INVITE_RESENDS = getattr(settings, 'CFP_MAX_INVITE_RESENDS', 3)
 
 
-def get_invitation_resend_key(invitation_pk):
-    return f'cfp_invite_resend_count:{invitation_pk}'
+def get_invitation_resend_key(invitation):
+    # Keyed by proposal and recipient, so revoking and re-inviting the same
+    # address does not reset the count.
+    email_hash = hashlib.sha256(invitation.email.lower().encode()).hexdigest()
+    return f'cfp_invite_resend_count:{invitation.submission_id}:{email_hash}'
 
 
-def get_invitation_resend_count(invitation_pk):
-    if not invitation_pk:
-        return 0
+def get_invitation_resend_count(invitation):
     try:
-        return int(cache.get(get_invitation_resend_key(invitation_pk), 0) or 0)
+        return int(cache.get(get_invitation_resend_key(invitation), 0) or 0)
     except Exception:
         return 0
 
 
-def record_invitation_resend(invitation_pk, limit):
+def record_invitation_resend(invitation, limit):
     """Counts one resend of an invitation.
 
     Raises ValidationError if the resend limit is exceeded, or if the cache
     backend is unavailable (fails closed).
     """
-    key = get_invitation_resend_key(invitation_pk)
+    key = get_invitation_resend_key(invitation)
     try:
         count = 1 if cache.add(key, 1, timeout=90 * 86400) else cache.incr(key)
     except Exception:
-        logger.exception('Could not increment invitation resend count for %s', invitation_pk)
+        logger.exception('Could not increment invitation resend count for %s', invitation.pk)
         raise ValidationError(phrases.cfp.invite_limit_unavailable)
     if count > limit:
         raise ValidationError(phrases.cfp.invite_resend_limit_reached.format(count=limit))
 
 
-def release_invitation_resend(invitation_pk):
+def release_invitation_resend(invitation):
     """Gives back a resend whose email could not be delivered."""
     try:
-        cache.decr(get_invitation_resend_key(invitation_pk))
+        cache.decr(get_invitation_resend_key(invitation))
     except Exception:
-        logger.exception('Could not release invitation resend count for %s', invitation_pk)
+        logger.exception('Could not release invitation resend count for %s', invitation.pk)
 
 
 def get_user_rate_limit_key(user_id):

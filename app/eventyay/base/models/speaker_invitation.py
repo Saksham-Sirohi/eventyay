@@ -93,9 +93,7 @@ class SpeakerInvitation(PretalxModel):
 
     @property
     def resend_count(self):
-        if not self.pk:
-            return 0
-        return get_invitation_resend_count(self.pk)
+        return get_invitation_resend_count(self)
 
     class Meta:
         ordering = ('created',)
@@ -220,7 +218,7 @@ class SpeakerInvitation(PretalxModel):
                 raise ValidationError(phrases.cfp.invite_resend_limit_reached.format(count=self.MAX_RESENDS))
             if requestor:
                 record_speaker_invite_send(requestor)
-            record_invitation_resend(self.pk, self.MAX_RESENDS)
+            record_invitation_resend(self, self.MAX_RESENDS)
 
         mail = self.mail
         if mail.sent:
@@ -232,7 +230,7 @@ class SpeakerInvitation(PretalxModel):
 
         delivered = self.deliver(mail=mail, send_immediately=True, requestor=requestor)
         if not orga and not delivered:
-            release_invitation_resend(self.pk)
+            release_invitation_resend(self)
         return delivered
 
     resend.alters_data = True

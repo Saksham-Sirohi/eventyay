@@ -992,7 +992,7 @@ class TestCoSpeakerInviteHardening:
         cache.clear()
         with scope(event=event):
             inv = submission.send_invite(to='last_resend@example.org', _from=user)[0]
-            cache.set(get_invitation_resend_key(inv.pk), inv.MAX_RESENDS - 1)
+            cache.set(get_invitation_resend_key(inv), inv.MAX_RESENDS - 1)
 
             def explode(*args, **kwargs):
                 raise SendMailException('mail server down')
@@ -1020,7 +1020,7 @@ class TestCoSpeakerInviteHardening:
         cache.clear()
         with scope(event=event):
             inv = submission.send_invite(to='orga_resend@example.org', _from=user)[0]
-            cache.set(get_invitation_resend_key(inv.pk), 5)
+            cache.set(get_invitation_resend_key(inv), 5)
 
             assert inv.can_resend is False
             assert inv.can_resend_orga is True
@@ -1436,6 +1436,9 @@ class TestCoSpeakerInviteHardening:
 
             new_invitation = submission.send_invite(to='lifecycle@example.org', _from=user)[0]
             assert new_invitation.pk != invitation.pk
+            # Re-inviting the same address does not reset the resend count
+            assert new_invitation.resend_count == 3
+            assert not new_invitation.can_resend
             assert new_invitation.status == SpeakerInvitationStates.PENDING
 
             partner = BaseUser.objects.create_user(email='lifecycle@example.org', password='password123')
@@ -1522,7 +1525,7 @@ class TestCoSpeakerInviteHardening:
             assert invitation.resend_count == 0
 
             # A parallel request already used up the resends after our read
-            cache.set(get_invitation_resend_key(invitation.pk), 3)
+            cache.set(get_invitation_resend_key(invitation), 3)
             with mock.patch(
                 'eventyay.base.models.speaker_invitation.get_invitation_resend_count',
                 return_value=0,
