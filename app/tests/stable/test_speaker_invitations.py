@@ -1527,6 +1527,7 @@ class TestCoSpeakerInviteHardening:
             assert submission.confirmed_co_speakers_count == 1
             assert submission.co_speaker_count == 1
 
+    @override_settings(CACHES=LOCMEM_CACHE)
     def test_resend_race_condition_protection(self, event, submission, user):
         """Simulate concurrent parallel resends incrementing past MAX_RESENDS."""
         with scope(event=event):
