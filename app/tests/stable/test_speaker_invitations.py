@@ -917,6 +917,31 @@ class TestCoSpeakerInviteHardening:
             # Should NOT be blocked with 'limit' because the user's invitation is already active/accepted
             assert view.deny_reason != 'limit'
 
+    def test_invited_user_can_accept_after_organizers_exceed_cap(self, event, submission, user, rf):
+        with scope(event=event):
+            invitee = BaseUser.objects.create_user(email='invitee@example.org', password='password123')
+            SpeakerInvitation.objects.create(submission=submission, email=invitee.email, invited_by=user)
+            # Organizers are uncapped and add speakers past the limit
+            for i in range(10):
+                submission.speakers.add(
+                    BaseUser.objects.create_user(email=f'orga_added{i}@example.org', password='password123')
+                )
+            assert submission.co_speaker_count > submission.MAX_CO_SPEAKERS
+
+            req = rf.post('/')
+            req.user = invitee
+            req.event = event
+            req.session = SessionStore()
+            req._messages = FallbackStorage(req)
+            req.LANGUAGE_CODE = 'en'
+
+            view = SubmissionInviteAcceptView()
+            view.request = req
+            view.kwargs = {'code': submission.code, 'invitation': submission.invitation_token}
+            assert view.deny_reason is None
+            view.post(req, code=submission.code, invitation=submission.invitation_token)
+            assert invitee in submission.speakers.all()
+
     @override_settings(CACHES=LOCMEM_CACHE)
     def test_resend_cap_enforced_at_max_resends(self, event, submission, user, rf):
         cache.clear()

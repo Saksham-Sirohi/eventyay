@@ -595,19 +595,26 @@ class SubmissionInviteAcceptView(LoggedInEventPageMixin, DetailView):
 
         return super().dispatch(request, *args, **kwargs)
 
+    def has_seat(self, submission):
+        """Whether the user can join without exceeding MAX_CO_SPEAKERS.
+
+        Speakers and invited users already count toward the limit.
+        """
+        user = self.request.user
+        if submission.speakers.filter(pk=user.pk).exists():
+            return True
+        if submission.speaker_invitations.filter(models.Q(email__iexact=user.email) | models.Q(user=user)).exists():
+            return True
+        return submission.co_speaker_count < submission.MAX_CO_SPEAKERS
+
     @context
     @cached_property
     def deny_reason(self):
         submission = self.get_object()
         if not self.request.user.has_perm('base.add_speaker_submission', submission):
             return 'permission'
-        is_already_speaker = submission.speakers.filter(pk=self.request.user.pk).exists()
-        if not is_already_speaker:
-            has_existing = submission.speaker_invitations.filter(
-                models.Q(email__iexact=self.request.user.email) | models.Q(user=self.request.user)
-            ).exists()
-            if not has_existing and submission.co_speaker_count >= submission.MAX_CO_SPEAKERS:
-                return 'limit'
+        if not self.has_seat(submission):
+            return 'limit'
         return None
 
     @context
@@ -617,26 +624,13 @@ class SubmissionInviteAcceptView(LoggedInEventPageMixin, DetailView):
 
     def post(self, request, *args, **kwargs):
         submission = self.get_object()
-        if not self.can_accept_invite:
-            if self.deny_reason == 'limit':
-                messages.error(
-                    self.request,
-                    _('This proposal has already reached the maximum of {count} co-speakers.').format(
-                        count=submission.MAX_CO_SPEAKERS
-                    ),
-                )
-            else:
-                messages.error(self.request, _('You cannot accept this invitation.'))
+        if self.deny_reason == 'permission':
+            messages.error(self.request, _('You cannot accept this invitation.'))
             return redirect(self.request.event.urls.user)
 
         with scope(event=self.request.event), transaction.atomic():
             locked_submission = type(submission).all_objects.select_for_update().get(pk=submission.pk)
-            is_already_speaker = locked_submission.speakers.filter(pk=self.request.user.pk).exists()
-            has_existing = locked_submission.speaker_invitations.filter(
-                models.Q(email__iexact=self.request.user.email) | models.Q(user=self.request.user)
-            ).exists()
-            new_slots = 0 if (is_already_speaker or has_existing) else 1
-            if locked_submission.co_speaker_count + new_slots > locked_submission.MAX_CO_SPEAKERS:
+            if not self.has_seat(locked_submission):
                 messages.error(
                     self.request,
                     _('This proposal has already reached the maximum of {count} co-speakers.').format(
