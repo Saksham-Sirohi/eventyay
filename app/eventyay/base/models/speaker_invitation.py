@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from django_scopes import ScopedManager, scopes_disabled
 
 from eventyay.base.services.speaker_invite_limits import (
+    CFP_MAX_INVITE_RESENDS,
     check_and_record_speaker_invite_send,
     get_invitation_resend_count,
     record_invitation_resend,
@@ -85,7 +86,7 @@ class SpeakerInvitation(PretalxModel):
 
     objects = ScopedManager(event='submission__event')
 
-    MAX_RESENDS = 3
+    MAX_RESENDS = CFP_MAX_INVITE_RESENDS
 
     @property
     def resend_count(self):
