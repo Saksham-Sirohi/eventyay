@@ -877,16 +877,17 @@ class EventIndex(EventViewMixin, EventListMixin, CartMixin, TemplateView):
         context['featured_speakers_widget_schedule_json'] = ''
         context['featured_speakers_list_public'] = False
 
-        event = self.request.event
-        schedule_data = get_or_build_landing_featured_widget_schedule(event, self.request.user)
-        if schedule_data:
-            context['featured_speakers'] = schedule_data.get('speakers') or []
-            context['featured_speakers_widget_schedule'] = schedule_data
-            context['featured_speakers_list_public'] = schedule_data.get('speakers_list_public', False)
-            context['featured_speakers_widget_schedule_json'] = serialize_widget_schedule_data(
-                schedule_data,
-                event=event,
-            )
+        if not is_widget_flow:
+            event = self.request.event
+            schedule_data = get_or_build_landing_featured_widget_schedule(event, self.request.user)
+            if schedule_data:
+                context['featured_speakers'] = schedule_data.get('speakers') or []
+                context['featured_speakers_widget_schedule'] = schedule_data
+                context['featured_speakers_list_public'] = schedule_data.get('speakers_list_public', False)
+                context['featured_speakers_widget_schedule_json'] = serialize_widget_schedule_data(
+                    schedule_data,
+                    event=event,
+                )
 
         return context
 

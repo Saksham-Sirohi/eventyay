@@ -21,7 +21,9 @@
     <meta property="og:description" content="{{ ev.get_date_range_display }}" />
     <meta property="og:url" content="{{ request.build_absolute_uri }}" />
 
-    <script id="pretalx-messages" data-logged-in="{% if request.user.is_anonymous %}false{% else %}true{% endif %}" data-user-code="{% if request.user.is_authenticated %}{{ request.user.code }}{% endif %}" src="{{ request.event.urls.schedule }}widget/messages.js"></script>
+    {% if not is_widget_iframe and 'iframe' not in request.GET and not request.session.iframe_session %}
+        <script id="pretalx-messages" data-logged-in="{% if request.user.is_anonymous %}false{% else %}true{% endif %}" data-user-code="{% if request.user.is_authenticated %}{{ request.user.code }}{% endif %}" src="{{ request.event.urls.schedule }}widget/messages.js"></script>
+    {% endif %}
     {% if ev.location or venue_map_location %}
         {% compress css %}
             <link rel="stylesheet" type="text/css" href="{% static 'pretixpresale/css/venue-map.css' %}" />
@@ -381,7 +383,7 @@
         {% endif %}
     {% endif %}
     {% if subevent or not event.has_subevents %}
-        {% if featured_speakers %}
+        {% if featured_speakers and not is_widget_iframe and 'iframe' not in request.GET and not request.session.iframe_session %}
             <section class="front-page" id="featured-speakers" aria-label="{% trans 'Featured Speakers' %}">
                 <script id="pretalx-schedule-data" type="application/json">{{ featured_speakers_widget_schedule_json|safe }}</script>
                 {% vite_app_scripts 'schedule' 'src/main-wc.js' fallback='schedule/pretalx-schedule.js' %}
