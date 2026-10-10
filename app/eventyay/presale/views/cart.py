@@ -41,6 +41,7 @@ from eventyay.base.services.cart import (
 )
 from eventyay.base.settings import GlobalSettingsObject
 from eventyay.base.views.tasks import AsyncAction
+from eventyay.common.views.helpers import is_widget_iframe_request
 from eventyay.multidomain.urlreverse import eventreverse
 from eventyay.presale.views import (
     EventViewMixin,
@@ -78,7 +79,9 @@ class CartActionMixin:
         ) and self.kwargs.get('cart_namespace')
         if disclose_cart_id:
             cart_id = get_or_create_cart_id(self.request)
-            u += '&cart_id={}'.format(cart_id)
+            u += '&take_cart_id={}'.format(cart_id)
+        if ('iframe' in self.request.GET or 'iframe' in self.request.POST) and 'iframe=1' not in u:
+            u += '&iframe=1'
         return u
 
     def get_success_url(self, value=None):
@@ -97,6 +100,8 @@ class CartActionMixin:
             if disclose_cart_id:
                 cart_id = get_or_create_cart_id(self.request)
                 u += '&cart_id={}'.format(cart_id)
+            if ('iframe' in self.request.GET or 'iframe' in self.request.POST) and 'iframe=1' not in u:
+                u += '&iframe=1'
             return u
         return self.get_next_url()
 
@@ -313,10 +318,14 @@ def get_or_create_cart_id(request, create=True):
         prefix = request.resolver_match.kwargs.get('cart_namespace')
 
     current_id = orig_current_id = request.session.get(session_keyname)
-    if prefix and 'take_cart_id' in request.GET:
-        pos = CartPosition.objects.filter(event=request.event, cart_id=request.GET.get('take_cart_id'))
+    # Accept both take_cart_id (from CartAdd.get_next_url) and cart_id (from
+    # CartAdd.get_success_url) so the widget checkout flow does not lose the
+    # cart after the "Order now" async task completes.
+    cart_id_param = request.GET.get('take_cart_id') or request.GET.get('cart_id')
+    if prefix and cart_id_param:
+        pos = CartPosition.objects.filter(event=request.event, cart_id=cart_id_param)
         if request.method == 'POST' or pos.exists() or 'ajax' in request.GET:
-            current_id = request.GET.get('take_cart_id')
+            current_id = cart_id_param
 
     if current_id and current_id in request.session.get('carts', {}):
         if current_id != orig_current_id:
@@ -324,7 +333,7 @@ def get_or_create_cart_id(request, create=True):
         return current_id
     else:
         cart_data = {}
-        if prefix and 'take_cart_id' in request.GET and current_id:
+        if prefix and cart_id_param and current_id:
             new_id = current_id
             cached_widget_data = widget_data_cache.get('widget_data_{}'.format(current_id))
             if cached_widget_data:
@@ -448,7 +457,8 @@ class CartAdd(EventViewMixin, CartActionMixin, AsyncAction, View):
         if 'cart_namespace' in self.kwargs:
             kwargs['cart_namespace'] = self.kwargs['cart_namespace']
 
-        if self.request.event.settings.redirect_to_checkout_directly:
+        is_widget_flow = 'iframe' in self.request.GET or 'iframe' in self.request.POST
+        if self.request.event.settings.redirect_to_checkout_directly or is_widget_flow:
             url = eventreverse(
                 self.request.event,
                 'presale:event.checkout.start',
@@ -456,13 +466,16 @@ class CartAdd(EventViewMixin, CartActionMixin, AsyncAction, View):
             )
             if url.startswith('https:'):
                 url = '/' + url.split('/', 3)[3]
+
             disclose_cart_id = (
-                'iframe' in self.request.GET or settings.SESSION_COOKIE_NAME not in self.request.COOKIES
+                is_widget_flow or settings.SESSION_COOKIE_NAME not in self.request.COOKIES
             ) and self.kwargs.get('cart_namespace')
             if disclose_cart_id:
                 cart_id = get_or_create_cart_id(self.request)
                 separator = '&' if '?' in url else '?'
-                url += '{}cart_id={}'.format(separator, quote(cart_id, safe=''))
+                url += '{}take_cart_id={}&cart_id={}'.format(separator, quote(cart_id, safe=''), quote(cart_id, safe=''))
+            if is_widget_flow and 'iframe=1' not in url:
+                url += '&iframe=1' if '?' in url else '?iframe=1'
             return url
         else:
             # Return to event page using 'next' parameter (original behavior)
@@ -486,6 +499,8 @@ class CartAdd(EventViewMixin, CartActionMixin, AsyncAction, View):
             u += '&next=' + quote(self.request.GET.get('next'))
         if 'next_error' in self.request.GET:
             u += '&next_error=' + quote(self.request.GET.get('next_error'))
+        if 'iframe' in self.request.GET or 'iframe' in self.request.POST or self.kwargs.get('cart_namespace') or is_widget_iframe_request(self.request):
+            u += '&iframe=1'
         if ajax:
             cart_id = get_or_create_cart_id(self.request)
             u += '&take_cart_id=' + cart_id
@@ -609,7 +624,8 @@ class RedeemView(NoSearchIndexViewMixin, EventViewMixin, TemplateView):
             # Cookies are not supported! Lets just make the form open in a new tab
         )
 
-        if self.request.event.settings.redirect_to_checkout_directly:
+        is_widget_flow = bool(kwargs.get('cart_namespace')) or 'iframe' in self.request.GET
+        if self.request.event.settings.redirect_to_checkout_directly or is_widget_flow:
             context['cart_redirect'] = eventreverse(
                 self.request.event,
                 'presale:event.checkout.start',
@@ -617,6 +633,8 @@ class RedeemView(NoSearchIndexViewMixin, EventViewMixin, TemplateView):
             )
             if context['cart_redirect'].startswith('https:'):
                 context['cart_redirect'] = '/' + context['cart_redirect'].split('/', 3)[3]
+            if is_widget_flow:
+                context['cart_redirect'] += ('&' if '?' in context['cart_redirect'] else '?') + 'iframe=1'
         else:
             # Preserve full path including voucher query params (e.g. ?voucher=CODE)
             context['cart_redirect'] = self.request.get_full_path()

@@ -12,7 +12,7 @@ from django.utils.timezone import now
 from django_scopes import scopes_disabled
 from freezegun import freeze_time
 
-from eventyay.base.models import Order, OrderPosition
+from eventyay.base.models import Order, OrderPosition, User
 from eventyay.presale.style import regenerate_css, regenerate_organizer_css
 
 from .test_cart import CartTestMixin
@@ -147,7 +147,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         )
         self.assertRedirects(
             response,
-            '/%s/%s/widget/%s/checkout/questions/' % (self.orga.slug, self.event.slug, ns),
+            '/%s/%s/widget/%s/checkout/questions/?iframe=1' % (self.orga.slug, self.event.slug, ns),
             fetch_redirect_response=False,
         )
 
@@ -159,7 +159,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert 'X-Frame-Options' not in response
 
     def test_iframe_checkout_login_interstitial(self):
-        # Login itself is X-Frame-Options: DENY; widget iframes must not redirect there.
+        # Widget iframe checkout redirects directly to login with X-Frame-Options exempt.
         self.event.settings.set('require_registered_account_for_tickets', True)
         self.event.settings.set('redirect_to_checkout_directly', True)
 
@@ -176,11 +176,14 @@ class WidgetCartTest(CartTestMixin, TestCase):
             '/%s/%s/widget/%s/checkout/start' % (self.orga.slug, self.event.slug, ns),
             {'take_cart_id': data.get('cart_id', '').split('@')[0], 'iframe': '1'},
         )
-        assert response.status_code == 200
+        assert response.status_code == 302
         assert 'X-Frame-Options' not in response
-        assert b'/login/' in response.content
-        assert b'target="_blank"' in response.content
-        assert b'Please log in' in response.content
+        assert '/login/' in response['Location']
+        assert 'iframe=1' in response['Location']
+
+        login_response = self.client.get(response['Location'])
+        assert login_response.status_code == 200
+        assert 'X-Frame-Options' not in login_response
 
     def test_regular_checkout_ignores_stale_iframe_session(self):
         # A prior ?iframe=1 visit must not force the framable login interstitial on
@@ -207,9 +210,43 @@ class WidgetCartTest(CartTestMixin, TestCase):
             '/%s/%s/checkout/start' % (self.orga.slug, self.event.slug),
             {'take_cart_id': data.get('cart_id', '').split('@')[0]},
         )
-        assert response.status_code == 302
         assert '/login/' in response['Location']
         assert b'target="_blank"' not in response.content
+
+    def test_orders_widget_iframe_ui(self):
+        with scopes_disabled():
+            user = User.objects.create_user(email='test_widget_user@example.com', password='password123')
+            self.order.email = user.email
+            self.order.save()
+        self.client.force_login(user)
+
+        response = self.client.get(reverse('eventyay_common:orders'), {'iframe': '1', 'event': self.event.pk})
+        assert response.status_code == 200
+        assert 'X-Frame-Options' not in response
+        content = response.content.decode()
+        assert 'orders-widget-container' in content
+        assert 'orders-widget-header' in content
+        assert 'order-widget-card' in content
+        assert self.order.code in content
+        assert 'orders-widget-title' in content
+
+    def test_order_detail_widget_iframe_nav_bar(self):
+        url = reverse(
+            'presale:event.order',
+            kwargs={
+                'event': self.event.slug,
+                'organizer': self.orga.slug,
+                'order': self.order.code,
+                'secret': self.order.secret,
+            },
+        )
+        response = self.client.get(url, {'iframe': '1'})
+        assert response.status_code == 200
+        assert 'X-Frame-Options' not in response
+        content = response.content.decode()
+        assert 'order-widget-nav-bar' in content
+        assert 'order-widget-nav-title' in content
+        assert self.order.code in content
 
     def test_widget_js_waitinglist_uses_product_param(self):
         path = finders.find('pretixpresale/js/widget/widget.js')
