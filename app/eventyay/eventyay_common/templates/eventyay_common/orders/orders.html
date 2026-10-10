@@ -44,9 +44,6 @@
             <div class="orders-widget-filter-bar">
                 <form class="filter-form orders-widget-filter-form" action="" method="get">
                     <input type="hidden" name="iframe" value="1">
-                    {% if filtered_event %}
-                        <input type="hidden" name="event" value="{{ filtered_event.pk }}">
-                    {% endif %}
                     <div class="orders-widget-filter-inputs">
                         <div class="orders-widget-filter-field search-field">
                             <div class="input-group">
@@ -54,11 +51,9 @@
                                 <input type="text" name="code" value="{{ request.GET.code|default:'' }}" class="form-control" placeholder="{% trans 'Search by order code...' %}">
                             </div>
                         </div>
-                        {% if not filtered_event %}
-                            <div class="orders-widget-filter-field event-field">
-                                {% bootstrap_field filter_form.event layout='inline' %}
-                            </div>
-                        {% endif %}
+                        <div class="orders-widget-filter-field event-field">
+                            {% bootstrap_field filter_form.event layout='inline' %}
+                        </div>
                         <div class="orders-widget-filter-field status-field">
                             <select name="status" class="form-control">
                                 <option value="">{% trans "All statuses" %}</option>
@@ -73,7 +68,7 @@
                                 <i class="fa fa-filter" aria-hidden="true"></i> {% trans "Filter" %}
                             </button>
                             {% if has_active_filters %}
-                                <a href="{{ request.path }}?iframe=1{% if filtered_event %}&event={{ filtered_event.pk }}{% endif %}" class="btn btn-default btn-sm btn-clear-filter" title="{% trans 'Clear filters' %}">
+                                <a href="{{ request.path }}?iframe=1" class="btn btn-default btn-sm btn-clear-filter" title="{% trans 'Clear filters' %}">
                                     <i class="fa fa-times" aria-hidden="true"></i>
                                 </a>
                             {% endif %}
@@ -131,7 +126,7 @@
                         {% if has_active_filters %}
                             <h3>{% trans "No matching tickets" %}</h3>
                             <p>{% trans "No tickets match your filter criteria." %}</p>
-                            <a href="{{ request.path }}?iframe=1{% if filtered_event %}&event={{ filtered_event.pk }}{% endif %}" class="btn btn-default btn-sm">
+                            <a href="{{ request.path }}?iframe=1" class="btn btn-default btn-sm">
                                 <i class="fa fa-times" aria-hidden="true"></i> {% trans "Clear filters" %}
                             </a>
                         {% else %}

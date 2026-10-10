@@ -143,9 +143,13 @@ if (modal) {
             if (errorDiv) errorDiv.style.display = 'none';
 
             const formData = new FormData(loginForm);
+            const loginUrl = new URL(loginForm.action, window.location.origin);
+            if (checkoutUrl) {
+                loginUrl.searchParams.set('next', checkoutUrl);
+            }
 
             try {
-                const response = await fetch(loginForm.action, {
+                const response = await fetch(loginUrl.toString(), {
                     method: 'POST',
                     body: formData,
                     credentials: 'include',
@@ -167,7 +171,10 @@ if (modal) {
                         if (err && err.textContent.trim()) {
                             msg = err.textContent.trim();
                         }
-                    } catch (parseErr) {}
+                    } catch (parseErr) {
+                        console.error('Failed to parse login response:', response.status, response.url, parseErr);
+                        msg = i18n.msgLoginFailed ?? i18n.msgServerError ?? '';
+                    }
                     if (errorDiv) {
                         errorDiv.textContent = msg;
                         errorDiv.style.display = 'block';

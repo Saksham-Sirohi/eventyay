@@ -41,7 +41,6 @@ from eventyay.base.services.cart import (
 )
 from eventyay.base.settings import GlobalSettingsObject
 from eventyay.base.views.tasks import AsyncAction
-from eventyay.common.views.helpers import is_widget_iframe_request
 from eventyay.multidomain.urlreverse import eventreverse
 from eventyay.presale.views import (
     EventViewMixin,
@@ -499,7 +498,7 @@ class CartAdd(EventViewMixin, CartActionMixin, AsyncAction, View):
             u += '&next=' + quote(self.request.GET.get('next'))
         if 'next_error' in self.request.GET:
             u += '&next_error=' + quote(self.request.GET.get('next_error'))
-        if 'iframe' in self.request.GET or 'iframe' in self.request.POST or self.kwargs.get('cart_namespace') or is_widget_iframe_request(self.request):
+        if 'iframe' in self.request.GET or 'iframe' in self.request.POST:
             u += '&iframe=1'
         if ajax:
             cart_id = get_or_create_cart_id(self.request)

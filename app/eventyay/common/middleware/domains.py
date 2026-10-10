@@ -19,7 +19,7 @@ from django.utils.http import http_date
 
 from eventyay.base.middleware import should_skip_session_save
 from eventyay.base.models import Event
-from eventyay.helpers.cookies import set_cookie_without_samesite
+from eventyay.helpers.cookies import delete_cookie_without_samesite, set_cookie_without_samesite
 
 LOCAL_HOST_NAMES = ('testserver', 'localhost', '127.0.0.1')
 ANY_DOMAIN_ALLOWED = ('robots.txt', 'redirect')
@@ -207,7 +207,13 @@ class SessionMiddleware(BaseSessionMiddleware):
             # First check if we need to delete this cookie.
             # The session should be deleted only if the session is entirely empty
             if settings.SESSION_COOKIE_NAME in request.COOKIES and empty:
-                response.delete_cookie(settings.SESSION_COOKIE_NAME)
+                delete_cookie_without_samesite(
+                    request,
+                    response,
+                    settings.SESSION_COOKIE_NAME,
+                    path=settings.SESSION_COOKIE_PATH,
+                    domain=get_cookie_domain(request),
+                )
                 return response
             if accessed:
                 patch_vary_headers(response, ('Cookie',))

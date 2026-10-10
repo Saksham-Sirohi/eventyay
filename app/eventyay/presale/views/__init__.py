@@ -436,18 +436,13 @@ class OrganizerViewMixin:
 
 def allow_frame_if_namespaced(view_func):
     """
-    Drop X-Frame-Options header if a cart namespace is set OR if the request is
-    explicitly marked as frame-safe via ``?iframe=1`` (e.g. from the orders
-    page widget popup). See get_or_create_cart_id() for the reasoning.
+    Drop X-Frame-Options header, but only if a cart namespace is set. See get_or_create_cart_id()
+    for the reasoning.
     """
 
     def wrapped_view(request, *args, **kwargs):
         resp = view_func(request, *args, **kwargs)
-        if (
-            (request.resolver_match and request.resolver_match.kwargs.get('cart_namespace'))
-            or 'iframe' in request.GET
-            or is_widget_iframe_request(request, trust_session=bool(kwargs.get('cart_namespace')))
-        ):
+        if request.resolver_match and request.resolver_match.kwargs.get('cart_namespace'):
             resp.xframe_options_exempt = True
         return resp
 

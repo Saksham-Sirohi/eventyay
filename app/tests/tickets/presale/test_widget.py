@@ -229,6 +229,46 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert 'order-widget-card' in content
         assert self.order.code in content
         assert 'orders-widget-title' in content
+        assert 'name="event"' in content
+        assert '<input type="hidden" name="event"' not in content
+        assert 'btn-clear-filter' in content
+
+    def test_allow_frame_if_namespaced_requires_cart_namespace(self):
+        response = self.client.get('/%s/%s/' % (self.orga.slug, self.event.slug), {'iframe': '1'})
+        assert response.status_code == 200
+        assert getattr(response, 'xframe_options_exempt', False) is False
+
+    def test_cart_add_check_url_does_not_propagate_iframe_without_explicit_param(self):
+        from django.test import RequestFactory
+        from eventyay.presale.views.cart import CartAdd
+
+        view = CartAdd()
+        factory = RequestFactory()
+        view.request = factory.post('/%s/%s/cart/add' % (self.orga.slug, self.event.slug))
+        view.kwargs = {'cart_namespace': 'abcdefghijklmnop', 'event': self.event.slug, 'organizer': self.orga.slug}
+        check_url = view.get_check_url('task-123', ajax=False)
+        assert 'iframe=1' not in check_url
+
+    def test_delete_cookie_without_samesite_partitioned(self):
+        from django.http import HttpResponse
+        from django.test import RequestFactory
+        from eventyay.helpers.cookies import delete_cookie_without_samesite
+
+        factory = RequestFactory()
+        request_https = factory.get(
+            '/',
+            HTTP_USER_AGENT='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            secure=True,
+        )
+        response_https = HttpResponse()
+        delete_cookie_without_samesite(request_https, response_https, 'eventyay_session', path='/', domain='testserver')
+        cookie_https = response_https.cookies['eventyay_session']
+        assert cookie_https['max-age'] == 0
+        assert cookie_https['path'] == '/'
+        assert cookie_https['domain'] == 'testserver'
+        assert cookie_https['samesite'] == 'None'
+        assert cookie_https['secure'] is True
+        assert cookie_https['partitioned'] is True
 
     def test_order_detail_widget_iframe_nav_bar(self):
         url = reverse(

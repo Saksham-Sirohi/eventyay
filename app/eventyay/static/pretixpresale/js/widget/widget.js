@@ -783,10 +783,11 @@ Vue.component('pretix-overlay', {
                 try {
                     iframe.contentWindow.postMessage('pretix:back', '*');
                 } catch (e) {
-                }
-                try {
-                    iframe.contentWindow.history.back();
-                } catch (e) {
+                    try {
+                        iframe.contentWindow.history.back();
+                    } catch (fallbackError) {
+                        console.warn('Failed to navigate back in iframe', fallbackError);
+                    }
                 }
             }
         },

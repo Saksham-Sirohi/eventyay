@@ -26,6 +26,22 @@ def set_cookie_without_samesite(request, response, key, *args, **kwargs):
         response.cookies[key]['partitioned'] = True
 
 
+def delete_cookie_without_samesite(request, response, key, path='/', domain=None, samesite=None):
+    response.delete_cookie(key, path=path, domain=domain, samesite=samesite)
+    if not should_send_same_site_none(request.headers.get('User-Agent', '')):
+        return
+    is_secure = (
+        request.is_secure()
+        or request.scheme == 'https'
+        or settings.SITE_URL.startswith('https://')
+        or request.headers.get('X-Forwarded-Proto', '') == 'https'
+    )
+    if is_secure and key in response.cookies:
+        response.cookies[key]['samesite'] = 'None'
+        response.cookies[key]['secure'] = True
+        response.cookies[key]['partitioned'] = True
+
+
 # Based on https://www.chromium.org/updates/same-site/incompatible-clients
 # Copyright 2019 Google LLC.
 # SPDX-License-Identifier: Apache-2.0
