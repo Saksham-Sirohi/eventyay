@@ -28,7 +28,7 @@
             {% endif %}
         {% endif %}
 
-        {% if not is_widget_iframe and 'iframe' not in request.GET %}
+        {% if not is_widget_iframe and not request.session.iframe_session and not cart_namespace and 'iframe' not in request.GET %}
             {% if show_talks_tab %}
                 {% can_list_schedule request.event as show_schedule_tab %}
                 {% if show_schedule_tab and request.event.has_schedule_content %}
@@ -65,7 +65,7 @@
             {% endif %}
         {% endif %}
 
-        {% if show_online_video_link|default:False and not is_widget_iframe and 'iframe' not in request.GET %}
+        {% if show_online_video_link|default:False and not is_widget_iframe and not request.session.iframe_session and not cart_namespace and 'iframe' not in request.GET %}
             <div class="video-link">
                 {% get_localized_menu_label request.event 'menu_label_join_video' as label %}
                 <a id="join-event-link" class="header-tab join-video-link join-event {% if request.path_info == '/onlinevideo' %}underline{% endif %}"

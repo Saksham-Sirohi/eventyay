@@ -209,6 +209,11 @@ var shop_is_secure = function (targetUrl) {
     if (targetUrl && /^https:/i.test(targetUrl)) {
         return true;
     }
+    // Loopback is a secure context. Keep checkout in the popup on local HTTP
+    // instead of submitting the cart form into a new tab.
+    if (targetUrl && /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(targetUrl)) {
+        return true;
+    }
     return /^https:/i.test(document.location.protocol);
 };
 
