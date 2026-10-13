@@ -22,6 +22,7 @@ from django_scopes import scopes_disabled
 
 from eventyay.base.middleware import should_skip_session_save
 from eventyay.common.middleware.domains import is_main_domain_auth_route
+from eventyay.common.views.helpers import is_widget_iframe_request
 from eventyay.helpers.cookies import delete_cookie_without_samesite, set_cookie_without_samesite
 from eventyay.multidomain.models import KnownDomain
 
@@ -149,18 +150,31 @@ class SessionMiddleware(BaseSessionMiddleware):
                     # Skip session save for 500 responses, refs #3881.
                     if response.status_code != 500:
                         request.session.save()
-                        set_cookie_without_samesite(
-                            request,
-                            response,
-                            settings.SESSION_COOKIE_NAME,
-                            request.session.session_key,
-                            max_age=max_age,
-                            expires=expires,
-                            domain=get_cookie_domain(request),
-                            path=settings.SESSION_COOKIE_PATH,
-                            secure=request.scheme == 'https',
-                            httponly=settings.SESSION_COOKIE_HTTPONLY or None,
-                        )
+                        if is_widget_iframe_request(request, trust_session=True):
+                            set_cookie_without_samesite(
+                                request,
+                                response,
+                                settings.SESSION_COOKIE_NAME,
+                                request.session.session_key,
+                                max_age=max_age,
+                                expires=expires,
+                                domain=get_cookie_domain(request),
+                                path=settings.SESSION_COOKIE_PATH,
+                                secure=request.scheme == 'https',
+                                httponly=settings.SESSION_COOKIE_HTTPONLY or None,
+                            )
+                        else:
+                            response.set_cookie(
+                                settings.SESSION_COOKIE_NAME,
+                                request.session.session_key,
+                                max_age=max_age,
+                                expires=expires,
+                                domain=get_cookie_domain(request),
+                                path=settings.SESSION_COOKIE_PATH,
+                                secure=request.scheme == 'https',
+                                httponly=settings.SESSION_COOKIE_HTTPONLY or None,
+                                samesite=settings.SESSION_COOKIE_SAMESITE,
+                            )
         return response
 
 
@@ -178,17 +192,29 @@ class CsrfViewMiddleware(BaseCsrfMiddleware):
         else:
             # Set the CSRF cookie even if it's already set, so we renew
             # the expiry timer.
-            set_cookie_without_samesite(
-                request,
-                response,
-                settings.CSRF_COOKIE_NAME,
-                request.META['CSRF_COOKIE'],
-                max_age=settings.CSRF_COOKIE_AGE,
-                domain=get_cookie_domain(request),
-                path=settings.CSRF_COOKIE_PATH,
-                secure=request.scheme == 'https',
-                httponly=settings.CSRF_COOKIE_HTTPONLY,
-            )
+            if is_widget_iframe_request(request, trust_session=True):
+                set_cookie_without_samesite(
+                    request,
+                    response,
+                    settings.CSRF_COOKIE_NAME,
+                    request.META['CSRF_COOKIE'],
+                    max_age=settings.CSRF_COOKIE_AGE,
+                    domain=get_cookie_domain(request),
+                    path=settings.CSRF_COOKIE_PATH,
+                    secure=request.scheme == 'https',
+                    httponly=settings.CSRF_COOKIE_HTTPONLY,
+                )
+            else:
+                response.set_cookie(
+                    settings.CSRF_COOKIE_NAME,
+                    request.META['CSRF_COOKIE'],
+                    max_age=settings.CSRF_COOKIE_AGE,
+                    domain=get_cookie_domain(request),
+                    path=settings.CSRF_COOKIE_PATH,
+                    secure=request.scheme == 'https',
+                    httponly=settings.CSRF_COOKIE_HTTPONLY,
+                    samesite=settings.CSRF_COOKIE_SAMESITE,
+                )
             # Content varies with the CSRF cookie, so set the Vary header.
             patch_vary_headers(response, ('Cookie',))
 
