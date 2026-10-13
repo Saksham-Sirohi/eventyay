@@ -7,6 +7,7 @@ from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import redirect
 from django.urls import reverse
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,6 +20,17 @@ def is_ajax_request(request):
         request.headers.get('X-Requested-With') == 'XMLHttpRequest'
         or 'application/json' in request.headers.get('Accept', '')
     )
+
+
+def is_widget_iframe_request(request):
+    """
+    True if the request is rendered inside the widget iframe (``?iframe=1`` or widget namespace).
+    """
+    if 'iframe' in request.GET:
+        return True
+    if getattr(request, 'resolver_match', None) and request.resolver_match.kwargs.get('cart_namespace'):
+        return True
+    return False
 
 
 def build_login_url_with_next(next_path):

@@ -12,7 +12,7 @@ from django.utils.timezone import now
 from django_scopes import scopes_disabled
 from freezegun import freeze_time
 
-from eventyay.base.models import Order, OrderPosition
+from eventyay.base.models import Order, OrderPosition, User
 from eventyay.presale.style import regenerate_css, regenerate_organizer_css
 
 from .test_cart import CartTestMixin
@@ -210,6 +210,26 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert response.status_code == 302
         assert '/login/' in response['Location']
         assert b'target="_blank"' not in response.content
+
+    def test_orders_widget_iframe_ui(self):
+        with scopes_disabled():
+            user = User.objects.create_user(email='test_widget_user@example.com', password='password123')
+            self.order.email = user.email
+            self.order.save()
+        self.client.force_login(user)
+
+        response = self.client.get(reverse('eventyay_common:orders'), {'iframe': '1', 'event': self.event.pk})
+        assert response.status_code == 200
+        assert 'X-Frame-Options' not in response
+        content = response.content.decode()
+        assert 'orders-widget-container' in content
+        assert 'orders-widget-header' in content
+        assert 'order-widget-card' in content
+        assert self.order.code in content
+        assert 'orders-widget-title' in content
+        assert 'name="event"' in content
+        assert '<input type="hidden" name="event"' not in content
+        assert 'btn-clear-filter' in content
 
     def test_widget_js_waitinglist_uses_product_param(self):
         path = finders.find('pretixpresale/js/widget/widget.js')
