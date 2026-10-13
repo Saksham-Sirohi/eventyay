@@ -313,16 +313,10 @@ def get_or_create_cart_id(request, create=True):
         prefix = request.resolver_match.kwargs.get('cart_namespace')
 
     current_id = orig_current_id = request.session.get(session_keyname)
-    candidate_id = (
-        request.GET.get('take_cart_id')
-        or request.GET.get('cart_id')
-        or request.POST.get('take_cart_id')
-        or request.POST.get('cart_id')
-    )
-    if prefix and candidate_id:
-        pos = CartPosition.objects.filter(event=request.event, cart_id=candidate_id)
+    if prefix and 'take_cart_id' in request.GET:
+        pos = CartPosition.objects.filter(event=request.event, cart_id=request.GET.get('take_cart_id'))
         if request.method == 'POST' or pos.exists() or 'ajax' in request.GET:
-            current_id = candidate_id
+            current_id = request.GET.get('take_cart_id')
 
     if current_id and current_id in request.session.get('carts', {}):
         if current_id != orig_current_id:
@@ -330,7 +324,7 @@ def get_or_create_cart_id(request, create=True):
         return current_id
     else:
         cart_data = {}
-        if prefix and candidate_id and current_id:
+        if prefix and 'take_cart_id' in request.GET and current_id:
             new_id = current_id
             cached_widget_data = widget_data_cache.get('widget_data_{}'.format(current_id))
             if cached_widget_data:
@@ -611,10 +605,8 @@ class RedeemView(NoSearchIndexViewMixin, EventViewMixin, TemplateView):
         )
 
         context['new_tab'] = (
-            'require_cookie' in self.request.GET
-            and settings.SESSION_COOKIE_NAME not in self.request.COOKIES
-            and not kwargs.get('cart_namespace')
-            and self.request.GET.get('iframe') != '1'
+            'require_cookie' in self.request.GET and settings.SESSION_COOKIE_NAME not in self.request.COOKIES
+            # Cookies are not supported! Lets just make the form open in a new tab
         )
 
         if self.request.event.settings.redirect_to_checkout_directly:

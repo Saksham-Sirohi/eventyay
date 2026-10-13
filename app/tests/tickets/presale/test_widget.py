@@ -12,7 +12,7 @@ from django.utils.timezone import now
 from django_scopes import scopes_disabled
 from freezegun import freeze_time
 
-from eventyay.base.models import Order, OrderPosition, User
+from eventyay.base.models import Order, OrderPosition
 from eventyay.presale.style import regenerate_css, regenerate_organizer_css
 
 from .test_cart import CartTestMixin
@@ -32,17 +32,9 @@ def event_root_from_cart_add_url(response_url):
     return root
 
 
-_LOOPBACK_SHOP_RE = re.compile(
-    r'^https?://(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:/|$)',
-    re.I,
-)
-
-
 def shop_is_secure(target_url, page_protocol='http:'):
     # Mirrors shop_is_secure() in pretixpresale/js/widget/widget.js
     if target_url and re.match(r'^https:', target_url, re.I):
-        return True
-    if target_url and _LOOPBACK_SHOP_RE.match(target_url):
         return True
     return bool(re.match(r'^https:', page_protocol, re.I))
 
@@ -155,7 +147,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         )
         self.assertRedirects(
             response,
-            '/%s/%s/widget/%s/checkout/questions/?iframe=1' % (self.orga.slug, self.event.slug, ns),
+            '/%s/%s/widget/%s/checkout/questions/' % (self.orga.slug, self.event.slug, ns),
             fetch_redirect_response=False,
         )
 
@@ -167,7 +159,7 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert 'X-Frame-Options' not in response
 
     def test_iframe_checkout_login_interstitial(self):
-        # Widget iframe checkout redirects directly to login with X-Frame-Options exempt.
+        # Login itself is X-Frame-Options: DENY; widget iframes must not redirect there.
         self.event.settings.set('require_registered_account_for_tickets', True)
         self.event.settings.set('redirect_to_checkout_directly', True)
 
@@ -184,14 +176,11 @@ class WidgetCartTest(CartTestMixin, TestCase):
             '/%s/%s/widget/%s/checkout/start' % (self.orga.slug, self.event.slug, ns),
             {'take_cart_id': data.get('cart_id', '').split('@')[0], 'iframe': '1'},
         )
-        assert response.status_code == 302
+        assert response.status_code == 200
         assert 'X-Frame-Options' not in response
-        assert '/login/' in response['Location']
-        assert 'iframe=1' in response['Location']
-
-        login_response = self.client.get(response['Location'])
-        assert login_response.status_code == 200
-        assert 'X-Frame-Options' not in login_response
+        assert b'/login/' in response.content
+        assert b'target="_blank"' in response.content
+        assert b'Please log in' in response.content
 
     def test_regular_checkout_ignores_stale_iframe_session(self):
         # A prior ?iframe=1 visit must not force the framable login interstitial on
@@ -218,62 +207,9 @@ class WidgetCartTest(CartTestMixin, TestCase):
             '/%s/%s/checkout/start' % (self.orga.slug, self.event.slug),
             {'take_cart_id': data.get('cart_id', '').split('@')[0]},
         )
+        assert response.status_code == 302
         assert '/login/' in response['Location']
         assert b'target="_blank"' not in response.content
-
-    def test_orders_widget_iframe_ui(self):
-        with scopes_disabled():
-            user = User.objects.create_user(email='test_widget_user@example.com', password='password123')
-            self.order.email = user.email
-            self.order.save()
-        self.client.force_login(user)
-
-        response = self.client.get(reverse('eventyay_common:orders'), {'iframe': '1', 'event': self.event.pk})
-        assert response.status_code == 200
-        assert 'X-Frame-Options' not in response
-        content = response.content.decode()
-        assert 'orders-widget-container' in content
-        assert 'orders-widget-header' in content
-        assert 'order-widget-card' in content
-        assert self.order.code in content
-        assert 'orders-widget-title' in content
-        assert 'name="event"' in content
-        assert '<input type="hidden" name="event"' not in content
-        assert 'btn-clear-filter' in content
-
-    def test_allow_frame_if_namespaced_requires_cart_namespace(self):
-        response = self.client.get('/%s/%s/' % (self.orga.slug, self.event.slug), {'iframe': '1'})
-        assert response.status_code == 200
-        assert getattr(response, 'xframe_options_exempt', False) is False
-
-    def test_cart_add_check_url_does_not_propagate_iframe_without_explicit_param(self):
-        from django.test import RequestFactory
-        from eventyay.presale.views.cart import CartAdd
-
-        view = CartAdd()
-        factory = RequestFactory()
-        view.request = factory.post('/%s/%s/cart/add' % (self.orga.slug, self.event.slug))
-        view.kwargs = {'cart_namespace': 'abcdefghijklmnop', 'event': self.event.slug, 'organizer': self.orga.slug}
-        check_url = view.get_check_url('task-123', ajax=False)
-        assert 'iframe=1' not in check_url
-
-    def test_order_detail_widget_iframe_nav_bar(self):
-        url = reverse(
-            'presale:event.order',
-            kwargs={
-                'event': self.event.slug,
-                'organizer': self.orga.slug,
-                'order': self.order.code,
-                'secret': self.order.secret,
-            },
-        )
-        response = self.client.get(url, {'iframe': '1'})
-        assert response.status_code == 200
-        assert 'X-Frame-Options' not in response
-        content = response.content.decode()
-        assert 'order-widget-nav-bar' in content
-        assert 'order-widget-nav-title' in content
-        assert self.order.code in content
 
     def test_widget_js_waitinglist_uses_product_param(self):
         path = finders.find('pretixpresale/js/widget/widget.js')
@@ -291,7 +227,6 @@ class WidgetCartTest(CartTestMixin, TestCase):
         # Source stores the regex with JS escapes (\/); normalize for the sync check.
         assert r'/(?:w|widget)/[a-zA-Z0-9]{16}/cart/add(?=[/?#]|$)' in js.replace('\\/', '/')
         assert 'shop_is_secure(this.target_url)' in js
-        assert r'https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)' in js
 
         ns = 'abcdefghijklmnop'
         assert (
@@ -335,10 +270,6 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert shop_is_secure('http://shop.example/orga/ev/', 'https:') is True
         assert shop_is_secure('', 'https:') is True
         assert shop_is_secure(None, 'http:') is False
-        assert shop_is_secure('http://localhost:8000/tomo-game/mr3hj/', 'http:') is True
-        assert shop_is_secure('http://127.0.0.1:8000/evil-dead/smile/', 'http:') is True
-        assert shop_is_secure('http://[::1]:8000/evil-dead/smile/', 'http:') is True
-        assert shop_is_secure('http://localhost.example/orga/ev/', 'http:') is False
 
     def test_widget_waitinglist_accepts_product_query_param(self):
         self.event.settings.set('waiting_list_enabled', True)

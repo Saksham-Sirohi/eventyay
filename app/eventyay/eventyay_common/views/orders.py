@@ -6,11 +6,9 @@ from django.utils.functional import cached_property
 from django.views.generic.list import ListView
 
 from eventyay.base.models import Order
-from eventyay.common.views.helpers import is_widget_iframe_request
 from eventyay.control.views import PaginationMixin
 
 from ..forms.filters import UserOrderFilterForm
-
 
 logger = getLogger(__name__)
 
@@ -46,9 +44,6 @@ class MyOrdersView(PaginationMixin, ListView):
         ctx = super().get_context_data(**kwargs)
         ctx['filter_form'] = self.filter_form
         ctx['has_active_filters'] = self.filter_form.has_active_filters()
-        ctx['is_widget_iframe'] = is_widget_iframe_request(self.request)
-        if self.filter_form.is_valid() and self.filter_form.cleaned_data.get('event'):
-            ctx['filtered_event'] = self.filter_form.cleaned_data['event']
         return ctx
 
     def get(self, request, *args, **kwargs):
@@ -60,7 +55,4 @@ class MyOrdersView(PaginationMixin, ListView):
             new_url = request.path + '?' + new_url_query.urlencode()
             logger.info('To redirect to "%s" because the filter values are invalid.', new_url)
             return redirect(new_url)
-        response = super().get(request, *args, **kwargs)
-        if is_widget_iframe_request(request):
-            response.xframe_options_exempt = True
-        return response
+        return super().get(request, *args, **kwargs)
