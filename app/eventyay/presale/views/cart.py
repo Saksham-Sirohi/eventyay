@@ -41,6 +41,7 @@ from eventyay.base.services.cart import (
 )
 from eventyay.base.settings import GlobalSettingsObject
 from eventyay.base.views.tasks import AsyncAction
+from eventyay.common.views.helpers import is_widget_iframe_request
 from eventyay.multidomain.urlreverse import eventreverse
 from eventyay.presale.views import (
     EventViewMixin,
@@ -79,6 +80,8 @@ class CartActionMixin:
         if disclose_cart_id:
             cart_id = get_or_create_cart_id(self.request)
             u += '&cart_id={}'.format(cart_id)
+        if 'iframe' in self.request.GET and 'iframe=1' not in u:
+            u += '&iframe=1'
         return u
 
     def get_success_url(self, value=None):
@@ -97,6 +100,8 @@ class CartActionMixin:
             if disclose_cart_id:
                 cart_id = get_or_create_cart_id(self.request)
                 u += '&cart_id={}'.format(cart_id)
+            if 'iframe' in self.request.GET and 'iframe=1' not in u:
+                u += '&iframe=1'
             return u
         return self.get_next_url()
 
