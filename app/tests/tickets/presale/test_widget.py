@@ -278,6 +278,27 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert response.status_code == 302
         assert response['Location'] == '/%s/%s/?iframe=1' % (self.orga.slug, self.event.slug)
 
+        # An organizer or event slug containing "order" does not break redirection
+        fake_order_url = '/order-orga/order-summit/order/%s/%s/' % (self.order.code, self.order.secret)
+        response = self.client.get(reverse('common:auth.logout'), {'back': fake_order_url})
+        assert response.status_code == 302
+        assert response['Location'] == '/order-orga/order-summit/'
+
+    def test_widget_cart_takeover_requires_matching_prefix(self):
+        from eventyay.presale.views.cart import get_or_create_cart_id
+        from django.test import RequestFactory
+        factory = RequestFactory()
+        ns = 'cccccccccccccccc'
+        req = factory.get('/%s/%s/widget/%s/' % (self.orga.slug, self.event.slug, ns))
+        req.resolver_match = type('Match', (), {'kwargs': {'cart_namespace': ns}})()
+        req.session = {}
+        req.event = self.event
+
+        # Candidate cart ID from another session or without prefix cannot be adopted
+        req.GET = {'take_cart_id': 'otherprefix123456@session'}
+        cart_id = get_or_create_cart_id(req, create=False)
+        assert cart_id is None
+
     def test_confirm_email_verification_sent_view(self):
         response = self.client.get(reverse('account_email_verification_sent'))
         assert response.status_code == 200

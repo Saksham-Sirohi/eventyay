@@ -319,7 +319,7 @@ def get_or_create_cart_id(request, create=True):
         or request.POST.get('take_cart_id')
         or request.POST.get('cart_id')
     )
-    if prefix and candidate_id:
+    if prefix and candidate_id and candidate_id.startswith(prefix):
         with scopes_disabled():
             is_other_event = CartPosition.objects.filter(cart_id=candidate_id).exclude(event=request.event).exists()
         if not is_other_event:
@@ -334,7 +334,7 @@ def get_or_create_cart_id(request, create=True):
         return current_id
     else:
         cart_data = {}
-        if prefix and candidate_id and current_id:
+        if prefix and candidate_id and current_id and candidate_id.startswith(prefix):
             new_id = current_id
             cached_widget_data = widget_data_cache.get('widget_data_{}'.format(current_id))
             if cached_widget_data:

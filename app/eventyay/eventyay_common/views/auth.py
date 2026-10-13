@@ -1,6 +1,7 @@
 import base64
 import json
 import logging
+import re
 import time
 from typing import cast
 from urllib.parse import quote, urlencode, urlparse, urlunparse
@@ -170,8 +171,9 @@ def logout(request):
     target = request.GET.get('back') or request.GET.get('next')
     if target and is_safe_redirect_url(target, request):
         parsed = urlparse(target)
-        if '/order/' in parsed.path:
-            event_home = parsed.path.split('/order/')[0] + '/'
+        order_match = re.match(r'^((?:/[^/]+/[^/]+)?/)order/[A-Z0-9]+/[a-zA-Z0-9]+', parsed.path, re.IGNORECASE)
+        if order_match:
+            event_home = order_match.group(1)
             query = 'iframe=1' if ('iframe' in request.GET or 'iframe=1' in parsed.query) else ''
             target_url = urlunparse((parsed.scheme, parsed.netloc, event_home, '', query, ''))
             return redirect(target_url)
@@ -328,7 +330,7 @@ class Forgot(TemplateView):
     def _redirect_with_next_and_iframe(self, viewname):
         params = {}
         next_url = self.request.GET.get('next')
-        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts=None):
+        if next_url and is_safe_redirect_url(next_url, self.request):
             params['next'] = next_url
         if 'iframe' in self.request.GET:
             params['iframe'] = '1'
@@ -532,7 +534,7 @@ class Login2FAView(TemplateView):
             request.session['eventyay_auth_login_time'] = int(time.time())
             del request.session['eventyay_auth_2fa_user']
             del request.session['eventyay_auth_2fa_time']
-            if 'next' in request.GET and url_has_allowed_host_and_scheme(request.GET.get('next'), allowed_hosts=None):
+            if 'next' in request.GET and is_safe_redirect_url(request.GET.get('next'), request):
                 return redirect(request.GET.get('next'))
             return redirect(reverse('eventyay_common:dashboard'))
         else:

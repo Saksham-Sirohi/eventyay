@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from eventyay.base.auth import SPAM_ACCOUNT_ERROR, get_auth_backends
 from eventyay.common.consts import KEY_LAST_FORCE_LOGIN, KEY_LONG_SESSION, KEY_SOCIAL_KEEP_LOGGED_IN
+from eventyay.common.views.helpers import is_safe_redirect_url
 from eventyay.plugins.socialauth.schemas.oauth2_params import OAuth2Params
 
 
@@ -22,7 +23,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
         if 'iframe' in request.GET or getattr(request, 'session', {}).get('iframe_session'):
             params['iframe'] = '1'
         next_url = request.GET.get('next') or request.POST.get('next')
-        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts=None):
+        if next_url and is_safe_redirect_url(next_url, request):
             params['next'] = next_url
         url = reverse('account_email_verification_sent')
         if params:
@@ -51,7 +52,7 @@ class CustomAccountAdapter(DefaultAccountAdapter):
             return f'{auth_url}?{urlencode(validated_oauth2_params.model_dump())}'
 
         next_url = request.session.pop('socialauth_next_url', None)
-        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts=None):
+        if next_url and is_safe_redirect_url(next_url, request):
             return next_url
 
         return super().get_login_redirect_url(request)
