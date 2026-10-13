@@ -551,6 +551,7 @@ class User(
 
     def send_password_reset(self, request: HttpRequest, *, sync_send: bool = False):
         from eventyay.base.services.mail import mail
+        from eventyay.common.views.helpers import is_safe_redirect_url
 
         subject = _('Password recovery')
         security_token = default_token_generator.make_token(self)
@@ -560,7 +561,7 @@ class User(
             'token': security_token,
         }
         next_url = request.GET.get('next') if request else None
-        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts=None):
+        if next_url and is_safe_redirect_url(next_url, request):
             params['next'] = next_url
         if request and 'iframe' in request.GET:
             params['iframe'] = '1'
