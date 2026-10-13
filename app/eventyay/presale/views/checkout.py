@@ -11,7 +11,11 @@ from django.views.generic import View
 from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 from eventyay.base.services.cart import CartError
 from eventyay.base.signals import validate_cart
-from eventyay.common.views.helpers import build_login_url_with_next, is_widget_iframe_request
+from eventyay.common.views.helpers import (
+    build_login_url_with_next,
+    is_trusted_widget_framing_authorized,
+    is_widget_iframe_request,
+)
 from eventyay.multidomain.urlreverse import eventreverse
 from eventyay.presale.checkoutflow import get_checkout_flow
 from eventyay.presale.views import (
@@ -66,7 +70,7 @@ class CheckoutView(View):
             logger.info('Redirecting to login as require_registered_account_for_tickets is enabled.')
             login_url = build_login_url_with_next(request.get_full_path(), request=request)
             resp = redirect(login_url)
-            if is_widget_iframe_request(request, trust_session=bool(kwargs.get('cart_namespace'))):
+            if is_trusted_widget_framing_authorized(request, kwargs):
                 resp.xframe_options_exempt = True
             return resp
 

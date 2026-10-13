@@ -191,7 +191,8 @@ class WidgetCartTest(CartTestMixin, TestCase):
 
         login_response = self.client.get(response['Location'])
         assert login_response.status_code == 200
-        assert 'X-Frame-Options' not in login_response
+        assert login_response.headers.get('X-Frame-Options') == 'DENY'
+        assert getattr(login_response, 'xframe_options_exempt', False) is False
 
     def test_regular_checkout_ignores_stale_iframe_session(self):
         # A prior ?iframe=1 visit must not force the framable login interstitial on
@@ -230,7 +231,23 @@ class WidgetCartTest(CartTestMixin, TestCase):
 
         response = self.client.get(reverse('eventyay_common:orders'), {'iframe': '1', 'event': self.event.pk})
         assert response.status_code == 200
-        assert 'X-Frame-Options' not in response
+        assert response.headers.get('X-Frame-Options') == 'DENY'
+        assert getattr(response, 'xframe_options_exempt', False) is False
+        assert response.context['is_widget_iframe'] is True
+
+    def test_bare_iframe_param_does_not_exempt_auth_views(self):
+        # Bare ?iframe=1 must not drop X-Frame-Options on sensitive auth/order endpoints
+        for url in [
+            reverse('auth.login'),
+            reverse('account_signup'),
+            reverse('account_email_verification_sent'),
+            reverse('common:auth.forgot'),
+            reverse('eventyay_common:orders'),
+        ]:
+            resp = self.client.get(url, {'iframe': '1'})
+            assert resp.status_code in (200, 302)
+            assert resp.headers.get('X-Frame-Options') == 'DENY', f"{url} leaked frame exemption"
+            assert getattr(resp, 'xframe_options_exempt', False) is False, f"{url} had xframe_options_exempt"
 
     def test_allow_frame_if_namespaced_requires_cart_namespace(self):
         response = self.client.get('/%s/%s/' % (self.orga.slug, self.event.slug), {'iframe': '1'})
@@ -305,7 +322,8 @@ class WidgetCartTest(CartTestMixin, TestCase):
 
         response = self.client.get(reverse('account_email_verification_sent'), {'iframe': '1'})
         assert response.status_code == 200
-        assert 'X-Frame-Options' not in response
+        assert response.headers.get('X-Frame-Options') == 'DENY'
+        assert getattr(response, 'xframe_options_exempt', False) is False
 
         from eventyay.eventyay_common.adapter import CustomAccountAdapter
         from django.test import RequestFactory

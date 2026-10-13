@@ -6,7 +6,7 @@ from django.utils.functional import cached_property
 from django.views.generic.list import ListView
 
 from eventyay.base.models import Order
-from eventyay.common.views.helpers import is_widget_iframe_request
+from eventyay.common.views.helpers import is_trusted_widget_framing_authorized, is_widget_iframe_request
 from eventyay.control.views import PaginationMixin
 
 from ..forms.filters import UserOrderFilterForm
@@ -61,6 +61,6 @@ class MyOrdersView(PaginationMixin, ListView):
             logger.info('To redirect to "%s" because the filter values are invalid.', new_url)
             return redirect(new_url)
         response = super().get(request, *args, **kwargs)
-        if is_widget_iframe_request(request):
+        if is_trusted_widget_framing_authorized(request, kwargs):
             response.xframe_options_exempt = True
         return response
