@@ -121,8 +121,9 @@ class CheckoutView(View):
         raise Http404()
 
     def redirect(self, url):
-        if 'cart_id' in self.request.GET:
-            url += ('&' if '?' in url else '?') + 'cart_id=' + quote(self.request.GET.get('cart_id'))
+        cart_id = self.request.GET.get('cart_id') or self.request.POST.get('cart_id')
+        if cart_id and 'cart_id=' not in url and 'take_cart_id=' not in url:
+            url += ('&' if '?' in url else '?') + 'cart_id=' + quote(cart_id)
         if is_widget_iframe_request(self.request, trust_session=bool(self.kwargs.get('cart_namespace'))):
             if 'iframe=1' not in url:
                 url += ('&' if '?' in url else '?') + 'iframe=1'

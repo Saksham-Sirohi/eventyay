@@ -2,6 +2,7 @@ import datetime
 import json
 import re
 from decimal import Decimal
+from urllib.parse import quote
 
 from bs4 import BeautifulSoup
 from django.conf import settings
@@ -248,6 +249,48 @@ class WidgetCartTest(CartTestMixin, TestCase):
             assert resp.status_code in (200, 302)
             assert resp.headers.get('X-Frame-Options') == 'DENY', f"{url} leaked frame exemption"
             assert getattr(resp, 'xframe_options_exempt', False) is False, f"{url} had xframe_options_exempt"
+
+    def test_widget_checkout_step_navigation_preserves_cart_and_iframe(self):
+        # Steps inside widget iframe must preserve cart_id and iframe=1 so buttons/step transitions don't reset cart
+        self.event.settings.set('redirect_to_checkout_directly', True)
+        ns = '1234567890abcdef'
+        response = self.client.post(
+            '/%s/%s/widget/%s/cart/add' % (self.orga.slug, self.event.slug, ns),
+            {'item_%d' % self.ticket.id: '1', 'ajax': 1},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data.get('success') is True
+        raw_cart_id = data.get('cart_id', '')
+
+        # 1. Start checkout
+        start_url = '/%s/%s/widget/%s/checkout/start?cart_id=%s&iframe=1' % (
+            self.orga.slug,
+            self.event.slug,
+            ns,
+            raw_cart_id,
+        )
+        response = self.client.get(start_url)
+        assert response.status_code == 302
+        assert 'cart_id=%s' % quote(raw_cart_id) in response['Location']
+        assert 'iframe=1' in response['Location']
+
+        # 2. Get questions step
+        questions_url = response['Location']
+        response = self.client.get(questions_url)
+        assert response.status_code == 200
+
+        # 3. Post questions step with valid email -> should redirect to payment step with cart_id and iframe=1
+        response = self.client.post(questions_url, {'email': 'test@example.com'})
+        assert response.status_code == 302
+        payment_url = response['Location']
+        assert 'cart_id=%s' % quote(raw_cart_id) in payment_url
+        assert 'iframe=1' in payment_url
+        assert '/checkout/payment/' in payment_url
+
+        # 4. Get payment step -> cart must exist (must NOT redirect to index with cart_empty)
+        response = self.client.get(payment_url)
+        assert response.status_code == 200
 
     def test_allow_frame_if_namespaced_requires_cart_namespace(self):
         response = self.client.get('/%s/%s/' % (self.orga.slug, self.event.slug), {'iframe': '1'})
