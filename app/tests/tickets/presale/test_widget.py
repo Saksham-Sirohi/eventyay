@@ -262,6 +262,40 @@ class WidgetCartTest(CartTestMixin, TestCase):
         assert response.status_code == 200
         assert 'X-Frame-Options' not in response
 
+    def test_logout_from_order_redirects_to_event_home(self):
+        with scopes_disabled():
+            user = User.objects.create_user(email='logout_test_user@example.com', password='password123')
+        self.client.force_login(user)
+
+        order_url = '/%s/%s/order/%s/%s/' % (self.orga.slug, self.event.slug, self.order.code, self.order.secret)
+        response = self.client.get(reverse('common:auth.logout'), {'back': order_url})
+        assert response.status_code == 302
+        assert response['Location'] == '/%s/%s/' % (self.orga.slug, self.event.slug)
+
+        # In iframe, iframe=1 parameter is preserved
+        self.client.force_login(user)
+        response = self.client.get(reverse('common:auth.logout'), {'back': order_url, 'iframe': '1'})
+        assert response.status_code == 302
+        assert response['Location'] == '/%s/%s/?iframe=1' % (self.orga.slug, self.event.slug)
+
+    def test_confirm_email_verification_sent_view(self):
+        response = self.client.get(reverse('account_email_verification_sent'))
+        assert response.status_code == 200
+
+        response = self.client.get(reverse('account_email_verification_sent'), {'iframe': '1'})
+        assert response.status_code == 200
+        assert 'X-Frame-Options' not in response
+
+        from eventyay.eventyay_common.adapter import CustomAccountAdapter
+        from django.test import RequestFactory
+        factory = RequestFactory()
+        req = factory.get('/accounts/signup/?iframe=1&next=/%s/%s/' % (self.orga.slug, self.event.slug))
+        adapter = CustomAccountAdapter()
+        redirect_resp = adapter.respond_email_verification_sent(req, None)
+        assert redirect_resp.status_code == 302
+        assert 'iframe=1' in redirect_resp['Location']
+        assert 'next=' in redirect_resp['Location']
+
     def test_widget_js_waitinglist_uses_product_param(self):
         path = finders.find('pretixpresale/js/widget/widget.js')
         assert path

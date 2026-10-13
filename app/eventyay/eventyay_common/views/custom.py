@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import cached_property
 
 from allauth.account.views import ConfirmEmailView as _ConfirmEmailView
+from allauth.account.views import EmailVerificationSentView as _EmailVerificationSentView
 from allauth.account.views import SignupView as _SignupView
 from django import forms
 from django.conf import settings
@@ -81,6 +82,11 @@ class ConfirmEmailView(_ConfirmEmailView):
             context['invalid_confirmation_message'] = mark_safe(message)
 
         return context
+
+
+@method_decorator(allow_frame_if_iframe_param, 'dispatch')
+class EmailVerificationSentView(_EmailVerificationSentView):
+    template_name = 'account/verification_sent.jinja'
 
 
 # Override to provide additional context for the signup page, such as pages that require confirmation.
