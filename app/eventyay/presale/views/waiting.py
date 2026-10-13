@@ -44,27 +44,26 @@ class WaitingView(EventViewMixin, FormView):
         return ctx
 
     def get(self, request, *args, **kwargs):
-        if request.GET.get('iframe', '') == '1' and 'require_cookie' not in request.GET:
-            # Widget just opened. Let's to a stupid redirect to check if cookies are disabled
-            return redirect(request.get_full_path() + '&require_cookie=true')
-        elif 'require_cookie' in request.GET and settings.SESSION_COOKIE_NAME not in request.COOKIES:
-            # Cookies are in fact not supported. We can't even display the form, since we can't get CSRF right without
-            # cookies.
-            r = render(
-                request,
-                'pretixpresale/event/cookies.html',
-                {
-                    'url': eventreverse(
-                        request.event,
-                        'presale:event.waitinglist',
-                        kwargs={'cart_namespace': kwargs.get('cart_namespace')},
-                    )
-                    + '?'
-                    + url_replace(request, 'require_cookie', '', 'iframe', '')
-                },
-            )
-            r._csp_ignore = True
-            return r
+        if 'require_cookie' in request.GET and settings.SESSION_COOKIE_NAME not in request.COOKIES:
+            if kwargs.get('cart_namespace') or request.GET.get('iframe') == '1':
+                pass
+            else:
+                # Cookies are in fact not supported.
+                r = render(
+                    request,
+                    'pretixpresale/event/cookies.html',
+                    {
+                        'url': eventreverse(
+                            request.event,
+                            'presale:event.waitinglist',
+                            kwargs={'cart_namespace': kwargs.get('cart_namespace')},
+                        )
+                        + '?'
+                        + url_replace(request, 'require_cookie', '', 'iframe', '')
+                    },
+                )
+                r._csp_ignore = True
+                return r
 
         return super().get(request, *args, **kwargs)
 

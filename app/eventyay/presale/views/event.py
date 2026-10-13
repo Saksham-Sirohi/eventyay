@@ -654,34 +654,33 @@ class EventIndex(EventViewMixin, EventListMixin, CartMixin, TemplateView):
             logger.info('Redirecting to %s...', redirect_url)
             return redirect(redirect_url)
         elif request.GET.get('iframe', '') == '1' and 'take_cart_id' in request.GET:
-            # Widget just opened, a cart already exists. Let's to a stupid redirect to check if cookies are disabled
             get_or_create_cart_id(request)
-            redirect_url = eventreverse(request.event, 'presale:event.index', kwargs=kwargs) + '?require_cookie=true&cart_id={}'.format(request.GET.get('take_cart_id'))
-            logger.info('Redirecting to %s...', redirect_url)
-            return redirect(redirect_url)
         elif request.GET.get('iframe', '') == '1' and len(self.request.GET.get('widget_data', '{}')) > 3:
             # We've been passed data from a widget, we need to create a cart session to store it.
             get_or_create_cart_id(request)
         elif 'require_cookie' in request.GET and settings.SESSION_COOKIE_NAME not in request.COOKIES:
-            # Cookies are in fact not supported
-            r = render(
-                request,
-                'pretixpresale/event/cookies.html',
-                {
-                    'url': eventreverse(
-                        request.event,
-                        'presale:event.index',
-                        kwargs={'cart_namespace': kwargs.get('cart_namespace') or ''},
-                    )
-                    + (
-                        '?src=widget&take_cart_id={}'.format(request.GET.get('cart_id'))
-                        if 'cart_id' in request.GET
-                        else ''
-                    )
-                },
-            )
-            r._csp_ignore = True
-            return r
+            if kwargs.get('cart_namespace') or request.GET.get('cart_id') or request.GET.get('take_cart_id') or request.GET.get('iframe') == '1':
+                pass
+            else:
+                # Cookies are in fact not supported
+                r = render(
+                    request,
+                    'pretixpresale/event/cookies.html',
+                    {
+                        'url': eventreverse(
+                            request.event,
+                            'presale:event.index',
+                            kwargs={'cart_namespace': kwargs.get('cart_namespace') or ''},
+                        )
+                        + (
+                            '?src=widget&take_cart_id={}'.format(request.GET.get('cart_id'))
+                            if 'cart_id' in request.GET
+                            else ''
+                        )
+                    },
+                )
+                r._csp_ignore = True
+                return r
 
         if request.sales_channel.identifier not in request.event.sales_channels:
             raise Http404(_('Tickets for this event cannot be purchased on this sales channel.'))
@@ -1037,11 +1036,7 @@ class SeatingPlanView(EventViewMixin, TemplateView):
             logger.info('Redirecting to %s...', redirect_url)
             return redirect(redirect_url)
         elif request.GET.get('iframe', '') == '1' and 'take_cart_id' in request.GET:
-            # Widget just opened, a cart already exists. Let's to a stupid redirect to check if cookies are disabled
             get_or_create_cart_id(request)
-            redirect_url = eventreverse(request.event, 'presale:event.seatingplan', kwargs=kwargs) + '?require_cookie=true&cart_id={}'.format(request.GET.get('take_cart_id'))
-            logger.info('Redirecting to %s...', redirect_url)
-            return redirect(redirect_url)
         elif request.GET.get('iframe', '') == '1' and len(self.request.GET.get('widget_data', '{}')) > 3:
             # We've been passed data from a widget, we need to create a cart session to store it.
             get_or_create_cart_id(request)
