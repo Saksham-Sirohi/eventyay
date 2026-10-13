@@ -38,23 +38,32 @@ def is_widget_iframe_request(request, trust_session=False):
 def allow_frame_if_iframe_param(view_func):
     """
     Drop ``X-Frame-Options`` when the request is explicitly marked as frame-safe
-    via ``?iframe=1``. Used for auth pages (forgot password, signup) that need to
-    render inside the widget checkout popup without opening a new tab.
+    via ``?iframe=1``, ``is_widget_iframe_request``, or when requested inside an iframe
+    via Sec-Fetch-Dest or active widget session.
     """
 
     def wrapped_view(request, *args, **kwargs):
         resp = view_func(request, *args, **kwargs)
-        if 'iframe' in request.GET or 'iframe=1' in request.GET.get('next', '') or is_widget_iframe_request(request):
+        sec_dest = getattr(request, 'headers', {}).get('Sec-Fetch-Dest') or request.META.get('HTTP_SEC_FETCH_DEST')
+        if (
+            'iframe' in request.GET
+            or 'iframe=1' in request.GET.get('next', '')
+            or is_widget_iframe_request(request, trust_session=True)
+            or getattr(request, 'session', {}).get('iframe_session')
+            or sec_dest == 'iframe'
+        ):
             resp.xframe_options_exempt = True
         return resp
 
     return wraps(view_func)(wrapped_view)
 
 
-def build_login_url_with_next(next_path):
+def build_login_url_with_next(next_path, request=None):
     """Build ``/login/?next=…`` for post-login return navigation."""
     params = {'next': next_path}
     if 'iframe=1' in next_path or 'iframe' in next_path:
+        params['iframe'] = '1'
+    elif request and (is_widget_iframe_request(request, trust_session=True) or getattr(request, 'session', {}).get('iframe_session')):
         params['iframe'] = '1'
     return f'{reverse("auth.login")}?{urlencode(params)}'
 
@@ -65,11 +74,11 @@ def login_redirect_with_next(request, next_path=None):
     current request path). AJAX callers receive JSON with ``login_url``.
     """
     next_url = next_path or request.get_full_path()
-    login_url = build_login_url_with_next(next_url)
+    login_url = build_login_url_with_next(next_url, request=request)
     if is_ajax_request(request):
         return JsonResponse({'login_url': login_url}, status=HTTPStatus.UNAUTHORIZED)
     resp = redirect(login_url)
-    if is_widget_iframe_request(request) or 'iframe=1' in login_url:
+    if is_widget_iframe_request(request, trust_session=True) or 'iframe=1' in login_url or getattr(request, 'session', {}).get('iframe_session'):
         resp.xframe_options_exempt = True
     return resp
 

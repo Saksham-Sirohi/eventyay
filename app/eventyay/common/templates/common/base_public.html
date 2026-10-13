@@ -234,7 +234,7 @@
                                 {% endif %}
                             {% endblock hero_text %}
                         </div>
-                        {% if show_online_video_link and not is_widget_iframe and 'iframe' not in request.GET %}
+                        {% if show_online_video_link and not is_widget_iframe and not request.session.iframe_session and not cart_namespace and 'iframe' not in request.GET %}
                             {% if request.resolver_match.namespace == 'agenda' %}
                                 {% url 'agenda:event.onlinevideo.join' organizer=current_event.organizer.slug event=current_event.slug as join_event_url %}
                             {% else %}
@@ -339,7 +339,7 @@
                 {% eventurl current_event "presale:event.contact" as contact_url %}
                 {% include "common/includes/contact_organizer_modal.html" with contact_url=contact_url %}
             {% endif %}
-            {% if show_online_video_link and not is_widget_iframe and 'iframe' not in request.GET %}
+            {% if show_online_video_link and not is_widget_iframe and not request.session.iframe_session and not cart_namespace and 'iframe' not in request.GET %}
                 {% include "pretixpresale/fragment_join_online_video.html" %}
             {% endif %}
         {% endif %}
