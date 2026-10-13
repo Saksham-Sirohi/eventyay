@@ -3,7 +3,7 @@ import json
 import logging
 import time
 from typing import cast
-from urllib.parse import quote, urlencode, urlparse
+from urllib.parse import quote, urlencode, urlparse, urlunparse
 
 import webauthn
 from django.conf import settings
@@ -161,15 +161,26 @@ def login(request):
 
 def logout(request):
     """
-    Log the user out of the current session, then redirect to login page.
+    Log the user out of the current session, then redirect to login page or safe return destination.
+    When logging out from an order page (/order/...), redirect to the event's home/store page.
     """
     auth_logout(request)
     request.session['eventyay_auth_login_time'] = 0
+
+    target = request.GET.get('back') or request.GET.get('next')
+    if target and is_safe_redirect_url(target, request):
+        parsed = urlparse(target)
+        if '/order/' in parsed.path:
+            event_home = parsed.path.split('/order/')[0] + '/'
+            query = 'iframe=1' if ('iframe' in request.GET or 'iframe=1' in parsed.query) else ''
+            target_url = urlunparse((parsed.scheme, parsed.netloc, event_home, '', query, ''))
+            return redirect(target_url)
+        if 'back' in request.GET:
+            return redirect(target)
+
     next = reverse('auth.login')
     if 'next' in request.GET and is_safe_redirect_url(request.GET.get('next'), request):
         next += '?next=' + quote(request.GET.get('next'))
-    if 'back' in request.GET and is_safe_redirect_url(request.GET.get('back'), request):
-        return redirect(request.GET.get('back'))
     return redirect(next)
 
 
