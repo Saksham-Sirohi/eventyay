@@ -34,9 +34,50 @@ def is_safe_redirect_url(url, request=None):
     return url_has_allowed_host_and_scheme(url, allowed_hosts=allowed_hosts)
 
 
+def is_namespaced_widget_request(request):
+    """
+    True ONLY if the request is on a verified namespaced widget route (has a valid
+    16-character alphanumeric cart_namespace).
+    Bare query parameters (?iframe=1), unscoped session flags, or headers do NOT grant
+    namespaced widget status.
+    """
+    if not request:
+        return False
+    resolver_match = getattr(request, 'resolver_match', None)
+    if resolver_match and resolver_match.kwargs:
+        ns = resolver_match.kwargs.get('cart_namespace')
+        if ns and isinstance(ns, str) and len(ns) == 16 and ns.isalnum():
+            return True
+    return False
+
+
+def is_trusted_widget_framing_authorized(request, kwargs=None):
+    """
+    Keep framing enabled ONLY for namespaced widget routes or an explicit allow-listed embedding origin.
+    Do NOT use query parameters (?iframe=1), unscoped session flags, or Sec-Fetch-Dest as framing authorization.
+    """
+    if not request:
+        return False
+    if is_namespaced_widget_request(request):
+        return True
+    if kwargs and kwargs.get('cart_namespace'):
+        ns = kwargs.get('cart_namespace')
+        if isinstance(ns, str) and len(ns) == 16 and ns.isalnum():
+            return True
+    allowed_origins = getattr(settings, 'EVENTYAY_FRAME_ALLOW_ORIGINS', None)
+    if allowed_origins:
+        origin = getattr(request, 'headers', {}).get('Origin') or (
+            request.META.get('HTTP_ORIGIN') if hasattr(request, 'META') else None
+        )
+        if origin and origin in allowed_origins:
+            return True
+    return False
+
+
 def is_widget_destination_or_origin(url, request=None):
     """
     Check if an URL is a safe internal widget destination (has /widget/ in path or iframe query param).
+    Used for return URL context propagation.
     """
     if not is_safe_redirect_url(url, request):
         return False
@@ -54,6 +95,8 @@ def is_widget_destination_or_origin(url, request=None):
 def is_widget_iframe_request(request, trust_session=False):
     """
     True if the request is rendered inside the widget iframe (``?iframe=1`` or widget namespace).
+    NOTE: Strictly for context propagation (UI layout, cookie partitioning, URL query params).
+    DO NOT use this for framing authorization (xframe_options_exempt).
     """
     if not request:
         return False
@@ -68,9 +111,9 @@ def is_widget_iframe_request(request, trust_session=False):
 
 def allow_frame_if_iframe_param(view_func):
     """
-    Drop ``X-Frame-Options`` when the request is explicitly marked as frame-safe
-    via ``?iframe=1``, widget cart namespace, active widget session with widget context,
-    or a validated widget redirect destination.
+    Restrict frame exemptions to trusted widget contexts:
+    Keep framing enabled ONLY for namespaced widget routes or an explicit allow-listed embedding origin.
+    Do NOT use query parameters (?iframe=1), unscoped session flags, or Sec-Fetch-Dest as framing authorization.
     """
 
     def wrapped_view(request, *args, **kwargs):
@@ -78,29 +121,7 @@ def allow_frame_if_iframe_param(view_func):
         if not resp:
             return resp
 
-        has_widget_next = is_widget_destination_or_origin(request.GET.get('next', ''), request)
-        referer = getattr(request, 'headers', {}).get('Referer') or (
-            request.META.get('HTTP_REFERER') if hasattr(request, 'META') else None
-        )
-        referer_is_widget = is_widget_destination_or_origin(referer, request)
-        sec_dest = getattr(request, 'headers', {}).get('Sec-Fetch-Dest') or (
-            request.META.get('HTTP_SEC_FETCH_DEST') if hasattr(request, 'META') else None
-        )
-
-        is_framed_widget = (
-            is_widget_iframe_request(request, trust_session=False)
-            or has_widget_next
-            or referer_is_widget
-            or (
-                sec_dest == 'iframe'
-                and (
-                    getattr(request, 'session', {}).get('iframe_session')
-                    or is_widget_iframe_request(request, trust_session=True)
-                )
-            )
-        )
-
-        if is_framed_widget:
+        if is_trusted_widget_framing_authorized(request, kwargs):
             resp.xframe_options_exempt = True
         return resp
 
@@ -110,17 +131,9 @@ def allow_frame_if_iframe_param(view_func):
 def build_login_url_with_next(next_path, request=None):
     """Build ``/login/?next=…`` for post-login return navigation."""
     params = {'next': next_path}
-    has_widget_next = is_widget_destination_or_origin(next_path, request)
-    sec_dest = None
-    if request:
-        sec_dest = getattr(request, 'headers', {}).get('Sec-Fetch-Dest') or (
-            request.META.get('HTTP_SEC_FETCH_DEST') if hasattr(request, 'META') else None
-        )
-
     if (
-        has_widget_next
-        or (request and is_widget_iframe_request(request, trust_session=False))
-        or (request and sec_dest == 'iframe' and getattr(request, 'session', {}).get('iframe_session'))
+        is_widget_destination_or_origin(next_path, request)
+        or (request and is_widget_iframe_request(request))
     ):
         params['iframe'] = '1'
 
@@ -137,7 +150,7 @@ def login_redirect_with_next(request, next_path=None):
     if is_ajax_request(request):
         return JsonResponse({'login_url': login_url}, status=HTTPStatus.UNAUTHORIZED)
     resp = redirect(login_url)
-    if is_widget_iframe_request(request, trust_session=True) or 'iframe=1' in login_url or getattr(request, 'session', {}).get('iframe_session'):
+    if is_trusted_widget_framing_authorized(request):
         resp.xframe_options_exempt = True
     return resp
 
