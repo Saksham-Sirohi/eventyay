@@ -17,6 +17,18 @@ from eventyay.plugins.socialauth.schemas.oauth2_params import OAuth2Params
 
 
 class CustomAccountAdapter(DefaultAccountAdapter):
+    def respond_email_verification_sent(self, request, user):
+        params = {}
+        if 'iframe' in request.GET or getattr(request, 'session', {}).get('iframe_session'):
+            params['iframe'] = '1'
+        next_url = request.GET.get('next') or request.POST.get('next')
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts=None):
+            params['next'] = next_url
+        url = reverse('account_email_verification_sent')
+        if params:
+            url += '?' + urlencode(params)
+        return HttpResponseRedirect(url)
+
     def is_open_for_signup(self, request: HttpRequest) -> bool:
         pretix_auth_backends = get_auth_backends()
         return settings.EVENTYAY_REGISTRATION and 'native' in pretix_auth_backends

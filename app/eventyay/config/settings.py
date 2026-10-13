@@ -1233,8 +1233,6 @@ CSRF_COOKIE_NAME = 'eventyay_csrftoken'
 # TODO: After merging eventyay-xxx componenents, we may not need this.
 CSRF_TRUSTED_ORIGINS = ['http://localhost:1337', 'http://next.eventyay.com:1337', 'https://next.eventyay.com']
 SESSION_COOKIE_HTTPONLY = True
-SESSION_COOKIE_SAMESITE = 'None'
-CSRF_COOKIE_SAMESITE = 'None'
 # TODO: Remove. We always use Nginx or we are even behind CloudFlare,
 # so trusting X-Forwarded-For is a must, if we want to get real client IP.
 TRUST_X_FORWARDED_FOR = True
