@@ -407,21 +407,6 @@ CORE_MODULES = (
     )
 )
 
-# Widgets are public embeds served to any origin, so all origins must be allowed.
-# CORS_URLS_REGEX restricts which URL paths receive the header — widget endpoints,
-# event CSS, and /api/v1 (check-in app on access.eventyay.com or local Vite dev).
-CORS_ALLOW_ALL_ORIGINS = True
-
-CORS_URLS_REGEX = (
-    r"^(?:"
-    r".*/widget[s]?/.*|"
-    r".*/schedule/widget/.*|"
-    r".*/static/event\.css|"
-    r".*/static/schedule/.*\.js|"
-    r"/api/v1/.*"
-    r")$"
-)
-
 CORS_ALLOW_HEADERS = [*default_headers, "exhibitor"]
 
 # TODO: This list is only for display. It should not be here.
@@ -1248,6 +1233,8 @@ CSRF_COOKIE_NAME = 'eventyay_csrftoken'
 # TODO: After merging eventyay-xxx componenents, we may not need this.
 CSRF_TRUSTED_ORIGINS = ['http://localhost:1337', 'http://next.eventyay.com:1337', 'https://next.eventyay.com']
 SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'None'
+CSRF_COOKIE_SAMESITE = 'None'
 # TODO: Remove. We always use Nginx or we are even behind CloudFlare,
 # so trusting X-Forwarded-For is a must, if we want to get real client IP.
 TRUST_X_FORWARDED_FOR = True

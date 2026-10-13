@@ -21,8 +21,8 @@ from django.utils.http import http_date
 from django_scopes import scopes_disabled
 
 from eventyay.base.middleware import should_skip_session_save
-from eventyay.base.models import Event, Organizer
-from eventyay.helpers.cookies import set_cookie_without_samesite
+from eventyay.common.middleware.domains import is_main_domain_auth_route
+from eventyay.helpers.cookies import delete_cookie_without_samesite, set_cookie_without_samesite
 from eventyay.multidomain.models import KnownDomain
 
 LOCAL_HOST_NAMES = ('testserver', 'localhost')
@@ -84,7 +84,11 @@ class MultiDomainMiddleware(MiddlewareMixin):
                 request.organizer_domain = True
                 request.organizer = orga if isinstance(orga, Organizer) else Organizer.objects.get(pk=orga)
                 request.urlconf = 'eventyay.multidomain.maindomain_urlconf'
-            elif settings.IS_DEVELOPMENT or domain in LOCAL_HOST_NAMES:
+            elif (
+                settings.IS_DEVELOPMENT
+                or domain in LOCAL_HOST_NAMES
+                or is_main_domain_auth_route(request)
+            ):
                 request.urlconf = 'eventyay.multidomain.maindomain_urlconf'
             else:
                 msg = f'Unknown host: {domain}'
@@ -121,7 +125,13 @@ class SessionMiddleware(BaseSessionMiddleware):
             # First check if we need to delete this cookie.
             # The session should be deleted only if the session is entirely empty
             if settings.SESSION_COOKIE_NAME in request.COOKIES and empty:
-                response.delete_cookie(settings.SESSION_COOKIE_NAME)
+                delete_cookie_without_samesite(
+                    request,
+                    response,
+                    settings.SESSION_COOKIE_NAME,
+                    domain=get_cookie_domain(request),
+                    path=settings.SESSION_COOKIE_PATH,
+                )
             else:
                 if accessed:
                     patch_vary_headers(response, ('Cookie',))

@@ -28,6 +28,7 @@ from django.http import HttpRequest
 from django.urls import reverse
 from django.utils.crypto import get_random_string, salted_hmac
 from django.utils.functional import cached_property
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.timezone import now
 from django.utils.translation import gettext_lazy as _
 from django.utils.translation import override
@@ -558,6 +559,11 @@ class User(
             'id': self.id,
             'token': security_token,
         }
+        next_url = request.GET.get('next') if request else None
+        if next_url and url_has_allowed_host_and_scheme(next_url, allowed_hosts=None):
+            params['next'] = next_url
+        if request and 'iframe' in request.GET:
+            params['iframe'] = '1'
         action_url = request.build_absolute_uri(f'{base_action_url}?{urlencode(params)}')
         logger.info('Action URL for %s to reset password: %s', self.email, action_url)
         context = {'user': self, 'url': action_url}
