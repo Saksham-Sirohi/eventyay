@@ -414,7 +414,7 @@ const gridStyle = computed(() => {
     if (slice.gap) {
       height = 100 * (minimumSliceMins / 30)
     } else if (slice.datebreak) {
-      height = baseSliceHeight
+      height = Math.max(52, baseSliceHeight)
     } else if (next) {
       height = Math.min(baseSliceHeight, next.date.diff(slice.date, 'minutes') * 2)
     }
@@ -822,11 +822,6 @@ const isSliceExpandable = (slice: Timeslice): boolean => {
 }
 
 const getSliceStyle = (slice: Timeslice): Record<string, string> => {
-  if (slice.datebreak) {
-    let index = timeslices.value.findIndex(s => s.date.isAfter(slice.date, 'day'))
-    if (index < 0) index = timeslices.value.length - 1
-    return { 'grid-area': `${slice.name} / 1 / ${timeslices.value[index].name} / auto` }
-  }
   return { 'grid-area': `${slice.name} / 1 / auto / auto` }
 }
 
@@ -1036,6 +1031,12 @@ onUnmounted(() => {
 			font-weight: 600
 			border-top: 3px solid $clr-dividers-light
 			white-space: pre
+			display: flex
+			flex-direction: column
+			justify-content: center
+			align-items: center
+			line-height: 1.3
+			padding: 4px
 		&.expandable:hover
 			background-color: $clr-grey-200
 			cursor: pointer
