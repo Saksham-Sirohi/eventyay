@@ -30,12 +30,15 @@
 			)
 		.availability(v-for="availability of visibleAvailabilities", :key="`${availability.room.id}-${availability.start.valueOf()}-${availability.end.valueOf()}`", :style="getSessionStyle(availability)", :class="availability.active ? ['active'] : []")
 	#hidden-rooms.no-print(v-if="hiddenRooms.length")
-		h4 {{ $t('Hidden rooms') }} ({{ hiddenRooms.length }})
+		.hidden-rooms-header
+			i.fa.fa-eye-slash
+			span.hidden-rooms-title {{ $t('Hidden rooms') }}
+			span.hidden-rooms-badge {{ hiddenRooms.length }}
 		.room-list
-			.room-entry(v-for="room of hiddenRooms", :key="room.id", @click="hiddenRooms.splice(hiddenRooms.indexOf(room), 1)")
-				.span {{ getLocalizedString(room.name) }}
-				.show-room(@click.stop="hiddenRooms.splice(hiddenRooms.indexOf(room), 1)")
-					i.fa.fa-eye
+			.room-entry(v-for="room of hiddenRooms", :key="room.id", @click="hiddenRooms.splice(hiddenRooms.indexOf(room), 1)", :title="$t('Click to show room')")
+				span.room-name {{ getLocalizedString(room.name) }}
+				button.show-room-btn(type="button", @click.stop="hiddenRooms.splice(hiddenRooms.indexOf(room), 1)", :aria-label="$t('Show room')", :title="$t('Show room')")
+					i.fa.fa-eye(aria-hidden="true")
 </template>
 
 <script lang="ts" setup>
@@ -954,6 +957,9 @@ onUnmounted(() => {
 <style lang="stylus">
 .c-grid-schedule
 	flex: auto
+	min-height: calc(100% - 36px)
+	display: flex
+	flex-direction: column
 	.grid
 		display: grid
 		grid-template-columns: 78px repeat(var(--total-rooms), 1fr) auto
@@ -961,26 +967,28 @@ onUnmounted(() => {
 			grid-template-columns: 78px repeat(var(--total-rooms), minmax(260px, 1fr)) auto
 		position: relative
 		min-width: min-content
+		min-height: 100%
 		&.illegal-hover
 			cursor: not-allowed
 			.c-linear-schedule-session
 				cursor: not-allowed
 		> .room
 			position: sticky
-			top: calc(48px)
+			top: calc(36px)
 			display: flex
 			justify-content: center
 			align-items: center
-			font-size: 18px
+			font-size: 13px
+			font-weight: 600
 			background-color: $clr-white
 			border-bottom: 1px solid $clr-dividers-light
 			z-index: 40
 			min-width: 0
 			box-sizing: border-box
-			padding: 8px 12px
+			padding: 6px 10px
 			&:first-child
 				left: 0
-				top: calc(48px)
+				top: calc(36px)
 				z-index: 45
 				min-width: 78px
 				width: 78px
@@ -1120,36 +1128,82 @@ onUnmounted(() => {
 #hidden-rooms
 	position: fixed
 	z-index: 500
-	bottom: 0
-	right: 0
-	width: 300px
+	bottom: 16px
+	right: 16px
+	min-width: 220px
+	max-width: 300px
 	background-color: $clr-white
-	padding: 8px 16px
-	box-shadow: 0 0 10px rgba(0, 0, 0, 0.3)
-	border-top-left-radius: 8px
-	font-size: 16px
+	border: 1px solid #e2e8f0
+	border-radius: 8px
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12)
+	overflow: hidden
+	font-size: 13px
+
+	.hidden-rooms-header
+		display: flex
+		align-items: center
+		gap: 6px
+		padding: 8px 12px
+		background-color: #f8fafc
+		border-bottom: 1px solid #e2e8f0
+		color: #334155
+		font-weight: 600
+		font-size: 13px
+		.fa-eye-slash
+			color: #64748b
+			font-size: 12px
+		.hidden-rooms-title
+			flex: 1
+		.hidden-rooms-badge
+			background-color: #e2e8f0
+			color: #475569
+			font-size: 11px
+			font-weight: 700
+			padding: 2px 6px
+			border-radius: 10px
 
 	.room-list
-		display: none
-
-	&:hover
-		.room-list
-			display: block
+		padding: 4px
+		max-height: 200px
+		overflow-y: auto
 
 	.room-entry
-		border-bottom: 1px solid $clr-dividers-light
 		display: flex
 		justify-content: space-between
 		align-items: center
-		height: 28px
-		padding: 4px 0
+		padding: 6px 10px
+		border-radius: 6px
 		cursor: pointer
-		.show-room
-			color: $clr-secondary-text-light
-			font-size: 14px
-			margin-left: 16px
-			padding: 4px 8px
-			border-radius: 4px
+		transition: background-color 0.15s ease
+		color: #1e293b
+		font-size: 12px
+		font-weight: 500
 		&:hover
-			background-color: $clr-grey-100
+			background-color: #f1f5f9
+			.show-room-btn
+				color: var(--color-primary, #2185d0)
+		.room-name
+			flex: 1
+			overflow: hidden
+			text-overflow: ellipsis
+			white-space: nowrap
+			padding-right: 8px
+		.show-room-btn
+			display: flex
+			align-items: center
+			justify-content: center
+			width: 24px
+			height: 24px
+			padding: 0
+			border: none
+			background: transparent
+			color: #64748b
+			cursor: pointer
+			border-radius: 4px
+			transition: all 0.15s ease
+			&:hover
+				background-color: #e2e8f0
+				color: var(--color-primary, #2185d0)
+			.fa
+				font-size: 12px
 </style>
