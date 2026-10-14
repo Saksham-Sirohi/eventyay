@@ -3,6 +3,7 @@ from types import SimpleNamespace
 
 from django.template.loader import render_to_string
 from django.test import RequestFactory
+from django.utils import translation
 
 from eventyay.agenda.views.schedule import schedule_messages
 
@@ -47,12 +48,22 @@ def test_schedule_messages_lang_param_zh_hans(rf: RequestFactory):
 
 
 def test_schedule_messages_invalid_locale_fallback(rf: RequestFactory):
-    request = rf.get('/widget/messages.js?locale=nonexistent-locale')
+    # When active language is English (default), invalid locale falls back to English
+    request = rf.get('/widget/messages.js?locale=nonexistent-locale-en')
     response = schedule_messages(request)
     messages = _parse_messages(response)
 
     assert messages['add_to_calendar'] == 'Add to Calendar'
     assert messages['speakers'] == 'Speakers'
+
+    # When active language is non-English, invalid locale preserves the active language context
+    with translation.override('de'):
+        request_de = rf.get('/widget/messages.js?locale=nonexistent-locale-de')
+        response_de = schedule_messages(request_de)
+        messages_de = _parse_messages(response_de)
+
+        assert messages_de['add_to_calendar'] == 'Zum Kalender hinzufügen'
+        assert messages_de['speakers'] == 'Redner'
 
 
 def test_schedule_messages_cache_isolation_between_locales(rf: RequestFactory):
