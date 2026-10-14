@@ -1149,6 +1149,7 @@ async function stopDragging(): Promise<void> {
 
 function onWindowResize() {
   scrollParentWidth.value = document.body.offsetWidth
+  isMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
 }
 
 async function pollUpdates() {
@@ -1237,11 +1238,12 @@ const isRtl = computed(() => {
   return document.documentElement.dir === 'rtl' || document.documentElement.classList.contains('rtl')
 })
 
+const isMobile = ref<boolean>(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
 const actionsWidth = ref<number>(0)
 let actionsObserver: ResizeObserver | null = null
 
 const actionsControlsStyle = computed(() => {
-  if (!actionsWidth.value) return undefined
+  if (isMobile.value || !actionsWidth.value) return undefined
   if (isRtl.value) {
     return { paddingLeft: `${actionsWidth.value + 16}px`, paddingRight: '0px' }
   }
@@ -1780,11 +1782,13 @@ html.rtl
 		margin-right: 0
 		padding: 0 12px
 		width: 100%
+		height: auto
 		box-sizing: border-box
 		min-height: calc(100vh - 160px)
 		#main-wrapper
 			flex-direction: column
 			width: 100%
+			height: auto
 			box-sizing: border-box
 		#unassigned
 			width: 100%
@@ -1792,8 +1796,9 @@ html.rtl
 			margin-top: 0
 			margin-bottom: 12px
 			background-color: $clr-white
-			padding-top: 8px
-			padding-bottom: 4px
+			padding: 8px 0 4px 0
+			border-right: none
+			border-left: none
 			flex: none
 			&.is-collapsed
 				.unassigned-body
@@ -1824,11 +1829,30 @@ html.rtl
 						padding: 4px 8px
 						.density-btn-text
 							display: none
+		.schedule-controls
+			padding-right: 0
+			padding-left: 0
 		#schedule-wrapper
 			width: 100%
 			margin-right: 0
+			padding-left: 0
+			padding-right: 0
 			box-sizing: border-box
 			overflow: auto
+
+html[dir="rtl"],
+html.rtl
+	@media (max-width: 767px)
+		.schedule-controls
+			padding-right: 0
+			padding-left: 0
+		#unassigned
+			padding: 8px 0 4px 0
+			border-left: none
+			border-right: none
+		#schedule-wrapper
+			padding-left: 0
+			padding-right: 0
 
 #session-editor-wrapper, #assign-modal-wrapper
 	position: fixed
