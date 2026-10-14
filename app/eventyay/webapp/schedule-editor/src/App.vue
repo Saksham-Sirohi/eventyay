@@ -1733,18 +1733,6 @@ onUnmounted(() => {
 		padding-left: 8px
 		box-sizing: border-box
 
-html[dir="rtl"],
-html.rtl
-	#unassigned
-		padding: 0 0 8px 8px
-		border-right: none
-		border-left: 1px solid #e2e8f0
-	#schedule-wrapper
-		padding-left: 0
-		padding-right: 8px
-	.schedule-controls
-		padding-right: 0
-		padding-left: 220px
 	#unassigned
 		.unassigned-mobile-header
 			display: none
@@ -1772,6 +1760,19 @@ html.rtl
 				.unassigned-collapse-icon
 					color: #64748b
 					font-size: 14px
+
+html[dir="rtl"],
+html.rtl
+	#unassigned
+		padding: 0 0 8px 8px
+		border-right: none
+		border-left: 1px solid #e2e8f0
+	#schedule-wrapper
+		padding-left: 0
+		padding-right: 8px
+	.schedule-controls
+		padding-right: 0
+		padding-left: 220px
 
 @media (max-width: 767px)
 	.pretalx-schedule
