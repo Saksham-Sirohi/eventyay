@@ -1,11 +1,20 @@
 import json
 from types import SimpleNamespace
 
+from django.core.cache import cache
 from django.template.loader import render_to_string
-from django.test import RequestFactory
+from django.test import RequestFactory, override_settings
 from django.utils import translation
 
 from eventyay.agenda.views.schedule import schedule_messages
+
+
+LOCMEM_CACHE = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'agenda-messages-cache-tests',
+    }
+}
 
 
 def _parse_messages(response):
@@ -66,21 +75,26 @@ def test_schedule_messages_invalid_locale_fallback(rf: RequestFactory):
         assert messages_de['speakers'] == 'Redner'
 
 
+@override_settings(CACHES=LOCMEM_CACHE)
 def test_schedule_messages_cache_isolation_between_locales(rf: RequestFactory):
-    # Call en first
-    req_en = rf.get('/widget/messages.js?locale=en')
-    resp_en1 = schedule_messages(req_en)
-    assert _parse_messages(resp_en1)['add_to_calendar'] == 'Add to Calendar'
+    cache.clear()
+    try:
+        # Call en first
+        req_en = rf.get('/widget/messages.js?locale=en')
+        resp_en1 = schedule_messages(req_en)
+        assert _parse_messages(resp_en1)['add_to_calendar'] == 'Add to Calendar'
 
-    # Call zh-hans next
-    req_zh = rf.get('/widget/messages.js?locale=zh-hans')
-    resp_zh = schedule_messages(req_zh)
-    assert _parse_messages(resp_zh)['add_to_calendar'] == '添加到日历'
+        # Call zh-hans next
+        req_zh = rf.get('/widget/messages.js?locale=zh-hans')
+        resp_zh = schedule_messages(req_zh)
+        assert _parse_messages(resp_zh)['add_to_calendar'] == '添加到日历'
 
-    # Call en again, ensuring zh-hans cached value does not leak into en
-    resp_en2 = schedule_messages(req_en)
-    assert _parse_messages(resp_en2)['add_to_calendar'] == 'Add to Calendar'
-    assert _parse_messages(resp_en2)['speakers'] == 'Speakers'
+        # Call en again, ensuring zh-hans cached value does not leak into en
+        resp_en2 = schedule_messages(req_en)
+        assert _parse_messages(resp_en2)['add_to_calendar'] == 'Add to Calendar'
+        assert _parse_messages(resp_en2)['speakers'] == 'Speakers'
+    finally:
+        cache.clear()
 
 
 def test_pretalx_messages_script_template_rendering():
