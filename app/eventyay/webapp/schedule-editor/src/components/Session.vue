@@ -423,6 +423,48 @@ sessionTextExpand()
 			.title.title-clamped, .speakers.speakers-clamped
 				sessionTextExpand()
 
+html[dir="rtl"],
+html.rtl
+	.c-linear-schedule-session
+		.time-box
+			border-radius: 0 6px 6px 0
+		&.isbreak
+			.time-box
+				border-radius: 0 6px 6px 0
+		&.istalk
+			.info
+				border-left: 1px solid $clr-dividers-light
+				border-right: none
+				border-radius: 6px 0 0 6px
+			&:hover .info
+				border-left: 1px solid var(--track-color)
+				border-right: none
+		&.pending, &.unconfirmed
+			.info
+				border-left: 1px solid $clr-dividers-light
+				border-right: none
+				border-radius: 6px 0 0 6px
+			&:hover .info
+				border-left: 1px solid var(--track-color)
+				border-right: none
+		&.pending .info
+			border-style: dashed none dashed dashed
+		&.is-drop-target .info
+			border-style: dashed none dashed dashed
+		.warning
+			right: auto
+			left: 0
+		&:has(.unschedule-btn)
+			.info
+				padding-right: 8px
+				padding-left: 26px
+			.warning
+				right: auto
+				left: 28px
+		.unschedule-btn
+			right: auto
+			left: 4px
+
 @media print
 	.c-linear-schedule-session .unschedule-btn
 		display: none

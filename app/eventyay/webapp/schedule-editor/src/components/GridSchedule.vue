@@ -1005,7 +1005,7 @@ onUnmounted(() => {
 			.hide-room
 				color: $clr-secondary-text-light
 				font-size: 14px
-				margin-left: 16px
+				margin-inline-start: 16px
 				cursor: pointer
 				padding: 4px 8px
 				border-radius: 4px
@@ -1206,4 +1206,21 @@ onUnmounted(() => {
 				color: var(--color-primary, #2185d0)
 			.fa
 				font-size: 12px
+
+html[dir="rtl"],
+html.rtl
+	.c-grid-schedule
+		.grid > .room:first-child
+			right: 0
+			left: auto
+			border-left: 1px solid $clr-dividers-light
+			border-right: none
+		.timeslice
+			right: 0
+			left: auto
+			border-left: 1px solid $clr-dividers-light
+			border-right: none
+	#hidden-rooms
+		left: 16px
+		right: auto
 </style>

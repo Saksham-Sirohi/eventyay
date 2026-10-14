@@ -60,10 +60,9 @@
 						p {{ caps.showRoles ? $t('These shifts were in a room that has been deleted or unscheduled. Drag them into another room to restore them to the schedule.') : $t('These sessions were assigned to a room that has been deleted. Drag them into another room to restore them to the schedule.') }}
 						session(v-for="session in deletedRoomSessions", :key="session.id", :session="session", @startDragging="startDragging", :isDragged="draggedSession && session.id === draggedSession.id")
 			#schedule-wrapper(v-scrollbar.x.y="")
-				.schedule-controls
+				.schedule-controls(:style="actionsControlsStyle")
 					bunt-tabs.days(v-if="days", :modelValue="currentDay.format()", ref="tabs" :class="['grid-tabs']")
 						bunt-tab(v-for="day of days", :key="day.format()", :id="day.format()", :header="day.format(dateFormat)", @selected="changeDay(day)")
-					#schedule-actions-container(ref="scheduleActionsContainerRef")
 				grid-schedule(:sessions="sessions",
 					:density="gridDensity",
 					:timeDensityMinutes="timeDensityMinutes",
@@ -204,7 +203,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeMount, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, onBeforeMount, nextTick } from 'vue'
 import moment, { Moment } from 'moment-timezone'
 import GridSchedule from '~/components/GridSchedule.vue'
 import TalkSession from '~/components/Session.vue'
@@ -1233,21 +1232,42 @@ function onWindowKeydown(event: KeyboardEvent): void {
   }
 }
 
-const scheduleActionsContainerRef = ref<HTMLElement | null>(null)
+const isRtl = computed(() => {
+  if (typeof document === 'undefined') return false
+  return document.documentElement.dir === 'rtl' || document.documentElement.classList.contains('rtl')
+})
 
-function attachScheduleActions() {
+const actionsWidth = ref<number>(0)
+let actionsObserver: ResizeObserver | null = null
+
+const actionsControlsStyle = computed(() => {
+  if (!actionsWidth.value) return undefined
+  if (isRtl.value) {
+    return { paddingLeft: `${actionsWidth.value + 16}px`, paddingRight: '0px' }
+  }
+  return { paddingRight: `${actionsWidth.value + 16}px`, paddingLeft: '0px' }
+})
+
+function updateActionsWidth(): void {
   const actionsEl = document.getElementById('schedule-action-wrapper')
-  if (actionsEl && scheduleActionsContainerRef.value && !scheduleActionsContainerRef.value.contains(actionsEl)) {
-    scheduleActionsContainerRef.value.appendChild(actionsEl)
+  if (actionsEl) {
+    const width = Math.ceil(actionsEl.getBoundingClientRect().width)
+    if (width > 0) {
+      actionsWidth.value = width
+    }
   }
 }
 
-watch(schedule, () => {
-  nextTick(attachScheduleActions)
-})
-
 onMounted(() => {
-  attachScheduleActions()
+  updateActionsWidth()
+  const actionsEl = document.getElementById('schedule-action-wrapper')
+  if (actionsEl && typeof ResizeObserver !== 'undefined') {
+    actionsObserver = new ResizeObserver(updateActionsWidth)
+    actionsObserver.observe(actionsEl)
+  }
+  if (document.fonts?.ready) {
+    document.fonts.ready.then(updateActionsWidth)
+  }
   document.addEventListener('touchmove', preventScrollOnDrag, { passive: false })
   window.addEventListener('click', onWindowClick)
   window.addEventListener('resize', onWindowResize)
@@ -1257,6 +1277,10 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  if (actionsObserver) {
+    actionsObserver.disconnect()
+    actionsObserver = null
+  }
   if (unscheduleHintTimer) clearTimeout(unscheduleHintTimer)
   document.removeEventListener('touchmove', preventScrollOnDrag)
   window.removeEventListener('click', onWindowClick)
@@ -1687,7 +1711,6 @@ onUnmounted(() => {
 	.schedule-controls
 		display: flex
 		align-items: center
-		justify-content: space-between
 		position: sticky
 		left: 0
 		top: 0
@@ -1699,34 +1722,7 @@ onUnmounted(() => {
 		box-sizing: border-box
 		overflow: visible
 		border-bottom: 1px solid #e2e8f0
-		padding-right: 0
-		#schedule-actions-container
-			display: flex
-			align-items: center
-			flex-shrink: 0
-			margin-left: 8px
-			#schedule-action-wrapper
-				display: flex
-				align-items: center
-			.btn
-				height: 28px
-				padding: 0 10px
-				font-size: 12px
-				display: inline-flex
-				align-items: center
-				gap: 5px
-				line-height: 1
-				border-radius: 5px
-			details.dropdown
-				summary.btn
-					height: 28px
-					padding: 0 10px
-					font-size: 12px
-					display: inline-flex
-					align-items: center
-					gap: 5px
-					line-height: 1
-					border-radius: 5px
+		padding-right: 220px
 	#schedule-wrapper
 		flex: 1
 		min-height: 0
@@ -1736,6 +1732,19 @@ onUnmounted(() => {
 		margin-right: 0
 		padding-left: 8px
 		box-sizing: border-box
+
+html[dir="rtl"],
+html.rtl
+	#unassigned
+		padding: 0 0 8px 8px
+		border-right: none
+		border-left: 1px solid #e2e8f0
+	#schedule-wrapper
+		padding-left: 0
+		padding-right: 8px
+	.schedule-controls
+		padding-right: 0
+		padding-left: 220px
 	#unassigned
 		.unassigned-mobile-header
 			display: none
