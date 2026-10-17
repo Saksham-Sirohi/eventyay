@@ -2560,6 +2560,21 @@ h2 .user-name-display img {
     overflow: hidden;
   }
 
+  #page-content:has(.pretalx-schedule) > main > .alert {
+    flex-shrink: 0;
+    margin-bottom: 6px;
+    padding: 8px 14px;
+  }
+
+  #page-content:has(.pretalx-schedule) .schedule-editor-container {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
   #page-content:has(.pretalx-schedule) .schedule-header {
     position: absolute;
     top: 0;
@@ -2605,6 +2620,13 @@ h2 .user-name-display img {
     position: static;
     height: auto;
     min-height: 0;
+    overflow: visible;
+  }
+
+  #page-content:has(.pretalx-schedule) .schedule-editor-container {
+    position: static;
+    flex: none;
+    height: auto;
     overflow: visible;
   }
 
