@@ -157,7 +157,7 @@
 							:aria-selected="currentDay && day.isSame(currentDay, 'day') ? 'true' : 'false'",
 							@click="changeDay(day)"
 						)
-							| {{ day.format('ddd D MMM') }}
+							| {{ day.format(dateFormat) }}
 				grid-schedule(:sessions="sessions",
 					:density="gridDensity",
 					:timeDensityMinutes="timeDensityMinutes",
@@ -1034,7 +1034,7 @@ const days = computed<Moment[]>(() => {
 })
 
 const dateFormat = computed<string>(() => {
-  return 'ddd DD MMM'
+  return 'ddd D MMM'
 })
 
 async function fetchSchedule(options?: { since?: string; warnings?: boolean }): Promise<Schedule> {
@@ -2002,7 +2002,7 @@ onUnmounted(() => {
 			cursor: default
 			color: $clr-secondary-text-light
 	.date-selector
-		margin-top: 17px;
+		margin-top: 17px
 		display: flex
 		align-items: center
 		gap: 2px

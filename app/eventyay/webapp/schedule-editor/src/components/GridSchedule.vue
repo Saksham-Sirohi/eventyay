@@ -940,7 +940,7 @@ const onIntersect = (entries: IntersectionObserverEntry[]) => {
     .slice()
     .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
   if (!entry) return
-  const dayStr = entry.target.dataset.slice
+  const dayStr = (entry.target as HTMLElement).dataset?.slice
   if (!dayStr) return
   const day = moment.parseZone(dayStr).startOf('day')
   if (scrolledDay.value && day.isSame(scrolledDay.value, 'day')) return
