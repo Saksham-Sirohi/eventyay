@@ -442,6 +442,7 @@ const breakConfirmBusy = ref(false)
 let breakConfirmResolve: ((value: boolean) => void) | null = null
 let breakDeleteId: number | string | null = null
 const pendingBreakCreations = new Map<string, { dismissed: boolean }>()
+const pendingBreakDeletions = new Set<string>()
 
 const scheduleActionError = ref<string>('')
 let scheduleActionErrorTimer: ReturnType<typeof setTimeout> | null = null
@@ -489,12 +490,22 @@ async function confirmBreakDelete() {
     )
   }
 
+  pendingBreakDeletions.add(strId)
+  if (!isNaN(numericId)) {
+    pendingBreakDeletions.add(String(numericId))
+  }
+
   breakConfirmBusy.value = true
   breakConfirmError.value = ''
 
   try {
     if (numericId && !isNaN(numericId)) {
       await api.deleteTalk({ id: numericId })
+    }
+    if (schedule.value) {
+      schedule.value.talks = schedule.value.talks.filter(
+        (s) => String(s.id) !== strId && (isNaN(numericId) || Number(s.id) !== numericId)
+      )
     }
     breakConfirmDialogEl.value?.close()
     breakConfirmResolve?.(true)
@@ -514,6 +525,10 @@ async function confirmBreakDelete() {
     breakConfirmResolve?.(false)
     breakConfirmResolve = null
   } finally {
+    pendingBreakDeletions.delete(strId)
+    if (!isNaN(numericId)) {
+      pendingBreakDeletions.delete(String(numericId))
+    }
     breakConfirmBusy.value = false
   }
 }
@@ -1081,7 +1096,9 @@ async function rescheduleSession(e: RescheduleEvent): Promise<void> {
   movedSession.room = e.room.id
   await saveTalk(movedSession)
   if (movedSession.code) {
-    void fetchAdditionalScheduleData()
+    fetchAdditionalScheduleData().catch((error) => {
+      console.error('Failed to refresh additional schedule data after reschedule', error)
+    })
   }
 }
 
@@ -1125,10 +1142,16 @@ async function createSession(e: CreateSessionEvent): Promise<void> {
       }
       const realId = Number(response.id)
       if (realId && !isNaN(realId)) {
+        pendingBreakDeletions.add(String(realId))
         try {
           await api.deleteTalk({ id: realId })
+          if (schedule.value) {
+            schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== String(realId))
+          }
         } catch (err) {
           console.error('Failed to delete cancelled break', err)
+        } finally {
+          pendingBreakDeletions.delete(String(realId))
         }
       }
       return
@@ -1154,7 +1177,9 @@ async function createSession(e: CreateSessionEvent): Promise<void> {
       }
     }
     if (e.session.code) {
-      void fetchAdditionalScheduleData()
+      fetchAdditionalScheduleData().catch((error) => {
+        console.error('Failed to refresh additional schedule data after create', error)
+      })
     }
   } catch (error) {
     pendingBreakCreations.delete(tempId)
@@ -1581,17 +1606,35 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
           if (schedule.value) {
             schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== strId && (isNaN(numericId) || Number(s.id) !== numericId))
           }
+          pendingBreakDeletions.add(strId)
+          if (!isNaN(numericId)) {
+            pendingBreakDeletions.add(String(numericId))
+          }
           if (numericId && !isNaN(numericId)) {
-            api.deleteTalk({ id: numericId }).catch((error) => {
-              console.error('Failed to delete break on unassign', { breakId, error })
-              if (schedule.value) {
-                const currentIds = new Set(schedule.value.talks.map((s) => String(s.id)))
-                if (!currentIds.has(String(removedBreak.id))) {
-                  schedule.value.talks = [...schedule.value.talks, removedBreak]
+            api.deleteTalk({ id: numericId })
+              .then(() => {
+                if (schedule.value) {
+                  schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== strId && Number(s.id) !== numericId)
                 }
-              }
-              showScheduleActionError($t('Failed to delete break. Please try again.'))
-            })
+              })
+              .catch((error) => {
+                console.error('Failed to delete break on unassign', { breakId, error })
+                if (schedule.value) {
+                  const currentIds = new Set(schedule.value.talks.map((s) => String(s.id)))
+                  if (!currentIds.has(String(removedBreak.id))) {
+                    schedule.value.talks = [...schedule.value.talks, removedBreak]
+                  }
+                }
+                showScheduleActionError($t('Failed to delete break. Please try again.'))
+              })
+              .finally(() => {
+                pendingBreakDeletions.delete(strId)
+                if (!isNaN(numericId)) {
+                  pendingBreakDeletions.delete(String(numericId))
+                }
+              })
+          } else {
+            pendingBreakDeletions.delete(strId)
           }
         }
       }
@@ -1618,6 +1661,10 @@ async function pollUpdates() {
   const updatedTalks = [...schedule.value.talks]
   let hasUpdates = false
   sched.talks.forEach((talk) => {
+    const talkIdStr = String(talk.id)
+    if (pendingBreakDeletions.has(talkIdStr)) {
+      return
+    }
     const oldTalk = updatedTalks.find((t) => t.id === talk.id)
     if (!oldTalk) {
       updatedTalks.push(talk)
