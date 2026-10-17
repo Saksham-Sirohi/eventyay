@@ -2002,6 +2002,7 @@ onUnmounted(() => {
 			cursor: default
 			color: $clr-secondary-text-light
 	.date-selector
+		margin-top: 17px;
 		display: flex
 		align-items: center
 		gap: 2px
