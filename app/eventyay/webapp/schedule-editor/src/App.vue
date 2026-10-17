@@ -78,8 +78,6 @@
 							span.drop-zone-subtitle {{ !draggedSession?.code ? $t('Removes break from timetable') : $t('Returns session to unscheduled list') }}
 					.unassigned-header
 						.density-controls
-							button.sidebar-toggle-btn.btn-circle(type="button", @click="toggleSidebar", :title="$t('Collapse unscheduled sessions')", :aria-label="$t('Collapse unscheduled sessions')")
-								i.fa.fa-chevron-left(aria-hidden="true")
 							button.density-btn(:class="{active: condensedView}", @click="toggleCondensedView", :title="condensedView ? $t('Normal view') : $t('Condensed view')", :aria-pressed="condensedView.toString()")
 								i.fa(:class="condensedView ? 'fa-expand' : 'fa-compress'", aria-hidden="true")
 								span.density-btn-text {{ condensedView ? $t('Normal view') : $t('Condensed view') }}
@@ -125,11 +123,18 @@
 						h3 {{ caps.showRoles ? $t('Shifts from Unavailable Rooms') : $t('Deleted Room Sessions') }}
 						p {{ caps.showRoles ? $t('These shifts were in a room that has been deleted or unscheduled. Drag them into another room to restore them to the schedule.') : $t('These sessions were assigned to a room that has been deleted. Drag them into another room to restore them to the schedule.') }}
 						session(v-for="session in deletedRoomSessions", :key="session.id", :session="session", @startDragging="startDragging", :isDragged="draggedSession && session.id === draggedSession.id")
+			button.sidebar-divider-toggle.btn-circle(
+				v-if="caps.canDrag",
+				type="button",
+				:class="{'is-collapsed': isSidebarCollapsed}",
+				@click="toggleSidebar",
+				:title="isSidebarCollapsed ? $t('Show unscheduled sessions') : $t('Collapse unscheduled sessions')",
+				:aria-label="isSidebarCollapsed ? $t('Show unscheduled sessions') : $t('Collapse unscheduled sessions')"
+			)
+				i.fa(:class="isSidebarCollapsed ? 'fa-bars' : 'fa-chevron-left'", aria-hidden="true")
 			#schedule-wrapper
 				.schedule-controls(:style="actionsControlsStyle")
 					.collapsed-sidebar-controls(v-if="isSidebarCollapsed && caps.canDrag")
-						button.sidebar-toggle-btn.btn-menu(type="button", @click="toggleSidebar", :title="$t('Show unscheduled sessions')", :aria-label="$t('Show unscheduled sessions')")
-							i.fa.fa-bars(aria-hidden="true")
 						button.density-btn(:class="{active: condensedView}", @click="toggleCondensedView", :title="condensedView ? $t('Normal view') : $t('Condensed view')", :aria-pressed="condensedView.toString()")
 							i.fa(:class="condensedView ? 'fa-expand' : 'fa-compress'", aria-hidden="true")
 							span.density-btn-text {{ condensedView ? $t('Normal view') : $t('Condensed view') }}
@@ -1832,6 +1837,7 @@ onUnmounted(() => {
 		height: 100%
 		min-height: 0
 		min-width: 0
+		position: relative
 	&.is-public-shifts
 		#main-wrapper
 			display: block
@@ -2655,6 +2661,43 @@ html.rtl
 		opacity: 1
 		transform: translateY(0) scale(1)
 
+.sidebar-divider-toggle
+	position: absolute
+	left: 250px
+	top: 50%
+	transform: translate(-50%, -50%)
+	z-index: 60
+	width: 28px
+	height: 28px
+	min-width: 28px
+	border-radius: 50%
+	background-color: #ffffff
+	border: 1px solid #cbd5e1
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.06)
+	color: #475569
+	display: inline-flex
+	align-items: center
+	justify-content: center
+	cursor: pointer
+	padding: 0
+	transition: left 0.2s ease, background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease
+	&:hover
+		background-color: #f1f5f9
+		color: #0f172a
+		border-color: #94a3b8
+		box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15)
+	i
+		font-size: 11px
+		line-height: 1
+	&.is-collapsed
+		left: 14px
+		i.fa-bars
+			font-size: 12px
+
+@media (max-width: 767px)
+	.sidebar-divider-toggle
+		display: none
+
 .sidebar-toggle-btn
 	display: inline-flex
 	align-items: center
@@ -2838,6 +2881,16 @@ html.rtl
 		.timezone-dropdown-menu
 			right: auto
 			left: 0
+	.sidebar-divider-toggle
+		left: auto
+		right: 250px
+		transform: translate(50%, -50%)
+		i.fa-chevron-left
+			transform: rotate(180deg)
+		&.is-collapsed
+			left: auto
+			right: 14px
+			transform: translate(50%, -50%)
 	.sidebar-toggle-btn.btn-circle
 		margin-right: 0
 		margin-left: 6px
