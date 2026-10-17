@@ -2004,7 +2004,7 @@ onUnmounted(() => {
 	.date-selector
 		display: flex
 		align-items: center
-		gap: 4px
+		gap: 2px
 		flex: 1
 		min-width: 0
 		height: 36px
@@ -2012,34 +2012,45 @@ onUnmounted(() => {
 		overflow-x: auto
 		overflow-y: hidden
 		scrollbar-width: none
-		padding: 0 8px
+		padding: 0 4px
 		box-sizing: border-box
 		&::-webkit-scrollbar
 			display: none
 
 		.day-btn
+			display: inline-flex
+			align-items: center
+			justify-content: center
+			height: 36px
+			padding: 0 14px
 			border: none
+			border-bottom: 2px solid transparent
 			background: transparent
 			cursor: pointer
-			padding: 4px 10px
-			border-radius: 4px
 			font-size: 13px
 			font-weight: 500
 			white-space: nowrap
 			flex-shrink: 0
-			color: #555
+			color: #64748b
 			font-family: inherit
 			user-select: none
-			transition: background-color 0.15s ease, color 0.15s ease
+			transition: color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease
+			margin-bottom: -1px
+			box-sizing: border-box
+
 			&:hover:not(.active)
-				background-color: rgba(0, 0, 0, 0.05)
+				color: #1e293b
+				background-color: #f8fafc
+
 			&.active
-				background-color: var(--color-primary, #3aa57c)
-				color: #fff
+				color: var(--color-primary, #0284c7)
+				border-bottom-color: var(--color-primary, #0284c7)
 				font-weight: 600
+				background-color: transparent
+
 			&:focus-visible
-				outline: 2px solid var(--color-primary, #3aa57c)
-				outline-offset: 1px
+				outline: 2px solid var(--color-primary, #0284c7)
+				outline-offset: -2px
 	#unassigned
 		margin-top: 0
 		box-sizing: border-box
