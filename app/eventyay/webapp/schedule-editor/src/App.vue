@@ -146,8 +146,18 @@
 					button.action-toast-dismiss(type="button", @click="scheduleActionError = ''", :aria-label="$t('Dismiss')")
 						i.fa.fa-times(aria-hidden="true")
 				.schedule-controls(:style="actionsControlsStyle")
-					bunt-tabs.days(v-if="days", :modelValue="currentDay.format()", ref="tabs" :class="['grid-tabs']")
-						bunt-tab(v-for="day of days", :key="day.format()", :id="day.format()", :header="day.format(dateFormat)", @selected="changeDay(day)")
+					.date-selector(v-if="days && days.length", role="tablist", :aria-label="$t('Select date')")
+						button.day-btn(
+							v-for="day of days",
+							:key="day.format('YYYY-MM-DD')",
+							type="button",
+							role="tab",
+							:id="`day-tab-${day.format('YYYY-MM-DD')}`",
+							:class="{ active: currentDay && day.isSame(currentDay, 'day') }",
+							:aria-selected="currentDay && day.isSame(currentDay, 'day') ? 'true' : 'false'",
+							@click="changeDay(day)"
+						)
+							| {{ day.format('ddd D MMM') }}
 				grid-schedule(:sessions="sessions",
 					:density="gridDensity",
 					:timeDensityMinutes="timeDensityMinutes",
@@ -292,7 +302,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, computed, onMounted, onUnmounted, onBeforeMount, nextTick } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, onBeforeMount, nextTick } from 'vue'
 import moment, { Moment } from 'moment-timezone'
 import GridSchedule from '~/components/GridSchedule.vue'
 import TalkSession from '~/components/Session.vue'
@@ -1038,10 +1048,19 @@ async function fetchAdditionalScheduleData(): Promise<void> {
 }
 
 function changeDay(day: Moment): void {
-  if (day.isSame(currentDay.value)) return
-  currentDay.value = day.clone().tz(eventTimezone.value ?? 'UTC').startOf('day')
+  const targetDay = day.clone().tz(eventTimezone.value ?? 'UTC').startOf('day')
+  if (currentDay.value && targetDay.isSame(currentDay.value, 'day')) return
+  currentDay.value = targetDay
   window.location.hash = day.format('YYYY-MM-DD')
 }
+
+watch(currentDay, (newDay) => {
+  if (!newDay) return
+  nextTick(() => {
+    const tabEl = document.getElementById(`day-tab-${newDay.format('YYYY-MM-DD')}`)
+    tabEl?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+  })
+})
 
 async function saveTalk(session: Talk): Promise<void> {
   await api.saveTalk(session as any).then((response: any) => {
@@ -1982,45 +2001,45 @@ onUnmounted(() => {
 		.timezone-label
 			cursor: default
 			color: $clr-secondary-text-light
-	.days
-		background-color: $clr-white
-		tabs-style(active-color: var(--color-primary), indicator-color: var(--color-primary), background-color: transparent)
-		margin-bottom: 0
+	.date-selector
+		display: flex
+		align-items: center
+		gap: 4px
 		flex: 1
 		min-width: 0
 		height: 36px
 		max-height: 36px
 		overflow-x: auto
 		overflow-y: hidden
-		scrollbar-width: thin
-		.bunt-tabs
-			height: 36px
-		.bunt-tabs-header
-			width: 100%
-			min-width: max-content
-			height: 36px
-		.bunt-tabs-header-items
-			display: flex
-			flex-wrap: nowrap
-			width: 100%
-			min-width: max-content
-			height: 36px
-			margin: 0
-			padding: 0
-			.bunt-tab-header-item
-				flex-shrink: 0
-				white-space: nowrap
-				height: 36px
-				padding: 0 12px
-				font-weight: 400
-			.bunt-tab-header-item-text
-				white-space: nowrap
-				font-size: 13px
-				font-weight: 500
-				letter-spacing: 0.02em
-			&.active .bunt-tab-header-item-text,
-			.bunt-tab-header-item.active .bunt-tab-header-item-text
-				font-weight: 500
+		scrollbar-width: none
+		padding: 0 8px
+		box-sizing: border-box
+		&::-webkit-scrollbar
+			display: none
+
+		.day-btn
+			border: none
+			background: transparent
+			cursor: pointer
+			padding: 4px 10px
+			border-radius: 4px
+			font-size: 13px
+			font-weight: 500
+			white-space: nowrap
+			flex-shrink: 0
+			color: #555
+			font-family: inherit
+			user-select: none
+			transition: background-color 0.15s ease, color 0.15s ease
+			&:hover:not(.active)
+				background-color: rgba(0, 0, 0, 0.05)
+			&.active
+				background-color: var(--color-primary, #3aa57c)
+				color: #fff
+				font-weight: 600
+			&:focus-visible
+				outline: 2px solid var(--color-primary, #3aa57c)
+				outline-offset: 1px
 	#unassigned
 		margin-top: 0
 		box-sizing: border-box

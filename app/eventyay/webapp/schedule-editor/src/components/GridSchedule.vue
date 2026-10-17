@@ -881,24 +881,28 @@ const getSliceLabel = (slice: Timeslice): string => {
   return slice.date.format('LT')
 }
 
-const changeDay = (day: Moment | null) => {
-  if (!day || scrolledDay.value?.isSame(day)) return
+let isScrollDayUpdate = false
 
-  const el = timesliceRefs.value.find(el => el.dataset?.slice === day.format())
-  if (!el) return
+const getStickyHeaderClearance = (): number => {
   const roomEl = rootEl.value?.querySelector('.room')
   const controlsEl = rootEl.value?.parentElement?.querySelector('.schedule-controls')
-  const headerHeight = (roomEl?.getBoundingClientRect().height || 52) + (controlsEl?.getBoundingClientRect().height || 48)
-  const offset = Math.max(0, el.offsetTop - headerHeight)
-  scrollTo(offset)
-  scrolledDay.value = day
-  emit('changeDay', day)
+  return (roomEl?.getBoundingClientRect().height || 52) + (controlsEl?.getBoundingClientRect().height || 48)
 }
 
-const scrollTo = (offset: number) => {
-  if (scrollParent.value) {
-    scrollParent.value.scroll({ top: offset, behavior: 'smooth' })
-  }
+const scrollToDayStart = (day: Moment | null) => {
+  if (!day) return
+  const dayStr = day.format('YYYY-MM-DD')
+  const el = timesliceRefs.value.find((el) => {
+    if (!el.dataset?.slice || !el.classList.contains('datebreak')) return false
+    return moment.parseZone(el.dataset.slice).format('YYYY-MM-DD') === dayStr
+  })
+  if (!el || !scrollParent.value) return
+  const clearance = getStickyHeaderClearance()
+  const rect = el.getBoundingClientRect()
+  const parentRect = scrollParent.value.getBoundingClientRect()
+  const delta = rect.top - parentRect.top - clearance
+  scrollParent.value.scrollTop += delta
+  scrolledDay.value = day
 }
 
 const scrollBy = (offset: number) => {
@@ -930,22 +934,31 @@ const dragOnScroll = () => {
 }
 
 const onIntersect = (entries: IntersectionObserverEntry[]) => {
-  // Find the last visible entry by time, which is intersecting
-  const entry = entries
+  const intersecting = entries.filter((entry) => entry.isIntersecting)
+  if (!intersecting.length) return
+  const entry = intersecting
     .slice()
-    .sort((a, b) => {
-      const aDate = (a.target as HTMLElement).dataset.slice
-      const bDate = (b.target as HTMLElement).dataset.slice
-      return new Date(bDate!).getTime() - new Date(aDate!).getTime()
-    })
-    .find((e) => e.isIntersecting)
+    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0]
   if (!entry) return
-  const day = moment.parseZone((entry.target as HTMLElement).dataset.slice!).startOf('day')
+  const dayStr = entry.target.dataset.slice
+  if (!dayStr) return
+  const day = moment.parseZone(dayStr).startOf('day')
+  if (scrolledDay.value && day.isSame(scrolledDay.value, 'day')) return
   scrolledDay.value = day
+  // Only update the active day indicator — don't trigger a scroll jump.
+  // scrollToDayStart is only called from toolbar clicks.
+  isScrollDayUpdate = true
   emit('changeDay', day)
 }
 
-watch(() => props.currentDay, (day) => changeDay(day))
+watch(() => props.currentDay, (day) => {
+  // Only scroll when triggered by toolbar click, not by scroll-based observer
+  if (isScrollDayUpdate) {
+    isScrollDayUpdate = false
+    return
+  }
+  scrollToDayStart(day)
+})
 
 onMounted(async () => {
   await nextTick()
