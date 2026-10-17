@@ -66,7 +66,7 @@
 					span.unassigned-title
 						i.fa.fa-list
 						span {{ translations.unassignedTitle }} ({{ unscheduled.length }})
-						span.drop-hint(v-if="canDropToDismissOrUnassign")  - {{ !draggedSession?.code ? $t('Drop here to dismiss') : $t('Drop here to unassign') }}
+						span.drop-hint(v-if="canDropToDismissOrUnassign", :class="{'is-break-hint': !draggedSession?.code}")  - {{ !draggedSession?.code ? $t('Drop here to dismiss') : $t('Drop here to unassign') }}
 					span.unassigned-collapse-icon
 						i.fa(:class="isUnassignedCollapsed ? 'fa-chevron-down' : 'fa-chevron-up'")
 				.unassigned-body
@@ -645,19 +645,10 @@ const since = ref<string | undefined>(undefined)
 const showTimeDensityMenu = ref<boolean>(false)
 const customDropdownRef = ref<HTMLElement | null>(null)
 
-const isSidebarCollapsed = ref<boolean>(() => {
-  try {
-    return typeof localStorage !== 'undefined' && localStorage.getItem('schedule_editor_sidebar_collapsed') === 'true'
-  } catch (e) {
-    return false
-  }
-})
+const isSidebarCollapsed = ref<boolean>(false)
 
 function toggleSidebar(): void {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
-  try {
-    localStorage.setItem('schedule_editor_sidebar_collapsed', isSidebarCollapsed.value ? 'true' : 'false')
-  } catch (e) {}
 }
 
 const isFullscreen = ref<boolean>(false)
@@ -1812,10 +1803,10 @@ onUnmounted(() => {
 	padding: 10px 12px
 	margin: 0 0 12px 0
 	border-radius: 8px
-	border: 2px dashed #ef4444
-	background: linear-gradient(135deg, rgba(254, 242, 242, 0.95), rgba(254, 226, 226, 0.85))
-	color: #b91c1c
-	box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)
+	border: 2px dashed #d97706
+	background: linear-gradient(135deg, rgba(254, 243, 199, 0.95), rgba(253, 230, 138, 0.85))
+	color: #92400e
+	box-shadow: 0 2px 8px rgba(217, 119, 6, 0.1), 0 1px 2px rgba(0, 0, 0, 0.04)
 	user-select: none
 	pointer-events: none
 	transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1)
@@ -1832,12 +1823,12 @@ onUnmounted(() => {
 		width: 30px
 		height: 30px
 		border-radius: 50%
-		background: rgba(239, 68, 68, 0.12)
+		background: rgba(217, 119, 6, 0.15)
 		display: flex
 		align-items: center
 		justify-content: center
 		flex-shrink: 0
-		color: #dc2626
+		color: #b45309
 		font-size: 13px
 		transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease
 	.drop-zone-content
@@ -1850,12 +1841,12 @@ onUnmounted(() => {
 		font-size: 12.5px
 		font-weight: 600
 		line-height: 1.25
-		color: #b91c1c
+		color: #92400e
 	.drop-zone-subtitle
 		font-size: 11px
 		font-weight: 400
-		color: #dc2626
-		opacity: 0.85
+		color: #b45309
+		opacity: 0.9
 		line-height: 1.2
 		margin-top: 1px
 	.drop-zone-preview
@@ -1872,18 +1863,41 @@ onUnmounted(() => {
 			box-sizing: border-box
 			opacity: 0.95
 			border-radius: 6px
-			box-shadow: 0 4px 14px rgba(220, 38, 38, 0.18), 0 1px 3px rgba(0, 0, 0, 0.08)
-			border: 1.5px solid rgba(220, 38, 38, 0.45)
+			box-shadow: 0 4px 14px rgba(217, 119, 6, 0.22), 0 1px 3px rgba(0, 0, 0, 0.08)
+			border: 1.5px solid rgba(217, 119, 6, 0.5)
 			pointer-events: none
 	&.is-hovered
-		border-color: #dc2626
-		background: linear-gradient(135deg, #fee2e2, #fecaca)
-		box-shadow: 0 6px 18px rgba(220, 38, 38, 0.22), 0 2px 4px rgba(220, 38, 38, 0.1)
+		border-color: #b45309
+		background: linear-gradient(135deg, #fef3c7, #fde68a)
+		box-shadow: 0 6px 18px rgba(217, 119, 6, 0.25), 0 2px 4px rgba(217, 119, 6, 0.12)
 		transform: translateY(-1px)
 		.drop-zone-icon-wrap
-			background: #dc2626
+			background: #b45309
 			color: #ffffff
 			transform: scale(1.08)
+	&.is-break-drop
+		border-color: #ef4444
+		background: linear-gradient(135deg, rgba(254, 242, 242, 0.95), rgba(254, 226, 226, 0.85))
+		color: #b91c1c
+		box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)
+		.drop-zone-icon-wrap
+			background: rgba(239, 68, 68, 0.12)
+			color: #dc2626
+		.drop-zone-title
+			color: #b91c1c
+		.drop-zone-subtitle
+			color: #dc2626
+		.drop-zone-preview
+			.unassigned-preview-pill
+				box-shadow: 0 4px 14px rgba(220, 38, 38, 0.18), 0 1px 3px rgba(0, 0, 0, 0.08)
+				border: 1.5px solid rgba(220, 38, 38, 0.45)
+		&.is-hovered
+			border-color: #dc2626
+			background: linear-gradient(135deg, #fee2e2, #fecaca)
+			box-shadow: 0 6px 18px rgba(220, 38, 38, 0.22), 0 2px 4px rgba(220, 38, 38, 0.1)
+			.drop-zone-icon-wrap
+				background: #dc2626
+				color: #ffffff
 
 .pretalx-schedule
 	display: flex
@@ -1999,10 +2013,13 @@ onUnmounted(() => {
 				visibility: hidden
 				pointer-events: none
 		&.is-unassign-target
-			background-color: rgba(239, 68, 68, 0.04)
-			border: 2px dashed #ef4444
+			background-color: rgba(217, 119, 6, 0.04)
+			border: 2px dashed #d97706
 			border-radius: 6px
 			outline: none
+			&.is-break-target
+				background-color: rgba(239, 68, 68, 0.04)
+				border: 2px dashed #ef4444
 		&::-webkit-scrollbar
 			width: 6px
 		&::-webkit-scrollbar-track
@@ -2405,8 +2422,10 @@ onUnmounted(() => {
 					font-size: 14px
 					color: #1e293b
 					.drop-hint
-						color: var(--color-primary, #2185d0)
-						font-weight: normal
+						color: #b45309
+						font-weight: 500
+						&.is-break-hint
+							color: #dc2626
 				.unassigned-collapse-icon
 					color: #64748b
 					font-size: 14px
