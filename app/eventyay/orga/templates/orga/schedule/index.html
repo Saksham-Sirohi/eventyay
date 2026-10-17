@@ -16,21 +16,14 @@
 
 {% block extra_title %}{{ phrases.schedule.schedule }} :: {% endblock extra_title %}
 
-{% block navbar_right %}
-    <li class="nav-item">
-        <a class="nav-link text-danger">
-            <i class="fa fa-clock-o"></i>
-            <span class="d-none d-md-inline">{% phrase "phrases.schedule.timezone_hint" tz=request.event.timezone %}</span>
-            <span class="d-inline d-md-none">{{ request.event.timezone }}</span>
-        </a>
-    </li>
-{% endblock navbar_right %}
+{% block navbar_right %}{% endblock navbar_right %}
 
 {% block schedule_content %}
 
     <div class="schedule-editor-container">
         <div class="schedule-header d-flex d-print-none">
             <div id="schedule-action-wrapper" class="d-flex align-items-center ml-auto">
+                <div id="schedule-timezone-mount"></div>
                 {% if not schedule_version %}
                     <a id="schedule-release" href="{{ request.event.orga_urls.release_schedule }}" class="btn ml-2 btn-success btn-sm"><i class="fa fa-plus"></i> {% translate "New release" %}</a>
                 {% else %}
@@ -68,6 +61,7 @@
                         </form>
                     </div>
                 </details>
+                <div id="schedule-fullscreen-mount" class="ml-2"></div>
             </div>
         </div>
         {% if not rooms_count %}
