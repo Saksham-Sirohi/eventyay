@@ -61,7 +61,7 @@
 			span.ml-1.d-none.d-sm-inline {{ isFullscreen ? $t('Exit fullscreen') : $t('Fullscreen') }}
 	template(v-if="schedule")
 		#main-wrapper
-			#unassigned.no-print(v-if="caps.canDrag", v-show="!isSidebarCollapsed", :class="{'is-collapsed': isUnassignedCollapsed, 'is-unassign-target': isUnassigning && canDropToDismissOrUnassign, 'is-break-target': isUnassigning && canDropToDismissOrUnassign && !draggedSession?.code}", @pointerenter="onUnassignedEnter", @pointerleave="onUnassignedLeave")
+			#unassigned.no-print(v-if="caps.canDrag", :class="{'is-sidebar-collapsed': isSidebarCollapsed, 'is-collapsed': isUnassignedCollapsed, 'is-unassign-target': isUnassigning && canDropToDismissOrUnassign, 'is-break-target': isUnassigning && canDropToDismissOrUnassign && !draggedSession?.code}", @pointerenter="onUnassignedEnter", @pointerleave="onUnassignedLeave")
 				.unassigned-mobile-header(@click="isUnassignedCollapsed = !isUnassignedCollapsed")
 					span.unassigned-title
 						i.fa.fa-list
@@ -124,7 +124,7 @@
 						h3 {{ caps.showRoles ? $t('Shifts from Unavailable Rooms') : $t('Deleted Room Sessions') }}
 						p {{ caps.showRoles ? $t('These shifts were in a room that has been deleted or unscheduled. Drag them into another room to restore them to the schedule.') : $t('These sessions were assigned to a room that has been deleted. Drag them into another room to restore them to the schedule.') }}
 						session(v-for="session in deletedRoomSessions", :key="session.id", :session="session", @startDragging="startDragging", :isDragged="draggedSession && session.id === draggedSession.id")
-			.sidebar-divider-line(:class="{'is-collapsed': isSidebarCollapsed}")
+			.sidebar-divider-line(v-if="caps.canDrag", :class="{'is-collapsed': isSidebarCollapsed}")
 			button.sidebar-divider-toggle.btn-circle(
 				v-if="caps.canDrag",
 				type="button",
@@ -1884,19 +1884,34 @@ onUnmounted(() => {
 				font-weight: 500
 	#unassigned
 		margin-top: 0
-		width: 250px
-		flex: none
-		padding: 2px 8px 8px 2px
-		border: 2px solid transparent
-		border-right: 1px solid #e2e8f0
 		box-sizing: border-box
-		height: calc(100% - 10px)
-		min-height: 0
 		overflow-y: auto
 		overflow-x: hidden
 		scrollbar-width: thin
 		scrollbar-color: #cbd5e1 transparent
-		transition: background-color 0.2s ease, border-color 0.2s ease
+		@media (min-width: 768px)
+			width: 250px
+			flex: none
+			padding: 2px 8px 8px 2px
+			border: 2px solid transparent
+			border-right: 1px solid #e2e8f0
+			height: calc(100% - 10px)
+			min-height: 0
+			transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1), padding 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s ease, background-color 0.2s ease, border-color 0.2s ease
+			.unassigned-body,
+			.deleted-room-sessions
+				width: 236px
+				min-width: 236px
+				box-sizing: border-box
+			&.is-sidebar-collapsed
+				width: 0
+				min-width: 0
+				padding-left: 0
+				padding-right: 0
+				border-right-width: 0
+				opacity: 0
+				visibility: hidden
+				pointer-events: none
 		&.is-unassign-target
 			background-color: rgba(239, 68, 68, 0.04)
 			border: 2px dashed #ef4444
@@ -1914,7 +1929,6 @@ onUnmounted(() => {
 		> *
 			margin-right: 0
 		.unassigned-body
-			width: 100%
 			display: flex
 			flex-direction: column
 		.c-linear-schedule-session
@@ -2338,18 +2352,31 @@ html.rtl
 			width: 100%
 			height: auto
 			box-sizing: border-box
-		#unassigned
+		#unassigned,
+		#unassigned.is-sidebar-collapsed
 			width: 100%
-			box-sizing: border-box
+			min-width: 0
+			max-width: 100%
+			height: auto
+			opacity: 1
+			visibility: visible
+			pointer-events: auto
 			margin-top: 0
 			margin-bottom: 12px
 			background-color: $clr-white
 			padding: 8px 0 4px 0
-			border-right: none
-			border-left: none
+			border: none
 			flex: none
+			transition: none
+			.unassigned-body,
+			.deleted-room-sessions
+				width: 100%
+				min-width: 0
+				max-width: 100%
+				box-sizing: border-box
 			&.is-collapsed
-				.unassigned-body
+				.unassigned-body,
+				.deleted-room-sessions
 					display: none
 			.unassigned-body
 				max-height: 300px
@@ -2655,7 +2682,7 @@ html.rtl
 	background-color: #e2e8f0
 	z-index: 55
 	pointer-events: none
-	transition: left 0.2s ease
+	transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1), right 0.25s cubic-bezier(0.4, 0, 0.2, 1)
 	&.is-collapsed
 		left: 0
 
@@ -2678,7 +2705,7 @@ html.rtl
 	justify-content: center
 	cursor: pointer
 	padding: 0
-	transition: left 0.2s ease, right 0.2s ease, transform 0.2s ease, background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease
+	transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1), right 0.25s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease
 	&:hover
 		background-color: #f1f5f9
 		color: #0f172a
@@ -2689,7 +2716,6 @@ html.rtl
 		line-height: 1
 	&.is-collapsed
 		left: 0
-		transform: translate(0, -50%)
 		i.fa-bars
 			font-size: 12px
 
@@ -2731,6 +2757,7 @@ html.rtl
 		top: calc(100% + 4px)
 		right: 0
 		width: 260px
+		max-width: calc(100vw - 24px)
 		max-height: 340px
 		background: #ffffff
 		border: 1px solid #e2e8f0
@@ -2806,6 +2833,9 @@ html.rtl
 
 html[dir="rtl"],
 html.rtl
+	#schedule-wrapper
+		padding-left: 0
+		padding-right: 8px
 	.schedule-timezone-selector
 		.timezone-dropdown-menu
 			right: auto
@@ -2825,5 +2855,5 @@ html.rtl
 		&.is-collapsed
 			left: auto
 			right: 0
-			transform: translate(0, -50%)
+			transform: translate(50%, -50%)
 </style>
