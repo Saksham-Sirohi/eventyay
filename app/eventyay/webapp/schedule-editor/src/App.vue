@@ -1831,6 +1831,7 @@ onUnmounted(() => {
     actionsObserver = null
   }
   if (unscheduleHintTimer) clearTimeout(unscheduleHintTimer)
+  if (scheduleActionErrorTimer) clearTimeout(scheduleActionErrorTimer)
   document.removeEventListener('touchmove', preventScrollOnDrag)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   document.removeEventListener('webkitfullscreenchange', onFullscreenChange)

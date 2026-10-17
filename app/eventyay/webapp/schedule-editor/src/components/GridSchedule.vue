@@ -618,11 +618,17 @@ const getTimeAndRoomFromPoint = (clientX: number, clientY: number) => {
   // 1. Determine room index by checking which room column the pointer is horizontally within
   const roomEls = Array.from(rootEl.value.querySelectorAll('.grid > .room') || [])
   if (roomEls.length <= 1) return null
-  const firstRoomLeft = roomEls[1].getBoundingClientRect().left
-  const lastRoomRight = roomEls[roomEls.length - 1].getBoundingClientRect().right
+  const minRoomLeft = Math.min(
+    roomEls[1].getBoundingClientRect().left,
+    roomEls[roomEls.length - 1].getBoundingClientRect().left
+  )
+  const maxRoomRight = Math.max(
+    roomEls[1].getBoundingClientRect().right,
+    roomEls[roomEls.length - 1].getBoundingClientRect().right
+  )
 
-  // If pointer is left of the first room (e.g. over time column or moved to the left sidebar) or right of the last room, it's not over any room!
-  if (clientX < firstRoomLeft || clientX > lastRoomRight) {
+  // If pointer is outside room columns (e.g. over time column or moved to the sidebar), it's not over any room!
+  if (clientX < minRoomLeft || clientX > maxRoomRight) {
     return null
   }
 
