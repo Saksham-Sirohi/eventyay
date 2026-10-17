@@ -479,32 +479,13 @@ async function confirmBreakDelete() {
     pendingBreakCreations.get(strId)!.dismissed = true
   }
 
-  const removedTalks = schedule.value
-    ? schedule.value.talks.filter(
-        (s) => String(s.id) === strId || (!isNaN(numericId) && Number(s.id) === numericId)
-      )
-    : []
-
-  if (schedule.value) {
-    schedule.value.talks = schedule.value.talks.filter(
-      (s) => String(s.id) !== strId && (isNaN(numericId) || Number(s.id) !== numericId)
-    )
-  }
-
-  pendingBreakDeletions.add(strId)
-  if (!isNaN(numericId)) {
-    pendingBreakDeletions.add(String(numericId))
-  }
-
   breakConfirmBusy.value = true
   breakConfirmError.value = ''
 
   try {
     if (numericId && !isNaN(numericId)) {
       await api.deleteTalk({ id: numericId })
-    }
-    deletedBreakIds.add(strId)
-    if (!isNaN(numericId)) {
+      deletedBreakIds.add(strId)
       deletedBreakIds.add(String(numericId))
     }
     if (schedule.value) {
@@ -518,22 +499,10 @@ async function confirmBreakDelete() {
     breakDeleteId = null
   } catch (error) {
     console.error('Failed to delete break', { id: numericId, error })
-    if (schedule.value && removedTalks.length > 0) {
-      const currentIds = new Set(schedule.value.talks.map((s) => String(s.id)))
-      schedule.value.talks = [
-        ...schedule.value.talks,
-        ...removedTalks.filter((s) => !currentIds.has(String(s.id))),
-      ]
-    }
     breakConfirmError.value = $t('Failed to delete break. Please try again.')
-    showScheduleActionError($t('Failed to delete break. Please try again.'))
     breakConfirmResolve?.(false)
     breakConfirmResolve = null
   } finally {
-    pendingBreakDeletions.delete(strId)
-    if (!isNaN(numericId)) {
-      pendingBreakDeletions.delete(String(numericId))
-    }
     breakConfirmBusy.value = false
   }
 }
@@ -632,7 +601,7 @@ function checkIsOverUnassigned(x: number, y: number): boolean {
   if (isMobile.value) {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom + 10
   }
-  return x >= rect.left - 10 && x <= rect.right + 10 && y >= rect.top && y <= rect.bottom
+  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
 }
 
 function onGlobalPointerMove(e: PointerEvent) {
