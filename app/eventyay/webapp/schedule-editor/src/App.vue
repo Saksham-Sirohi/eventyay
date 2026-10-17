@@ -2678,7 +2678,7 @@ html.rtl
 	justify-content: center
 	cursor: pointer
 	padding: 0
-	transition: left 0.2s ease, background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease
+	transition: left 0.2s ease, right 0.2s ease, transform 0.2s ease, background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease
 	&:hover
 		background-color: #f1f5f9
 		color: #0f172a
@@ -2689,6 +2689,7 @@ html.rtl
 		line-height: 1
 	&.is-collapsed
 		left: 0
+		transform: translate(0, -50%)
 		i.fa-bars
 			font-size: 12px
 
@@ -2824,5 +2825,5 @@ html.rtl
 		&.is-collapsed
 			left: auto
 			right: 0
-			transform: translate(50%, -50%)
+			transform: translate(0, -50%)
 </style>
