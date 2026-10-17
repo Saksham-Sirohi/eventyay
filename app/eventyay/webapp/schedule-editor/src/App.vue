@@ -443,6 +443,7 @@ let breakConfirmResolve: ((value: boolean) => void) | null = null
 let breakDeleteId: number | string | null = null
 const pendingBreakCreations = new Map<string, { dismissed: boolean }>()
 const pendingBreakDeletions = new Set<string>()
+const deletedBreakIds = new Set<string>()
 
 const scheduleActionError = ref<string>('')
 let scheduleActionErrorTimer: ReturnType<typeof setTimeout> | null = null
@@ -501,6 +502,10 @@ async function confirmBreakDelete() {
   try {
     if (numericId && !isNaN(numericId)) {
       await api.deleteTalk({ id: numericId })
+    }
+    deletedBreakIds.add(strId)
+    if (!isNaN(numericId)) {
+      deletedBreakIds.add(String(numericId))
     }
     if (schedule.value) {
       schedule.value.talks = schedule.value.talks.filter(
@@ -1145,11 +1150,24 @@ async function createSession(e: CreateSessionEvent): Promise<void> {
         pendingBreakDeletions.add(String(realId))
         try {
           await api.deleteTalk({ id: realId })
+          deletedBreakIds.add(String(realId))
           if (schedule.value) {
             schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== String(realId))
           }
         } catch (err) {
           console.error('Failed to delete cancelled break', err)
+          const restoredSession = {
+            ...optimisticSession,
+            ...response,
+            id: response.id,
+            room: response.room ?? roomId,
+            start: response.start ?? startStr,
+            end: response.end ?? endStr,
+          }
+          if (schedule.value) {
+            schedule.value.talks = [...schedule.value.talks, restoredSession]
+          }
+          showScheduleActionError($t('Failed to delete break. Please try again.'))
         } finally {
           pendingBreakDeletions.delete(String(realId))
         }
@@ -1613,6 +1631,10 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
           if (numericId && !isNaN(numericId)) {
             api.deleteTalk({ id: numericId })
               .then(() => {
+                deletedBreakIds.add(strId)
+                if (!isNaN(numericId)) {
+                  deletedBreakIds.add(String(numericId))
+                }
                 if (schedule.value) {
                   schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== strId && Number(s.id) !== numericId)
                 }
@@ -1662,7 +1684,7 @@ async function pollUpdates() {
   let hasUpdates = false
   sched.talks.forEach((talk) => {
     const talkIdStr = String(talk.id)
-    if (pendingBreakDeletions.has(talkIdStr)) {
+    if (pendingBreakDeletions.has(talkIdStr) || deletedBreakIds.has(talkIdStr)) {
       return
     }
     const oldTalk = updatedTalks.find((t) => t.id === talk.id)
