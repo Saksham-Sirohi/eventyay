@@ -2572,7 +2572,7 @@ h2 .user-name-display img {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow: visible;
   }
 
   #page-content:has(.pretalx-schedule) .schedule-editor-container:fullscreen,
@@ -2597,7 +2597,25 @@ h2 .user-name-display img {
 
   #page-content:has(.pretalx-schedule) .schedule-editor-container:fullscreen .schedule-header,
   #page-content:has(.pretalx-schedule) .schedule-editor-container.is-fullscreen .schedule-header {
+    top: 10px;
+    right: 14px;
+  }
+
+  #page-content:has(.pretalx-schedule) .schedule-editor-container:fullscreen .schedule-header #schedule-release,
+  #page-content:has(.pretalx-schedule) .schedule-editor-container.is-fullscreen .schedule-header #schedule-release,
+  #page-content:has(.pretalx-schedule) .schedule-editor-container:fullscreen .schedule-header details.dropdown,
+  #page-content:has(.pretalx-schedule) .schedule-editor-container.is-fullscreen .schedule-header details.dropdown,
+  #page-content:has(.pretalx-schedule) .schedule-editor-container:fullscreen .schedule-header form,
+  #page-content:has(.pretalx-schedule) .schedule-editor-container.is-fullscreen .schedule-header form {
     display: none;
+  }
+
+  html[dir="rtl"] #page-content:has(.pretalx-schedule) .schedule-editor-container:fullscreen .schedule-header,
+  html.rtl #page-content:has(.pretalx-schedule) .schedule-editor-container:fullscreen .schedule-header,
+  html[dir="rtl"] #page-content:has(.pretalx-schedule) .schedule-editor-container.is-fullscreen .schedule-header,
+  html.rtl #page-content:has(.pretalx-schedule) .schedule-editor-container.is-fullscreen .schedule-header {
+    left: 14px;
+    right: auto;
   }
 
   #page-content:has(.pretalx-schedule) .schedule-editor-container:fullscreen .pretalx-schedule,

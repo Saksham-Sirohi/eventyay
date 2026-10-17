@@ -981,7 +981,7 @@ onUnmounted(() => {
 	flex-direction: column
 	.grid
 		display: grid
-		grid-template-columns: 78px repeat(var(--total-rooms), 1fr) auto
+		grid-template-columns: 78px repeat(var(--total-rooms), minmax(300px, 1fr)) auto
 		@media (max-width: 767px)
 			grid-template-columns: 78px repeat(var(--total-rooms), minmax(260px, 1fr)) auto
 		position: relative
@@ -1002,9 +1002,11 @@ onUnmounted(() => {
 			background-color: $clr-white
 			border-bottom: 1px solid $clr-dividers-light
 			z-index: 40
-			min-width: 0
+			min-width: 300px
 			box-sizing: border-box
 			padding: 6px 10px
+			@media (max-width: 767px)
+				min-width: 260px
 			&:first-child
 				left: 0
 				top: calc(36px)
@@ -1033,6 +1035,7 @@ onUnmounted(() => {
 					background-color: $clr-grey-200
 
 		.c-linear-schedule-session
+			min-width: 0
 			z-index: 10
 			transition: padding 0.2s ease, font-size 0.2s ease
 			&.placing-preview

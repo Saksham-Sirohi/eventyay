@@ -50,14 +50,15 @@
 						span.tz-option-name {{ opt.label }}
 						i.fa.fa-check(v-if="currentTimezone === opt.id", aria-hidden="true")
 	teleport(to="#schedule-fullscreen-mount", v-if="isMounted && schedule")
-		button#schedule-fullscreen-btn.btn.btn-outline-secondary.btn-sm(
+		button#schedule-fullscreen-btn.btn.btn-sm(
 			type="button",
 			@click="toggleFullscreen",
-			:title="$t('Fullscreen')",
-			:aria-label="$t('Fullscreen')"
+			:class="{'btn-primary': isFullscreen, 'btn-outline-secondary': !isFullscreen}",
+			:title="isFullscreen ? $t('Exit fullscreen') : $t('Fullscreen')",
+			:aria-label="isFullscreen ? $t('Exit fullscreen') : $t('Fullscreen')"
 		)
-			i.fa.fa-arrows-alt(aria-hidden="true")
-			span.ml-1.d-none.d-sm-inline {{ $t('Fullscreen') }}
+			i.fa(:class="isFullscreen ? 'fa-compress' : 'fa-arrows-alt'", aria-hidden="true")
+			span.ml-1.d-none.d-sm-inline {{ isFullscreen ? $t('Exit fullscreen') : $t('Fullscreen') }}
 	template(v-if="schedule")
 		#main-wrapper
 			#unassigned.no-print(v-if="caps.canDrag", v-show="!isSidebarCollapsed", :class="{'is-collapsed': isUnassignedCollapsed, 'is-unassign-target': isUnassigning && canDropToDismissOrUnassign, 'is-break-target': isUnassigning && canDropToDismissOrUnassign && !draggedSession?.code}", @pointerenter="onUnassignedEnter", @pointerleave="onUnassignedLeave")
@@ -123,6 +124,7 @@
 						h3 {{ caps.showRoles ? $t('Shifts from Unavailable Rooms') : $t('Deleted Room Sessions') }}
 						p {{ caps.showRoles ? $t('These shifts were in a room that has been deleted or unscheduled. Drag them into another room to restore them to the schedule.') : $t('These sessions were assigned to a room that has been deleted. Drag them into another room to restore them to the schedule.') }}
 						session(v-for="session in deletedRoomSessions", :key="session.id", :session="session", @startDragging="startDragging", :isDragged="draggedSession && session.id === draggedSession.id")
+			.sidebar-divider-line(:class="{'is-collapsed': isSidebarCollapsed}")
 			button.sidebar-divider-toggle.btn-circle(
 				v-if="caps.canDrag",
 				type="button",
@@ -134,20 +136,8 @@
 				i.fa(:class="isSidebarCollapsed ? 'fa-bars' : 'fa-chevron-left'", aria-hidden="true")
 			#schedule-wrapper
 				.schedule-controls(:style="actionsControlsStyle")
-					.collapsed-sidebar-controls(v-if="isSidebarCollapsed && caps.canDrag")
-						button.density-btn(:class="{active: condensedView}", @click="toggleCondensedView", :title="condensedView ? $t('Normal view') : $t('Condensed view')", :aria-pressed="condensedView.toString()")
-							i.fa(:class="condensedView ? 'fa-expand' : 'fa-compress'", aria-hidden="true")
-							span.density-btn-text {{ condensedView ? $t('Normal view') : $t('Condensed view') }}
-						.select-wrapper.custom-dropdown(ref="customDropdownRefCollapsed", @click="showTimeDensityMenuCollapsed = !showTimeDensityMenuCollapsed", :class="{'active': showTimeDensityMenuCollapsed}")
-							span.time-density-display {{ timeDensityMinutes }} {{ $t('min') }}
-							i.fa.fa-chevron-down(aria-hidden="true")
-							.time-density-menu.vue-dropdown(v-if="showTimeDensityMenuCollapsed")
-								.density-option(v-for="mins in [5, 10, 15, 30, 60]", @click.stop="timeDensityMinutes = mins; onTimeDensityChange(); showTimeDensityMenuCollapsed = false", :class="{active: timeDensityMinutes === mins}") {{ mins }} {{ $t('min') }}
 					bunt-tabs.days(v-if="days", :modelValue="currentDay.format()", ref="tabs" :class="['grid-tabs']")
 						bunt-tab(v-for="day of days", :key="day.format()", :id="day.format()", :header="day.format(dateFormat)", @selected="changeDay(day)")
-					button.exit-fullscreen-btn(v-if="isFullscreen", type="button", @click="exitFullscreen", :title="$t('Exit fullscreen')", :aria-label="$t('Exit fullscreen')")
-						i.fa.fa-compress(aria-hidden="true")
-						span {{ $t('Exit fullscreen') }}
 				grid-schedule(:sessions="sessions",
 					:density="gridDensity",
 					:timeDensityMinutes="timeDensityMinutes",
@@ -606,8 +596,6 @@ const eventTimezone = ref<string | null>(null)
 const since = ref<string | undefined>(undefined)
 const showTimeDensityMenu = ref<boolean>(false)
 const customDropdownRef = ref<HTMLElement | null>(null)
-const showTimeDensityMenuCollapsed = ref<boolean>(false)
-const customDropdownRefCollapsed = ref<HTMLElement | null>(null)
 
 const isSidebarCollapsed = ref<boolean>(() => {
   try {
@@ -1638,9 +1626,6 @@ const onWindowClick = (e: MouseEvent) => {
   if (showTimeDensityMenu.value && customDropdownRef.value && !customDropdownRef.value.contains(e.target as Node)) {
     showTimeDensityMenu.value = false
   }
-  if (showTimeDensityMenuCollapsed.value && customDropdownRefCollapsed.value && !customDropdownRefCollapsed.value.contains(e.target as Node)) {
-    showTimeDensityMenuCollapsed.value = false
-  }
   if (showTimezoneMenu.value && timezoneDropdownRef.value && !timezoneDropdownRef.value.contains(e.target as Node)) {
     showTimezoneMenu.value = false
   }
@@ -2661,6 +2646,19 @@ html.rtl
 		opacity: 1
 		transform: translateY(0) scale(1)
 
+.sidebar-divider-line
+	position: absolute
+	top: 0
+	bottom: 0
+	left: 250px
+	width: 1px
+	background-color: #e2e8f0
+	z-index: 55
+	pointer-events: none
+	transition: left 0.2s ease
+	&.is-collapsed
+		left: 0
+
 .sidebar-divider-toggle
 	position: absolute
 	left: 250px
@@ -2690,84 +2688,14 @@ html.rtl
 		font-size: 11px
 		line-height: 1
 	&.is-collapsed
-		left: 14px
+		left: 0
 		i.fa-bars
 			font-size: 12px
 
 @media (max-width: 767px)
+	.sidebar-divider-line,
 	.sidebar-divider-toggle
 		display: none
-
-.sidebar-toggle-btn
-	display: inline-flex
-	align-items: center
-	justify-content: center
-	cursor: pointer
-	transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease
-	&.btn-circle
-		width: 28px
-		height: 28px
-		min-width: 28px
-		border-radius: 50%
-		background-color: #f1f5f9
-		border: 1px solid #cbd5e1
-		color: #475569
-		padding: 0
-		margin-right: 6px
-		flex-shrink: 0
-		&:hover
-			background-color: #e2e8f0
-			color: #0f172a
-			border-color: #94a3b8
-		i
-			font-size: 11px
-	&.btn-menu
-		height: 28px
-		padding: 0 10px
-		border-radius: 4px
-		background-color: #f1f5f9
-		border: 1px solid #cbd5e1
-		color: #475569
-		margin-right: 6px
-		flex-shrink: 0
-		&:hover
-			background-color: #e2e8f0
-			color: #0f172a
-			border-color: #94a3b8
-		i
-			font-size: 13px
-
-.collapsed-sidebar-controls
-	display: flex
-	align-items: center
-	flex-shrink: 0
-	margin-right: 8px
-	.density-btn
-		margin-right: 6px
-
-.exit-fullscreen-btn
-	display: inline-flex
-	align-items: center
-	gap: 6px
-	height: 28px
-	padding: 0 10px
-	margin-left: auto
-	margin-right: 8px
-	flex-shrink: 0
-	border-radius: 4px
-	border: 1px solid #cbd5e1
-	background-color: #f8fafc
-	color: #334155
-	font-size: 12px
-	font-weight: 500
-	cursor: pointer
-	transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease
-	&:hover
-		background-color: #f1f5f9
-		color: #0f172a
-		border-color: #94a3b8
-	i
-		font-size: 12px
 
 .schedule-timezone-selector
 	position: relative
@@ -2881,6 +2809,12 @@ html.rtl
 		.timezone-dropdown-menu
 			right: auto
 			left: 0
+	.sidebar-divider-line
+		left: auto
+		right: 250px
+		&.is-collapsed
+			left: auto
+			right: 0
 	.sidebar-divider-toggle
 		left: auto
 		right: 250px
@@ -2889,23 +2823,6 @@ html.rtl
 			transform: rotate(180deg)
 		&.is-collapsed
 			left: auto
-			right: 14px
+			right: 0
 			transform: translate(50%, -50%)
-	.sidebar-toggle-btn.btn-circle
-		margin-right: 0
-		margin-left: 6px
-		i.fa-chevron-left
-			transform: rotate(180deg)
-	.sidebar-toggle-btn.btn-menu
-		margin-right: 0
-		margin-left: 6px
-	.collapsed-sidebar-controls
-		margin-right: 0
-		margin-left: 8px
-		.density-btn
-			margin-right: 0
-			margin-left: 6px
-	.exit-fullscreen-btn
-		margin-left: 8px
-		margin-right: auto
 </style>
