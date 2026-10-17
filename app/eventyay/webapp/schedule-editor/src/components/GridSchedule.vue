@@ -132,6 +132,7 @@ const props = defineProps<{
   density: 'compact' | 'default' | 'comfortable'
   timeDensityMinutes: number
   allowOverlap?: boolean
+  isUnassigning?: boolean
 }>()
 
 const emit = defineEmits([
@@ -163,6 +164,12 @@ const timesliceRefs = ref<HTMLElement[]>([])
 
 watch(() => props.draggedSession, (val) => {
   if (!val) {
+    hoverSlice.value = null
+  }
+})
+
+watch(() => props.isUnassigning, (val) => {
+  if (val) {
     hoverSlice.value = null
   }
 })
@@ -594,8 +601,31 @@ const expandTimeslice = (slice: Timeslice) => {
 }
 
 const getTimeAndRoomFromPoint = (clientX: number, clientY: number) => {
+  if (!rootEl.value || props.isUnassigning) return null
+
+  const gridEl = rootEl.value.querySelector('.grid') as HTMLElement | null
+  if (!gridEl) return null
+  const gridRect = gridEl.getBoundingClientRect()
+  if (
+    clientX < gridRect.left ||
+    clientX > gridRect.right ||
+    clientY < gridRect.top ||
+    clientY > gridRect.bottom
+  ) {
+    return null
+  }
+
   // 1. Determine room index by checking which room column the pointer is horizontally within
-  const roomEls = Array.from(rootEl.value?.querySelectorAll('.grid > .room') || [])
+  const roomEls = Array.from(rootEl.value.querySelectorAll('.grid > .room') || [])
+  if (roomEls.length <= 1) return null
+  const firstRoomLeft = roomEls[1].getBoundingClientRect().left
+  const lastRoomRight = roomEls[roomEls.length - 1].getBoundingClientRect().right
+
+  // If pointer is left of the first room (e.g. over time column or moved to the left sidebar) or right of the last room, it's not over any room!
+  if (clientX < firstRoomLeft || clientX > lastRoomRight) {
+    return null
+  }
+
   let roomIndex = -1
   for (let i = 1; i < roomEls.length; i++) {
     const rect = roomEls[i].getBoundingClientRect()
@@ -603,21 +633,19 @@ const getTimeAndRoomFromPoint = (clientX: number, clientY: number) => {
       roomIndex = i - 1
       break
     }
-    if (clientX >= rect.right && i === roomEls.length - 1) {
-      roomIndex = i - 1
-    }
-  }
-  if (roomIndex < 0 && roomEls.length > 1) {
-    if (clientX < roomEls[1].getBoundingClientRect().left) {
-      roomIndex = 0
-    }
   }
   if (roomIndex < 0 || roomIndex >= visibleRooms.value.length) return null
   const room = visibleRooms.value[roomIndex]
 
   // 2. Determine timeslice by checking which row the pointer is vertically within
-  const timesliceEls = Array.from(rootEl.value?.querySelectorAll('.grid > .timeslice') || []) as HTMLElement[]
+  const timesliceEls = Array.from(rootEl.value.querySelectorAll('.grid > .timeslice') || []) as HTMLElement[]
   if (!timesliceEls.length) return null
+
+  const firstSliceTop = timesliceEls[0].getBoundingClientRect().top
+  const lastSliceBottom = timesliceEls[timesliceEls.length - 1].getBoundingClientRect().bottom
+  if (clientY < firstSliceTop || clientY > lastSliceBottom) {
+    return null
+  }
 
   let targetSliceEl: HTMLElement | null = null
   for (let i = 0; i < timesliceEls.length; i++) {
@@ -627,13 +655,6 @@ const getTimeAndRoomFromPoint = (clientX: number, clientY: number) => {
     if (clientY >= rect.top && clientY < bottom) {
       targetSliceEl = timesliceEls[i]
       break
-    }
-  }
-  if (!targetSliceEl) {
-    if (clientY < timesliceEls[0].getBoundingClientRect().top) {
-      targetSliceEl = timesliceEls[0]
-    } else {
-      targetSliceEl = timesliceEls[timesliceEls.length - 1]
     }
   }
 
@@ -648,7 +669,7 @@ let lastPlacementTime = 0
 const tryPlaceSessionAtPoint = (clientX: number, clientY: number): boolean => {
   if (!props.draggedSession) return false
   const now = Date.now()
-  if (now - lastPlacementTime < 300) return false // prevent duplicate triggers
+  if (now - lastPlacementTime < 100) return false // prevent duplicate triggers
   lastPlacementTime = now
 
   const slot = getTimeAndRoomFromPoint(clientX, clientY)
@@ -691,7 +712,7 @@ const onGridClick = (event: MouseEvent) => {
 }
 
 const updateHoverSlice = (e: PointerEvent) => {
-  if (!props.draggedSession) {
+  if (!props.draggedSession || props.isUnassigning) {
     hoverSlice.value = null
     return
   }

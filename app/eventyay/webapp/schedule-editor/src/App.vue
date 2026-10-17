@@ -72,11 +72,17 @@
 				.unassigned-body
 					p.unschedule-hint(v-if="unscheduleHint", role="status") {{ unscheduleHint }}
 					.unassigned-drop-zone(v-if="canDropToDismissOrUnassign", :class="{'is-hovered': isUnassigning, 'is-break-drop': !draggedSession?.code}")
-						.drop-zone-icon-wrap
-							i.fa(:class="!draggedSession?.code ? 'fa-trash' : 'fa-inbox'")
-						.drop-zone-content
-							span.drop-zone-title {{ !draggedSession?.code ? $t('Drop here to dismiss break') : $t('Drop here to unassign session') }}
-							span.drop-zone-subtitle {{ !draggedSession?.code ? $t('Removes break from timetable') : $t('Returns session to unscheduled list') }}
+						.drop-zone-main
+							.drop-zone-icon-wrap
+								i.fa(:class="!draggedSession?.code ? 'fa-trash' : 'fa-inbox'")
+							.drop-zone-content
+								span.drop-zone-title {{ !draggedSession?.code ? $t('Drop here to dismiss break') : $t('Drop here to unassign session') }}
+								span.drop-zone-subtitle {{ !draggedSession?.code ? $t('Removes break from timetable') : $t('Returns session to unscheduled list') }}
+						.drop-zone-preview(v-if="isUnassigning && draggedSession")
+							session.unassigned-preview-pill(
+								:session="draggedSession",
+								:isDragClone="true"
+							)
 					.unassigned-header
 						.density-controls
 							button.density-btn(:class="{active: condensedView}", @click="toggleCondensedView", :title="condensedView ? $t('Normal view') : $t('Condensed view')", :aria-pressed="condensedView.toString()")
@@ -148,6 +154,7 @@
 					:end="days.at(-1).clone().endOf('day')",
 					:currentDay="currentDay",
 					:draggedSession="draggedSession",
+					:isUnassigning="isUnassigning",
 					:allowOverlap="caps.allowOverlap",
 					@changeDay="changeDay",
 					@startDragging="caps.canDrag ? startDragging($event) : null",
@@ -446,30 +453,37 @@ function showBreakConfirmDialog(id: number | string): Promise<boolean> {
 
 async function confirmBreakDelete() {
   if (breakDeleteId == null) return
-  breakConfirmBusy.value = true
-  breakConfirmError.value = ''
-  try {
-    const strId = String(breakDeleteId)
-    if (pendingBreakCreations.has(strId)) {
-      pendingBreakCreations.get(strId)!.dismissed = true
-    }
-    const numericId = Number(breakDeleteId)
-    if (numericId && !isNaN(numericId)) {
+  const idToDelete = breakDeleteId
+  const strId = String(idToDelete)
+  const numericId = Number(idToDelete)
+
+  if (pendingBreakCreations.has(strId)) {
+    pendingBreakCreations.get(strId)!.dismissed = true
+  }
+
+  const previousTalks = schedule.value ? [...schedule.value.talks] : []
+  if (schedule.value) {
+    schedule.value.talks = schedule.value.talks.filter(
+      (s) => String(s.id) !== strId && (isNaN(numericId) || Number(s.id) !== numericId)
+    )
+  }
+
+  const resolve = breakConfirmResolve
+  breakConfirmDialogEl.value?.close()
+  breakConfirmBusy.value = false
+  breakConfirmResolve = null
+  breakDeleteId = null
+  resolve?.(true)
+
+  if (numericId && !isNaN(numericId)) {
+    try {
       await api.deleteTalk({ id: numericId })
+    } catch (error) {
+      console.error('Failed to delete break', { id: numericId, error })
+      if (schedule.value) {
+        schedule.value.talks = previousTalks
+      }
     }
-    if (schedule.value) {
-      schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== strId && (isNaN(numericId) || Number(s.id) !== numericId))
-    }
-    await fetchAdditionalScheduleData()
-    breakConfirmDialogEl.value?.close()
-    breakConfirmResolve?.(true)
-  } catch (error) {
-    breakConfirmError.value = $t('Failed to delete break. Please try again.')
-    breakConfirmResolve?.(false)
-  } finally {
-    breakConfirmBusy.value = false
-    breakConfirmResolve = null
-    breakDeleteId = null
   }
 }
 
@@ -564,7 +578,10 @@ function checkIsOverUnassigned(x: number, y: number): boolean {
   const el = document.getElementById('unassigned')
   if (!el) return false
   const rect = el.getBoundingClientRect()
-  return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+  if (isMobile.value) {
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom + 10
+  }
+  return x <= rect.right + 10 && y >= rect.top && y <= rect.bottom
 }
 
 function onGlobalPointerMove(e: PointerEvent) {
@@ -1041,7 +1058,9 @@ async function rescheduleSession(e: RescheduleEvent): Promise<void> {
   movedSession.end = e.end as string
   movedSession.room = e.room.id
   await saveTalk(movedSession)
-  await fetchAdditionalScheduleData()
+  if (movedSession.code) {
+    void fetchAdditionalScheduleData()
+  }
 }
 
 interface CreateSessionEvent {
@@ -1090,7 +1109,6 @@ async function createSession(e: CreateSessionEvent): Promise<void> {
           console.error('Failed to delete cancelled break', err)
         }
       }
-      await fetchAdditionalScheduleData()
       return
     }
 
@@ -1113,7 +1131,9 @@ async function createSession(e: CreateSessionEvent): Promise<void> {
         schedule.value.talks = [...schedule.value.talks]
       }
     }
-    await fetchAdditionalScheduleData()
+    if (e.session.code) {
+      void fetchAdditionalScheduleData()
+    }
   } catch (error) {
     pendingBreakCreations.delete(tempId)
     if (schedule.value) {
@@ -1446,6 +1466,14 @@ function startNewBreak({ event }: DragStartEvent) {
 
 function startDragging({ event, session }: DragStartEvent) {
   isUnassigning.value = false
+  if (session.start && session.id) {
+    if (isSidebarCollapsed.value) {
+      isSidebarCollapsed.value = false
+    }
+    if (isUnassignedCollapsed.value) {
+      isUnassignedCollapsed.value = false
+    }
+  }
   if (availabilities && availabilities.talks[session.id! ?? 0] && availabilities.talks[session.id! ?? 0].length !== 0) {
     session.availabilities = availabilities.talks[session.id! ?? 0]
   }
@@ -1527,20 +1555,17 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
         const existingBreak = schedule.value?.talks.find((s) => String(s.id) === strId || (Number(s.id) && Number(s.id) === Number(breakId)))
         if (existingBreak) {
           const numericId = Number(existingBreak.id)
+          const previousTalks = schedule.value ? [...schedule.value.talks] : []
+          if (schedule.value) {
+            schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== strId && (isNaN(numericId) || Number(s.id) !== numericId))
+          }
           if (numericId && !isNaN(numericId)) {
-            try {
-              await api.deleteTalk({ id: numericId })
-              if (schedule.value) {
-                schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== strId && Number(s.id) !== numericId)
-              }
-              await fetchAdditionalScheduleData()
-            } catch (error) {
+            api.deleteTalk({ id: numericId }).catch((error) => {
               console.error('Failed to delete break on unassign', { breakId, error })
-            }
-          } else {
-            if (schedule.value) {
-              schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== strId)
-            }
+              if (schedule.value) {
+                schedule.value.talks = previousTalks
+              }
+            })
           }
         }
       }
@@ -1746,8 +1771,9 @@ onUnmounted(() => {
 
 .unassigned-drop-zone
 	display: flex
-	align-items: center
-	gap: 10px
+	flex-direction: column
+	align-items: stretch
+	gap: 8px
 	padding: 10px 12px
 	margin: 0 0 12px 0
 	border-radius: 8px
@@ -1759,6 +1785,14 @@ onUnmounted(() => {
 	pointer-events: none
 	transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1)
 	animation: dropZoneSlideDown 0.2s cubic-bezier(0.16, 1, 0.3, 1) both
+	position: sticky
+	top: 0
+	z-index: 40
+	.drop-zone-main
+		display: flex
+		align-items: center
+		gap: 10px
+		width: 100%
 	.drop-zone-icon-wrap
 		width: 30px
 		height: 30px
@@ -1789,6 +1823,23 @@ onUnmounted(() => {
 		opacity: 0.85
 		line-height: 1.2
 		margin-top: 1px
+	.drop-zone-preview
+		display: flex
+		flex-direction: column
+		gap: 6px
+		width: 100%
+		margin-top: 4px
+		animation: dropZonePreviewIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) both
+		.unassigned-preview-pill
+			width: 100%
+			margin: 0
+			min-width: 0
+			box-sizing: border-box
+			opacity: 0.95
+			border-radius: 6px
+			box-shadow: 0 4px 14px rgba(220, 38, 38, 0.18), 0 1px 3px rgba(0, 0, 0, 0.08)
+			border: 1.5px solid rgba(220, 38, 38, 0.45)
+			pointer-events: none
 	&.is-hovered
 		border-color: #dc2626
 		background: linear-gradient(135deg, #fee2e2, #fecaca)
@@ -2669,6 +2720,14 @@ html.rtl
 	0%
 		opacity: 0
 		transform: translateY(-8px) scale(0.97)
+	100%
+		opacity: 1
+		transform: translateY(0) scale(1)
+
+@keyframes dropZonePreviewIn
+	0%
+		opacity: 0
+		transform: translateY(-4px) scale(0.98)
 	100%
 		opacity: 1
 		transform: translateY(0) scale(1)
