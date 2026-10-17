@@ -141,6 +141,10 @@
 			)
 				i.fa(:class="isSidebarCollapsed ? 'fa-bars' : 'fa-chevron-left'", aria-hidden="true")
 			#schedule-wrapper
+				.schedule-action-toast(v-if="scheduleActionError", role="alert")
+					span {{ scheduleActionError }}
+					button.action-toast-dismiss(type="button", @click="scheduleActionError = ''", :aria-label="$t('Dismiss')")
+						i.fa.fa-times(aria-hidden="true")
 				.schedule-controls(:style="actionsControlsStyle")
 					bunt-tabs.days(v-if="days", :modelValue="currentDay.format()", ref="tabs" :class="['grid-tabs']")
 						bunt-tab(v-for="day of days", :key="day.format()", :id="day.format()", :header="day.format(dateFormat)", @selected="changeDay(day)")
@@ -439,6 +443,18 @@ let breakConfirmResolve: ((value: boolean) => void) | null = null
 let breakDeleteId: number | string | null = null
 const pendingBreakCreations = new Map<string, { dismissed: boolean }>()
 
+const scheduleActionError = ref<string>('')
+let scheduleActionErrorTimer: ReturnType<typeof setTimeout> | null = null
+
+function showScheduleActionError(msg: string) {
+  scheduleActionError.value = msg
+  if (scheduleActionErrorTimer) clearTimeout(scheduleActionErrorTimer)
+  scheduleActionErrorTimer = setTimeout(() => {
+    scheduleActionError.value = ''
+    scheduleActionErrorTimer = null
+  }, 6000)
+}
+
 function showBreakConfirmDialog(id: number | string): Promise<boolean> {
   breakDeleteId = id
   breakConfirmTitle.value = $t('Delete break')
@@ -461,7 +477,12 @@ async function confirmBreakDelete() {
     pendingBreakCreations.get(strId)!.dismissed = true
   }
 
-  const previousTalks = schedule.value ? [...schedule.value.talks] : []
+  const removedTalks = schedule.value
+    ? schedule.value.talks.filter(
+        (s) => String(s.id) === strId || (!isNaN(numericId) && Number(s.id) === numericId)
+      )
+    : []
+
   if (schedule.value) {
     schedule.value.talks = schedule.value.talks.filter(
       (s) => String(s.id) !== strId && (isNaN(numericId) || Number(s.id) !== numericId)
@@ -480,9 +501,14 @@ async function confirmBreakDelete() {
       await api.deleteTalk({ id: numericId })
     } catch (error) {
       console.error('Failed to delete break', { id: numericId, error })
-      if (schedule.value) {
-        schedule.value.talks = previousTalks
+      if (schedule.value && removedTalks.length > 0) {
+        const currentIds = new Set(schedule.value.talks.map((s) => String(s.id)))
+        schedule.value.talks = [
+          ...schedule.value.talks,
+          ...removedTalks.filter((s) => !currentIds.has(String(s.id))),
+        ]
       }
+      showScheduleActionError($t('Failed to delete break. Please try again.'))
     }
   }
 }
@@ -581,7 +607,7 @@ function checkIsOverUnassigned(x: number, y: number): boolean {
   if (isMobile.value) {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom + 10
   }
-  return x <= rect.right + 10 && y >= rect.top && y <= rect.bottom
+  return x >= rect.left - 10 && x <= rect.right + 10 && y >= rect.top && y <= rect.bottom
 }
 
 function onGlobalPointerMove(e: PointerEvent) {
@@ -1555,7 +1581,7 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
         const existingBreak = schedule.value?.talks.find((s) => String(s.id) === strId || (Number(s.id) && Number(s.id) === Number(breakId)))
         if (existingBreak) {
           const numericId = Number(existingBreak.id)
-          const previousTalks = schedule.value ? [...schedule.value.talks] : []
+          const removedBreak = existingBreak
           if (schedule.value) {
             schedule.value.talks = schedule.value.talks.filter((s) => String(s.id) !== strId && (isNaN(numericId) || Number(s.id) !== numericId))
           }
@@ -1563,8 +1589,12 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
             api.deleteTalk({ id: numericId }).catch((error) => {
               console.error('Failed to delete break on unassign', { breakId, error })
               if (schedule.value) {
-                schedule.value.talks = previousTalks
+                const currentIds = new Set(schedule.value.talks.map((s) => String(s.id)))
+                if (!currentIds.has(String(removedBreak.id))) {
+                  schedule.value.talks = [...schedule.value.talks, removedBreak]
+                }
               }
+              showScheduleActionError($t('Failed to delete break. Please try again.'))
             })
           }
         }
@@ -2731,6 +2761,33 @@ html.rtl
 	100%
 		opacity: 1
 		transform: translateY(0) scale(1)
+
+.schedule-action-toast
+	display: flex
+	align-items: center
+	justify-content: space-between
+	gap: 12px
+	background-color: #fee2e2
+	border: 1px solid #ef4444
+	color: #991b1b
+	padding: 8px 14px
+	margin: 8px 16px 0 16px
+	border-radius: 6px
+	font-size: 13px
+	font-weight: 500
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08)
+	animation: dropZoneSlideDown 0.2s ease-out both
+	position: relative
+	z-index: 50
+	.action-toast-dismiss
+		background: none
+		border: none
+		color: #991b1b
+		cursor: pointer
+		padding: 2px 6px
+		border-radius: 4px
+		&:hover
+			background-color: rgba(239, 68, 68, 0.15)
 
 .sidebar-divider-line
 	position: absolute
