@@ -489,27 +489,32 @@ async function confirmBreakDelete() {
     )
   }
 
-  const resolve = breakConfirmResolve
-  breakConfirmDialogEl.value?.close()
-  breakConfirmBusy.value = false
-  breakConfirmResolve = null
-  breakDeleteId = null
-  resolve?.(true)
+  breakConfirmBusy.value = true
+  breakConfirmError.value = ''
 
-  if (numericId && !isNaN(numericId)) {
-    try {
+  try {
+    if (numericId && !isNaN(numericId)) {
       await api.deleteTalk({ id: numericId })
-    } catch (error) {
-      console.error('Failed to delete break', { id: numericId, error })
-      if (schedule.value && removedTalks.length > 0) {
-        const currentIds = new Set(schedule.value.talks.map((s) => String(s.id)))
-        schedule.value.talks = [
-          ...schedule.value.talks,
-          ...removedTalks.filter((s) => !currentIds.has(String(s.id))),
-        ]
-      }
-      showScheduleActionError($t('Failed to delete break. Please try again.'))
     }
+    breakConfirmDialogEl.value?.close()
+    breakConfirmResolve?.(true)
+    breakConfirmResolve = null
+    breakDeleteId = null
+  } catch (error) {
+    console.error('Failed to delete break', { id: numericId, error })
+    if (schedule.value && removedTalks.length > 0) {
+      const currentIds = new Set(schedule.value.talks.map((s) => String(s.id)))
+      schedule.value.talks = [
+        ...schedule.value.talks,
+        ...removedTalks.filter((s) => !currentIds.has(String(s.id))),
+      ]
+    }
+    breakConfirmError.value = $t('Failed to delete break. Please try again.')
+    showScheduleActionError($t('Failed to delete break. Please try again.'))
+    breakConfirmResolve?.(false)
+    breakConfirmResolve = null
+  } finally {
+    breakConfirmBusy.value = false
   }
 }
 
