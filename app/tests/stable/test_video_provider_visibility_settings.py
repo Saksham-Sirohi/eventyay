@@ -1,5 +1,8 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from asgiref.sync import async_to_sync
+from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils.timezone import now
@@ -16,6 +19,7 @@ from eventyay.base.settings import (
     is_video_provider_enabled_for_attendee,
     is_video_provider_enabled_for_organizer,
 )
+from eventyay.features.live.modules.event import EventModule
 
 
 @pytest.fixture
@@ -417,12 +421,6 @@ def test_create_room_with_module_config_rejects_disabled_provider(sample_event, 
 @pytest.mark.asyncio
 @pytest.mark.django_db
 async def test_event_config_disabled_provider_filtered_and_rejected():
-    from unittest.mock import AsyncMock, MagicMock, patch
-
-    from channels.db import database_sync_to_async
-
-    from eventyay.features.live.modules.event import EventModule
-
     gs = GlobalSettingsObject()
     await database_sync_to_async(gs.settings.set)("video_provider_bbb_organizer", False)
 

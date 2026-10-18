@@ -285,6 +285,15 @@ class EventModule(BaseModule):
                 by_user=self.consumer.user,
                 old_data=old,
             )
+            for prov, def_key in (
+                ("bbb", "bbb_defaults"),
+                ("zoom", "zoom_defaults"),
+                ("jitsi", "jitsi_defaults"),
+                ("janus", "janus_defaults"),
+            ):
+                if not await is_video_provider_enabled_for_organizer_async(prov):
+                    new.pop(def_key, None)
+
             await self.consumer.send_success(new)
             await notify_event_change(self.consumer.event.id)
 

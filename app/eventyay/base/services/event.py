@@ -522,7 +522,8 @@ async def create_room(event, data, creator):
     if "modules" not in data and "module_config" in data:
         data["modules"] = data["module_config"]
 
-    for module in data.get("modules", []):
+    modules = data.get("modules") or []
+    for module in modules:
         if isinstance(module, dict):
             provider = get_provider_for_module_type(module.get("type"))
             if provider and not await is_video_provider_enabled_for_organizer_async(provider):
@@ -531,7 +532,7 @@ async def create_room(event, data, creator):
                     code="denied",
                 )
 
-    types = {m["type"] for m in data.get("modules", [])}
+    types = {m["type"] for m in modules}
     livestream_types = {
         "livestream.native",
         "livestream.youtube",
