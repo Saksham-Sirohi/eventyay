@@ -393,19 +393,13 @@ export default {
 				return Boolean(this.room?.schedule_data?.computeSession)
 			},
 			set(value) {
-				if (value) {
-					this.$store.dispatch('updateRoomSchedule', {
-						room: this.room,
-						schedule_data: {
-							computeSession: true
-						}
-					})
-				} else {
-					this.$store.dispatch('updateRoomSchedule', {
-						room: this.room,
-						schedule_data: null
-					})
-				}
+				const schedule_data = value ? { computeSession: true } : null
+				this.$store.dispatch('updateRoomSchedule', {
+					room: this.room,
+					schedule_data
+				}).catch(err => {
+					console.error(`Failed to update schedule data for room ${this.room?.id}:`, err)
+				})
 			}
 		},
 		pendingMessageIds() {

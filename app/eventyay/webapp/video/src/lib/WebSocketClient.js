@@ -38,6 +38,10 @@ class WebSocketClient extends EventEmitter {
 			clearTimeout(this._reconnectTimeout)
 			this._reconnectTimeout = null
 		}
+		if (this._joinTimeout) {
+			clearTimeout(this._joinTimeout)
+			this._joinTimeout = null
+		}
 		if (this._socket && this._socket.readyState !== WebSocket.CLOSED) {
 			const oldSocket = this._socket
 			try {
@@ -87,8 +91,9 @@ class WebSocketClient extends EventEmitter {
 			data
 		]
 		this._send(JSON.stringify(payload))
-		setTimeout(() => {
-			if (this._openRequests[id]) {
+		const req = this._openRequests[id]
+		req.timeout = setTimeout(() => {
+			if (this._openRequests[id] === req) {
 				const timeoutedRequest = this._popPendingRequest(id)
 				timeoutedRequest.deferred.reject(new Error('call timed out'))
 				if (name !== 'event.client_log') {
@@ -151,7 +156,10 @@ class WebSocketClient extends EventEmitter {
 		})
 		this._openRequests = {} // save deferred promises from requests waiting for reponse
 		this._nextRequestIndex = 1 // autoincremented message id
-		this._joinTimeout = null
+		if (this._joinTimeout) {
+			clearTimeout(this._joinTimeout)
+			this._joinTimeout = null
+		}
 	}
 
 	_send(payload) {
@@ -241,6 +249,10 @@ class WebSocketClient extends EventEmitter {
 	_popPendingRequest(id) {
 		const req = this._openRequests[id]
 		this._openRequests[id] = undefined
+		if (req?.timeout) {
+			clearTimeout(req.timeout)
+			req.timeout = null
+		}
 		return req
 	}
 
