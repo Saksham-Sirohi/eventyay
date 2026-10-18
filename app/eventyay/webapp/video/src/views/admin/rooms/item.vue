@@ -15,7 +15,8 @@
 				i.fa.fa-exclamation-triangle
 			.alert-text
 				strong {{ $t('Video Provider Disabled') }}: 
-				span {{ $t('This room is configured with {provider}, which has been disabled by the platform administrator. The video feature for this room is unavailable.', { provider: disabledProviderName }) }}
+				span(v-if="disabledProviderInfo && disabledProviderInfo.isAttendeeAllowed") {{ $t('This room is configured with {provider}, which has been disabled for organisers by the platform administrator. Organiser controls are unavailable.', { provider: disabledProviderName }) }}
+				span(v-else) {{ $t('This room is configured with {provider}, which has been disabled by the platform administrator. The video feature for this room is unavailable.', { provider: disabledProviderName }) }}
 		.mystery-room(v-if="!inferredType")
 			p {{ $t('This room does not have a video option yet.') }}
 			VideoProviderDropdown(:label="$t('Add Video')", variant="action", @select="addVideoProvider")
@@ -85,9 +86,12 @@ export default {
 						janus: 'Janus WebRTC',
 						loungemesh: 'LoungeMesh'
 					}
+					const prov = videoProviders[providerId]
+					const isAttendeeAllowed = prov ? prov.attendee !== false : false
 					return {
 						id: providerId,
-						name: names[providerId] || providerId
+						name: names[providerId] || providerId,
+						isAttendeeAllowed
 					}
 				}
 			}
