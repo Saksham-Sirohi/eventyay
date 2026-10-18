@@ -610,9 +610,6 @@ watch(draggedSession, (val) => {
     cachedUnassignedRect = null
   }
 })
-watch([isSidebarCollapsed, isUnassignedCollapsed], () => {
-  cachedUnassignedRect = null
-})
 
 function checkIsOverUnassigned(x: number, y: number): boolean {
   if (typeof document === 'undefined') return false
@@ -663,6 +660,10 @@ const isSidebarCollapsed = ref<boolean>(false)
 function toggleSidebar(): void {
   isSidebarCollapsed.value = !isSidebarCollapsed.value
 }
+
+watch([isSidebarCollapsed, isUnassignedCollapsed], () => {
+  cachedUnassignedRect = null
+})
 
 const isFullscreen = ref<boolean>(false)
 

@@ -180,9 +180,6 @@ watch(() => props.isUnassigning, (val) => {
   }
 })
 
-watch([visibleRooms, visibleTimeslices], () => {
-  cachedGrid = null
-})
 
 function applyRoomFocusFromQuery() {
   const params = new URLSearchParams(window.location.search)
@@ -209,6 +206,7 @@ const refreshGridOffset = () => {
 }
 
 const scheduleRefreshGridOffset = () => {
+  cachedGrid = null
   if (gridOffsetFrame !== null) {
     return
   }
@@ -514,6 +512,10 @@ const staticOffsetTop = computed(() => {
 
 const visibleRooms = computed(() => {
   return props.rooms.filter(room => !hiddenRooms.value.includes(room))
+})
+
+watch([visibleRooms, visibleTimeslices, gridStyle], () => {
+  cachedGrid = null
 })
 
 const visibleSessions = computed(() => {
@@ -963,10 +965,11 @@ onMounted(async () => {
   if (layoutRoot instanceof HTMLElement && layoutRoot !== rootEl.value) {
     observeElementResize(layoutRoot)
   }
-  if (typeof ResizeObserver === 'undefined') {
-    windowResizeListener = scheduleRefreshGridOffset
-    window.addEventListener('resize', windowResizeListener)
+  windowResizeListener = () => {
+    cachedGrid = null
+    scheduleRefreshGridOffset()
   }
+  window.addEventListener('resize', windowResizeListener)
 
   // Listen on document level so touch drags (where pointer is captured elsewhere) work
   document.addEventListener('pointermove', onDocPointerMove)
