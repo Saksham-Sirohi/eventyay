@@ -14,6 +14,7 @@ from sentry_sdk import configure_scope
 
 from eventyay.base.models import User
 from eventyay.base.models.auth import ShortToken
+from eventyay.base.settings import GlobalSettingsObject
 from eventyay.core.permissions import Permission
 from eventyay.base.services.announcement import get_announcements
 from eventyay.features.live.modules.announcement import is_announcements_enabled
@@ -210,12 +211,6 @@ class AuthModule(BaseModule):
             r["id"] for r in login_result.event_config["rooms"]
         }
 
-        if not await self.consumer.event.has_permission_async(
-            user=self.consumer.user,
-            permission=Permission.EVENT_CONNECTIONS_UNLIMITED,
-        ):
-            await self._enforce_connection_limit()
-
         await self.consumer.channel_layer.group_add(
             GROUP_USER.format(id=self.consumer.user.id),
             self.consumer.channel_name,
@@ -224,6 +219,12 @@ class AuthModule(BaseModule):
             GROUP_EVENT.format(id=self.consumer.event.id),
             self.consumer.channel_name,
         )
+
+        if not await self.consumer.event.has_permission_async(
+            user=self.consumer.user,
+            permission=Permission.EVENT_CONNECTIONS_UNLIMITED,
+        ):
+            await self._enforce_connection_limit()
 
         await ChatService(self.consumer.event).enforce_forced_joins(self.consumer.user)
 
@@ -246,19 +247,26 @@ class AuthModule(BaseModule):
 
     async def _enforce_connection_limit(self):
         event_cfg = self._event_config()
-        if "connection_limit" in event_cfg and event_cfg.get("connection_limit") is not None:
-            connection_limit = event_cfg.get("connection_limit")
+        event_limit = event_cfg.get("connection_limit")
+
+        def _get_global_limit():
+            try:
+                gs = GlobalSettingsObject()
+                return gs.settings.get("video_max_connections_per_user", as_type=int, default=0)
+            except Exception:
+                logger.exception("Failed to load video_max_connections_per_user global setting")
+                return 0
+
+        global_limit = await database_sync_to_async(_get_global_limit)()
+
+        if global_limit and global_limit > 0:
+            if event_limit is not None and event_limit > 0:
+                connection_limit = min(event_limit, global_limit)
+            else:
+                connection_limit = global_limit
         else:
-            from eventyay.base.settings import GlobalSettingsObject
+            connection_limit = event_limit if (event_limit is not None and event_limit > 0) else 0
 
-            def _get_global_limit():
-                try:
-                    gs = GlobalSettingsObject()
-                    return gs.settings.get("video_max_connections_per_user", as_type=int, default=0)
-                except Exception:
-                    return 0
-
-            connection_limit = await database_sync_to_async(_get_global_limit)()
         if not connection_limit:
             return
 
@@ -266,13 +274,14 @@ class AuthModule(BaseModule):
 
         if settings.REDIS_USE_PUBSUB:
             async with aredis() as redis:
-                channels_to_drop = await redis.lrange(
-                    f"connections.list.user:{self.consumer.user.id}",
-                    0,
-                    -1 * connection_limit - 1,
-                )
-                for c in channels_to_drop:
-                    await self.consumer.channel_layer.send(c.decode(), message)
+                key = f"connections.list.user:{self.consumer.user.id}"
+                total_channels = await redis.llen(key)
+                if total_channels > connection_limit:
+                    num_to_drop = total_channels - connection_limit
+                    channels_to_drop = await redis.lrange(key, 0, num_to_drop - 1)
+                    await redis.ltrim(key, num_to_drop, -1)
+                    for c in channels_to_drop:
+                        await self.consumer.channel_layer.send(c.decode(), message)
         else:
             channel_names = []
             group = GROUP_USER.format(id=self.consumer.user.id)
@@ -287,13 +296,11 @@ class AuthModule(BaseModule):
                     x.decode("utf8") for x in await connection.zrange(key, 0, -1)
                 ]
 
-            if len(channel_names) < connection_limit:
+            if len(channel_names) <= connection_limit:
                 return
 
-            if connection_limit == 1:
-                channels_to_drop = channel_names
-            else:
-                channels_to_drop = channel_names[: -1 * (connection_limit - 1)]
+            num_to_drop = len(channel_names) - connection_limit
+            channels_to_drop = channel_names[:num_to_drop]
 
             (
                 connection_to_channel_keys,

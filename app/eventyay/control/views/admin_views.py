@@ -239,7 +239,8 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
 
     def post(self, request, *args, **kwargs):
         gs = GlobalSettingsObject()
-        changed = []
+        limit_changed = []
+        visibility_changed = []
 
         if "video_max_connections_per_user" in request.POST:
             val = request.POST.get("video_max_connections_per_user", "").strip()
@@ -251,7 +252,7 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
                     prev_conn = gs.settings.get("video_max_connections_per_user", as_type=int, default=0)
                     if max_conn != prev_conn:
                         gs.settings.set("video_max_connections_per_user", max_conn)
-                        changed.append(f"max connections per user: {max_conn}")
+                        limit_changed.append(f"max connections per user: {max_conn}")
             except (ValueError, TypeError):
                 messages.error(request, _("Invalid number for max connections."))
 
@@ -270,28 +271,44 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
 
                 if new_org != prev_org:
                     gs.settings.set(org_key, new_org)
-                    changed.append(f"{p} organizer: {new_org}")
+                    visibility_changed.append(f"{p} organizer: {new_org}")
                 if new_att != prev_att:
                     gs.settings.set(att_key, new_att)
-                    changed.append(f"{p} attendee: {new_att}")
+                    visibility_changed.append(f"{p} attendee: {new_att}")
             elif sub_key in request.POST or key_single in request.POST:
                 is_enabled = request.POST.get(key_single) in ("true", "1", "on")
                 for r_key, r_name in [(org_key, "organizer"), (att_key, "attendee")]:
                     prev = gs.settings.get(r_key, as_type=bool, default=True)
                     if is_enabled != prev:
                         gs.settings.set(r_key, is_enabled)
-                        changed.append(f"{p} {r_name}: {is_enabled}")
+                        visibility_changed.append(f"{p} {r_name}: {is_enabled}")
 
-        if changed:
+        if limit_changed:
+            _admin_log_entry(
+                content_object=request.user,
+                user=request.user,
+                action_type="eventyay.video.settings.connection_limit_changed",
+                data=json.dumps({"changes": limit_changed}),
+            )
+
+        if visibility_changed:
             _admin_log_entry(
                 content_object=request.user,
                 user=request.user,
                 action_type="eventyay.video.settings.visibility_changed",
-                data=json.dumps({"changes": changed}),
+                data=json.dumps({"changes": visibility_changed}),
             )
+
+        if limit_changed and visibility_changed:
+            messages.success(request, _("Video settings and connection limits saved successfully."))
+        elif limit_changed:
+            messages.success(request, _("Video connection limit saved successfully."))
+        elif visibility_changed:
             messages.success(request, _("Video server visibility settings saved successfully."))
-        else:
+        elif not limit_changed and not visibility_changed and "video_max_connections_per_user" not in request.POST:
             messages.info(request, _("No changes made to video server visibility settings."))
+        elif not limit_changed and not visibility_changed:
+            messages.info(request, _("No changes made to video settings."))
 
         return redirect(reverse("eventyay_admin:video_admin:settings") + "?tab=general")
 

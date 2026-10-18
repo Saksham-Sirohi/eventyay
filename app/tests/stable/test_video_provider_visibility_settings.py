@@ -10,6 +10,7 @@ from django_scopes import scopes_disabled
 
 from eventyay.base.models import Event, Organizer, Room
 from eventyay.base.models.auth import StaffSession
+from eventyay.base.models.log import LogEntry
 from eventyay.base.services.event import create_room, get_event_config_for_user, get_rooms
 from eventyay.base.settings import (
     GlobalSettingsObject,
@@ -250,6 +251,7 @@ def test_get_room_config_marks_disabled_for_inactive_provider(sample_event):
 
 
 @pytest.mark.asyncio
+@pytest.mark.django_db
 async def test_get_room_config_for_user_prevents_direct_access_for_attendees(mocker):
     from unittest.mock import MagicMock
     from eventyay.base.services.event import get_room_config_for_user
@@ -412,9 +414,17 @@ def test_video_max_connections_setting_and_admin_view(client, admin_user):
     assert res.status_code == 200
     assert "Max connections per user" in res.content.decode()
 
-    # Test POST update
-    resp = client.post("/admin/video/settings/?tab=general", data={"video_max_connections_per_user": 10})
-    assert resp.status_code == 302
+    # Test POST update creates dedicated connection_limit_changed audit log
+    resp = client.post("/admin/video/settings/?tab=general", data={"video_max_connections_per_user": 10}, follow=True)
+    assert resp.status_code == 200
+    assert gs.settings.get("video_max_connections_per_user", as_type=int) == 10
+    assert "Video connection limit saved successfully." in resp.content.decode()
+    assert LogEntry.objects.filter(action_type="eventyay.video.settings.connection_limit_changed").exists()
+
+    # Test invalid input validation
+    resp_invalid = client.post("/admin/video/settings/?tab=general", data={"video_max_connections_per_user": -1}, follow=True)
+    assert resp_invalid.status_code == 200
+    assert "Max connections must be 0 or greater." in resp_invalid.content.decode()
     assert gs.settings.get("video_max_connections_per_user", as_type=int) == 10
 
     # Cleanup
@@ -439,17 +449,44 @@ async def test_enforce_connection_limit_global_fallback():
         with patch("eventyay.features.live.modules.auth.settings.REDIS_USE_PUBSUB", True):
             with patch("eventyay.features.live.modules.auth.aredis") as mock_aredis:
                 mock_redis = AsyncMock()
+                mock_redis.llen = AsyncMock(return_value=3)
                 mock_redis.lrange = AsyncMock(return_value=[b"ch-1"])
+                mock_redis.ltrim = AsyncMock()
                 mock_aredis.return_value.__aenter__.return_value = mock_redis
                 consumer.channel_layer = MagicMock()
                 consumer.channel_layer.send = AsyncMock()
 
                 await auth_module._enforce_connection_limit()
-                # connection_limit 2 means -1 * 2 - 1 = -3
+                # connection_limit 2 with total_channels 3 drops 3 - 2 = 1 channel (index 0 to 0)
                 mock_redis.lrange.assert_awaited_once_with(
                     "connections.list.user:user-123",
                     0,
-                    -3,
+                    0,
+                )
+                mock_redis.ltrim.assert_awaited_once_with(
+                    "connections.list.user:user-123",
+                    1,
+                    -1,
+                )
+
+    # Test event cannot bypass platform cap (global cap is 2, event requests 10 -> caps at 2)
+    with patch.object(auth_module, "_event_config", return_value={"connection_limit": 10}):
+        with patch("eventyay.features.live.modules.auth.settings.REDIS_USE_PUBSUB", True):
+            with patch("eventyay.features.live.modules.auth.aredis") as mock_aredis:
+                mock_redis = AsyncMock()
+                mock_redis.llen = AsyncMock(return_value=4)
+                mock_redis.lrange = AsyncMock(return_value=[b"ch-1", b"ch-2"])
+                mock_redis.ltrim = AsyncMock()
+                mock_aredis.return_value.__aenter__.return_value = mock_redis
+                consumer.channel_layer = MagicMock()
+                consumer.channel_layer.send = AsyncMock()
+
+                await auth_module._enforce_connection_limit()
+                # 4 channels with limit capped at 2 drops 4 - 2 = 2 channels (index 0 to 1)
+                mock_redis.lrange.assert_awaited_once_with(
+                    "connections.list.user:user-123",
+                    0,
+                    1,
                 )
 
     # Cleanup
