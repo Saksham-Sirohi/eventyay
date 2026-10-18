@@ -394,4 +394,68 @@ def test_attendee_side_account_with_team_permission_gets_only_attendee_traits(sa
     assert sample_event.has_permission(user=attendee_relogin.user, permission=mod_perms, room=room) is False
 
 
+@pytest.mark.django_db
+def test_video_max_connections_setting_and_admin_view(client, admin_user):
+    client.force_login(admin_user)
+    session = client.session
+    session.save()
+    StaffSession.objects.create(user=admin_user, session_key=session.session_key)
+
+    gs = GlobalSettingsObject()
+    gs.settings.set("video_max_connections_per_user", 5)
+
+    res = client.get("/admin/video/settings/?tab=general")
+    assert res.status_code == 200
+    assert "Max connections per user" in res.content.decode()
+
+    # Test POST update
+    resp = client.post("/admin/video/settings/?tab=general", data={"video_max_connections_per_user": 10})
+    assert resp.status_code == 302
+    assert gs.settings.get("video_max_connections_per_user", as_type=int) == 10
+
+    # Cleanup
+    gs.settings.set("video_max_connections_per_user", 0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.django_db
+async def test_enforce_connection_limit_global_fallback():
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from channels.db import database_sync_to_async
+
+    from eventyay.features.live.modules.auth import AuthModule
+
+    gs = GlobalSettingsObject()
+    await database_sync_to_async(gs.settings.set)("video_max_connections_per_user", 2)
+
+    consumer = MagicMock()
+    consumer.user = MagicMock()
+    consumer.user.id = "user-123"
+    consumer.event = MagicMock()
+    consumer.event.id = 1
+    consumer.event.config = {}
+
+    auth_module = AuthModule(consumer)
+    with patch.object(auth_module, "_event_config", return_value={}):
+        with patch("eventyay.features.live.modules.auth.settings.REDIS_USE_PUBSUB", True):
+            with patch("eventyay.features.live.modules.auth.aredis") as mock_aredis:
+                mock_redis = AsyncMock()
+                mock_redis.lrange = AsyncMock(return_value=[b"ch-1"])
+                mock_aredis.return_value.__aenter__.return_value = mock_redis
+                consumer.channel_layer = MagicMock()
+                consumer.channel_layer.send = AsyncMock()
+
+                await auth_module._enforce_connection_limit()
+                # connection_limit 2 means -1 * 2 - 1 = -3
+                mock_redis.lrange.assert_awaited_once_with(
+                    "connections.list.user:user-123",
+                    0,
+                    -3,
+                )
+
+    # Cleanup
+    await database_sync_to_async(gs.settings.set)("video_max_connections_per_user", 0)
+
+
 
