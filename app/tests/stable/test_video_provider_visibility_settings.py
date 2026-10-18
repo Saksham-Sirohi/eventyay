@@ -250,6 +250,7 @@ def test_get_room_config_marks_disabled_for_inactive_provider(sample_event):
 
 
 @pytest.mark.asyncio
+@pytest.mark.django_db
 async def test_get_room_config_for_user_prevents_direct_access_for_attendees(mocker):
     from unittest.mock import MagicMock
     from eventyay.base.services.event import get_room_config_for_user
