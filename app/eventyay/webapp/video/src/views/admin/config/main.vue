@@ -5,7 +5,9 @@
 		h1 {{ $t('Settings') }}
 	scrollbars(y)
 		bunt-progress-circular(size="huge", v-if="!loaded && !error")
-		.error(v-if="error") {{ $t('We could not fetch the current configuration.') }}
+		.config-error(v-if="error && !loaded")
+			.error-message {{ $t('We could not fetch the current configuration.') }}
+			bunt-button.btn-retry(@click="retryFetch") {{ $t('Retry') }}
 		.ui-form-body(v-if="loaded")
 			.config-tabs(role="tablist")
 				button.tab-btn(type="button", role="tab", v-if="hasGeneral", :class="{active: activeTab === 'general'}", @click="activeTab = 'general'") {{ $t('General & Live Features') }}
@@ -280,6 +282,11 @@ async function fetchConfig() {
 	}
 }
 
+function retryFetch() {
+	error.value = null
+	fetchConfig()
+}
+
 onMounted(() => {
 	if (store.state.connected) {
 		fetchConfig()
@@ -391,6 +398,17 @@ async function save() {
 	> .c-scrollbars
 		flex: auto
 		min-height: 0
+	.config-error
+		display: flex
+		flex-direction: column
+		align-items: center
+		justify-content: center
+		padding: 40px 20px
+		gap: 16px
+		.error-message
+			color: $clr-danger
+			font-size: 16px
+			font-weight: 500
 	.config-tabs
 		display: flex
 		border-bottom: 1px solid #e2e8f0
