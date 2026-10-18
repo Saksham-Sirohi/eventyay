@@ -45,11 +45,10 @@
 				greeting-prompt(v-if="showGreetingPrompt", @close="dismissGreetingPrompt")
 		organiser-sidebar(v-if="isAdminRoute", :collapsed="sidebarCollapsed", :show-mobile="showMobileSidebar", @close="showMobileSidebar = false")
 		rooms-sidebar(v-else, :collapsed="sidebarCollapsed", :show-mobile="showMobileSidebar", @close="showMobileSidebar = false")
-	.connecting(v-else-if="!currentFatalError && !isAdminRoute && !isOrganizerArea")
+	.connecting(v-else-if="!currentFatalError", :class="{'is-organizer': isAdminRoute || isOrganizerArea}")
 		bunt-progress-circular(size="huge")
 		.details(v-if="socketCloseCode == 1006") {{ $t("Connection failed. We'll retry, but if this error occurs repeatedly, the connection might be blocked by a firewall in your network or by a VPN on your device.") }}
 		.details(v-if="socketCloseCode") {{ $t('Error code') }}: {{ socketCloseCode }}
-	.connecting.is-organizer(v-else-if="!currentFatalError")
 	.fatal-error(v-if="currentFatalError") {{ currentFatalError.message || currentFatalError.code }}
 </template>
 <script>

@@ -150,9 +150,6 @@ export default {
 			}
 		},
 		async onBack() {
-			try {
-				await this.$store.dispatch('chat/leaveCall')
-			} catch (e) {}
 			if (this.leaveMediaSource) {
 				this.leaveMediaSource(this.room)
 			} else {

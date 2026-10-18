@@ -56,8 +56,11 @@ export default {
 		background: var(--clr-surface, #ffffff)
 		border: 1px solid var(--clr-grey-200, #e2e8f0)
 		border-radius: 20px
-		padding: 2px 6px
-		overflow: hidden
+		overflow-x: auto
+		overflow-y: hidden
+		scrollbar-width: none
+		&::-webkit-scrollbar
+			display: none
 		max-width: 100%
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04)
 		transition: border-color 0.15s ease, box-shadow 0.15s ease

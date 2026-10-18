@@ -133,19 +133,20 @@ export default {
 			if (this.$refs.step?.update) {
 				await this.$refs.step.update()
 			}
+			await this.$store.dispatch('updateUser', {profile: this.profile})
+			if (this.interfaceLanguage) {
+				await this.$store.dispatch('updateUserLocale', this.interfaceLanguage)
+			}
 			this.profile.greeted = true // override even if explicitly set to false by server
 			const worldKey = this.world?.id || this.world?.slug
 			const userKey = this.user?.id
 			if (worldKey && userKey && typeof localStorage !== 'undefined') {
 				try {
 					localStorage.setItem(`eventyay_video_greeted_${worldKey}_${userKey}`, 'true')
-				} catch {}
+				} catch (err) {
+					console.warn('Failed to store greeting marker in localStorage:', err)
+				}
 			}
-			await this.$store.dispatch('updateUser', {profile: this.profile})
-			if (this.interfaceLanguage) {
-				await this.$store.dispatch('updateUserLocale', this.interfaceLanguage)
-			}
-			// TODO error handling
 			this.$emit('close')
 		}
 	}

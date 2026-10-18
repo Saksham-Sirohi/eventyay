@@ -18,10 +18,11 @@
 				.banner-content
 					.banner-title {{ $t('Room Connection Issue') }}
 					.banner-message {{ roomFatalError.message || $t('Could not establish connection to the meeting service.') }}
+				bunt-button.btn-retry(@click="retryRoom") {{ $t('Retry') }}
 			.media-stage-wrapper(v-else)
 				.player-viewport
 					media-source-placeholder
-				.stream-info-panel(v-if="!isServerStreamRoom")
+				.stream-info-panel(v-if="isLivestreamRoom")
 					.stream-meta-bar
 						.source-badge(:class="`badge-${livestreamInfo.type}`")
 							i.mdi(:class="livestreamInfo.icon")
@@ -89,7 +90,13 @@
 								span {{ $t('Configure Stream & Schedule') }}
 		panel.stage-tools(v-if="!isServerStreamRoom && !isEmbeddedSuiteRoom && ($features.enabled('schedule-control') || modules['poll'] || modules['question'])")
 			.minimal-schedule-section(v-if="$features.enabled('schedule-control')")
-				.minimal-schedule-header(@click="scheduleExpanded = !scheduleExpanded")
+				.minimal-schedule-header(
+					role="button",
+					tabindex="0",
+					:aria-expanded="scheduleExpanded ? 'true' : 'false'",
+					@click="scheduleExpanded = !scheduleExpanded",
+					@keydown.enter.space.prevent="scheduleExpanded = !scheduleExpanded"
+				)
 					.header-left
 						i.mdi.mdi-calendar-clock-outline
 						span.section-title {{ $t('Room Schedule') }}
@@ -920,14 +927,20 @@ export default {
 		async onBack() {
 			try {
 				await this.$store.dispatch('chat/leaveCall')
-			} catch (e) {}
+			} catch (err) {
+				console.warn('Failed to leave chat call during room exit:', err)
+			}
 			if (this.leaveMediaSource) {
 				this.leaveMediaSource(this.room)
 			}
 			if (window.eventyay?.isOrganizerArea || this.$route.name === 'organizer' || this.$route.name?.startsWith('admin') || this.$route.name === 'room:manage') {
-				this.$router.push({ name: 'organizer' }).catch(() => {})
+				this.$router.push({ name: 'organizer' }).catch(err => {
+					console.warn('Failed navigation to organizer:', err)
+				})
 			} else {
-				this.$router.push({ name: 'about' }).catch(() => {})
+				this.$router.push({ name: 'about' }).catch(err => {
+					console.warn('Failed navigation to about:', err)
+				})
 			}
 		},
 		copyRoomLink() {

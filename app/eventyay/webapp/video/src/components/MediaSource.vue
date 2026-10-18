@@ -1025,7 +1025,7 @@ function onConsentGiven(persistent) {
 
 function retryIframe() {
 	iframeError.value = null
-	initializeIframe(false, true)
+	initializeIframe(false, false)
 }
 
 function isPlaying() {

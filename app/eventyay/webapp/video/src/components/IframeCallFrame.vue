@@ -11,6 +11,7 @@
 	.iframe-viewport(v-show="!loading && !error && joinUrl")
 		iframe.call-iframe(
 			ref="iframeEl",
+			:key="joinKey",
 			:src="joinUrl",
 			allow="camera *; microphone *; fullscreen *; display-capture *; autoplay *; clipboard-write *; clipboard-read *",
 			allowfullscreen="true",
@@ -48,6 +49,7 @@ export default {
 	data() {
 		return {
 			joinUrl: null,
+			joinKey: 0,
 			loading: true,
 			error: null,
 			errorMsg: null,
@@ -97,6 +99,8 @@ export default {
 			this.loading = true
 			this.error = null
 			this.errorMsg = null
+			this.joinUrl = null
+			this.joinKey++
 			const provider = this.providerName
 			const rpcMethod = `${provider}.room_url`
 			try {

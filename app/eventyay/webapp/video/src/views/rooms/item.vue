@@ -650,9 +650,8 @@ export default {
 		.stage-tools
 			flex: none
 			min-height: 44px
-			height: 44px
 			display: flex
-			flex-wrap: nowrap
+			flex-wrap: wrap
 			align-items: center
 			justify-content: space-between
 			width: 100%
@@ -664,15 +663,17 @@ export default {
 			user-select: none
 			color: var(--clr-text-primary, #1e293b)
 			z-index: 12
-			gap: 12px
-			overflow: hidden
+			gap: 8px 12px
 
 			.stage-tools-left
 				display: flex
 				align-items: center
 				min-width: 0
 				flex: 1 1 auto
-				overflow: hidden
+				overflow-x: auto
+				scrollbar-width: none
+				&::-webkit-scrollbar
+					display: none
 
 			.stage-tools-right
 				display: flex
