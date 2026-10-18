@@ -162,6 +162,11 @@ const dragStart = ref<DragStartData | null>(null)
 const hiddenRooms = ref<Room[]>([])
 const timesliceRefs = ref<HTMLElement[]>([])
 
+let cachedGrid: {
+  rooms: { left: number; right: number; room: Room; roomIndex: number }[]
+  slices: { top: number; bottom: number; time: Moment }[]
+} | null = null
+
 watch(() => props.draggedSession, (val) => {
   if (!val) {
     hoverSlice.value = null
@@ -173,6 +178,10 @@ watch(() => props.isUnassigning, (val) => {
   if (val) {
     hoverSlice.value = null
   }
+})
+
+watch([visibleRooms, visibleTimeslices], () => {
+  cachedGrid = null
 })
 
 function applyRoomFocusFromQuery() {
@@ -193,6 +202,7 @@ let windowResizeListener: (() => void) | null = null
 let gridOffsetFrame: number | null = null
 
 const refreshGridOffset = () => {
+  cachedGrid = null
   if (grid.value) {
     gridOffset.value = grid.value.getBoundingClientRect().left
   }
@@ -555,7 +565,13 @@ const stopDragging = (event: PointerEvent) => {
     }
   }
 
-  if (!props.draggedSession || !hoverSlice.value || !hoverSliceLegal.value) return
+  if (!props.draggedSession) return
+  if (pointerRaf !== null) {
+    cancelAnimationFrame(pointerRaf)
+    pointerRaf = null
+  }
+  updateHoverSlice(event)
+  if (!hoverSlice.value || !hoverSliceLegal.value) return
   const start = hoverSlice.value.time
   const end = hoverSlice.value.time.clone().add(props.draggedSession.duration, 'm')
 
@@ -580,15 +596,12 @@ const stopDragging = (event: PointerEvent) => {
       room: hoverSlice.value.room,
     })
   }
-  if (pointerRaf !== null) {
-    cancelAnimationFrame(pointerRaf)
-    pointerRaf = null
-  }
   cachedGrid = null
   hoverSlice.value = null
 }
 
 const expandTimeslice = (slice: Timeslice) => {
+  cachedGrid = null
   const index = visibleTimeslices.value.indexOf(slice)
   if (index + 1 >= visibleTimeslices.value.length) {
     const minimumSliceMins = props.timeDensityMinutes || 30
@@ -605,11 +618,6 @@ const expandTimeslice = (slice: Timeslice) => {
   }
   expandedTimes.value = [...new Set(expandedTimes.value.map(d => d.valueOf()))].map(v => moment(v))
 }
-
-let cachedGrid: {
-  rooms: { left: number; right: number; room: Room; roomIndex: number }[]
-  slices: { top: number; bottom: number; time: Moment }[]
-} | null = null
 
 const getTimeAndRoomFromPoint = (clientX: number, clientY: number) => {
   if (!rootEl.value || props.isUnassigning) return null

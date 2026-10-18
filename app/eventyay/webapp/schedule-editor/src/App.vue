@@ -604,10 +604,14 @@ const dragAvatarStyle = computed(() => {
 })
 
 let cachedUnassignedRect: DOMRect | null = null
+let unassignedResizeObserver: ResizeObserver | null = null
 watch(draggedSession, (val) => {
   if (!val) {
     cachedUnassignedRect = null
   }
+})
+watch([isSidebarCollapsed, isUnassignedCollapsed], () => {
+  cachedUnassignedRect = null
 })
 
 function checkIsOverUnassigned(x: number, y: number): boolean {
@@ -1108,7 +1112,11 @@ async function rescheduleSession(e: RescheduleEvent): Promise<void> {
   movedSession.room = e.room.id
   await saveTalk(movedSession)
   if (movedSession.code) {
-    api.fetchWarnings().then((w) => Object.assign(warnings, w)).catch(() => {})
+    api.fetchWarnings()
+      .then((w) => Object.assign(warnings, w))
+      .catch((error) => {
+        console.error('Failed to refresh schedule warnings after reschedule', { sessionId: movedSession.id, error })
+      })
   }
 }
 
@@ -1587,11 +1595,11 @@ async function unscheduleSession(session: { id: number | string; code?: string |
     console.error('Failed to remove session from schedule', { sessionId: movedSession.id, error })
     return
   }
-  try {
-    api.fetchWarnings().then((w) => Object.assign(warnings, w)).catch(() => {})
-  } catch (error) {
-    console.error('Failed to refresh schedule data after removing session', { sessionId: movedSession.id, error })
-  }
+  api.fetchWarnings()
+    .then((w) => Object.assign(warnings, w))
+    .catch((error) => {
+      console.error('Failed to refresh schedule warnings after removing session', { sessionId: movedSession.id, error })
+    })
 }
 
 async function stopDragging(event?: PointerEvent): Promise<void> {
@@ -1605,7 +1613,11 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
         if (movedSession && (mode === 'shifts' || mode === 'public-shifts')) {
           movedSession.room = undefined
           await saveTalk(movedSession)
-          api.fetchWarnings().then((w) => Object.assign(warnings, w)).catch(() => {})
+          api.fetchWarnings()
+            .then((w) => Object.assign(warnings, w))
+            .catch((error) => {
+              console.error('Failed to refresh schedule warnings after update', { sessionId: movedSession.id, error })
+            })
         } else if (session.start) {
           await unscheduleSession(session)
         }
@@ -1614,7 +1626,11 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
         if (movedSession) {
           movedSession.room = undefined
           await saveTalk(movedSession)
-          api.fetchWarnings().then((w) => Object.assign(warnings, w)).catch(() => {})
+          api.fetchWarnings()
+            .then((w) => Object.assign(warnings, w))
+            .catch((error) => {
+              console.error('Failed to refresh schedule warnings after update', { sessionId: movedSession.id, error })
+            })
         }
       } else {
         const breakId = session.id
@@ -1681,13 +1697,14 @@ function onWindowResize() {
 
 let pollTimeoutId: ReturnType<typeof setTimeout> | null = null
 let isPolling = false
+let isUnmounted = false
 
 function triggerImmediatePoll() {
   if (pollTimeoutId) {
     clearTimeout(pollTimeoutId)
     pollTimeoutId = null
   }
-  if (!draggedSession.value) {
+  if (!draggedSession.value && !isUnmounted) {
     pollUpdates()
   }
 }
@@ -1702,13 +1719,16 @@ async function pollUpdates() {
     clearTimeout(pollTimeoutId)
     pollTimeoutId = null
   }
-  if (!schedule.value || draggedSession.value || isPolling) {
-    pollTimeoutId = window.setTimeout(pollUpdates, 5000)
+  if (isUnmounted || !schedule.value || draggedSession.value || isPolling) {
+    if (!isUnmounted) {
+      pollTimeoutId = window.setTimeout(pollUpdates, 5000)
+    }
     return
   }
   isPolling = true
   try {
     const sched = await fetchSchedule({ since: since.value, warnings: true })
+    if (isUnmounted) return
     if (sched.version !== schedule.value.version) {
       window.location.reload()
       return
@@ -1737,10 +1757,14 @@ async function pollUpdates() {
     }
     since.value = sched.now || schedule.value.now
   } catch (error) {
-    console.error('Failed to poll schedule updates', error)
+    if (!isUnmounted) {
+      console.error('Failed to poll schedule updates', error)
+    }
   } finally {
     isPolling = false
-    pollTimeoutId = window.setTimeout(pollUpdates, document.hidden ? 30000 : 5000)
+    if (!isUnmounted) {
+      pollTimeoutId = window.setTimeout(pollUpdates, document.hidden ? 30000 : 5000)
+    }
   }
 }
 
@@ -1845,6 +1869,13 @@ function updateActionsWidth(): void {
 onMounted(() => {
   isMounted.value = true
   updateActionsWidth()
+  const unassignedEl = document.getElementById('unassigned')
+  if (unassignedEl && typeof ResizeObserver !== 'undefined') {
+    unassignedResizeObserver = new ResizeObserver(() => {
+      cachedUnassignedRect = null
+    })
+    unassignedResizeObserver.observe(unassignedEl)
+  }
   const actionsEl = document.getElementById('schedule-action-wrapper')
   if (actionsEl && typeof ResizeObserver !== 'undefined') {
     actionsObserver = new ResizeObserver(updateActionsWidth)
@@ -1869,6 +1900,11 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  isUnmounted = true
+  if (unassignedResizeObserver) {
+    unassignedResizeObserver.disconnect()
+    unassignedResizeObserver = null
+  }
   if (actionsObserver) {
     actionsObserver.disconnect()
     actionsObserver = null
