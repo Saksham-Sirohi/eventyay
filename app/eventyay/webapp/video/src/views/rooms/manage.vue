@@ -479,7 +479,7 @@ export default {
 				const url = ytid ? `https://www.youtube.com/watch?v=${ytid}` : (cfg.url || null)
 				return {
 					type: 'youtube',
-					label: this.$t('YouTube Live Stream'),
+					label: this.$t('YouTube Stream'),
 					icon: 'mdi-youtube',
 					id: ytid,
 					url: url,
