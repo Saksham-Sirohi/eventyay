@@ -9,6 +9,7 @@ from asgiref.sync import sync_to_async
 from channels.db import database_sync_to_async
 from django.conf import settings
 from django.core.signing import dumps
+from django.db import DatabaseError
 from django.urls import reverse
 from sentry_sdk import configure_scope
 
@@ -253,7 +254,7 @@ class AuthModule(BaseModule):
             try:
                 gs = GlobalSettingsObject()
                 return gs.settings.get("video_max_connections_per_user", as_type=int, default=0)
-            except Exception:
+            except (DatabaseError, ValueError, TypeError):
                 logger.exception("Failed to load video_max_connections_per_user global setting")
                 return 0
 
