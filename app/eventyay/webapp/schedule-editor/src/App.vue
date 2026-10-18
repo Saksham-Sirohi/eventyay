@@ -603,11 +603,21 @@ const dragAvatarStyle = computed(() => {
   }
 })
 
+let cachedUnassignedRect: DOMRect | null = null
+watch(draggedSession, (val) => {
+  if (!val) {
+    cachedUnassignedRect = null
+  }
+})
+
 function checkIsOverUnassigned(x: number, y: number): boolean {
   if (typeof document === 'undefined') return false
-  const el = document.getElementById('unassigned')
-  if (!el) return false
-  const rect = el.getBoundingClientRect()
+  if (!cachedUnassignedRect) {
+    const el = document.getElementById('unassigned')
+    cachedUnassignedRect = el ? el.getBoundingClientRect() : null
+  }
+  const rect = cachedUnassignedRect
+  if (!rect) return false
   if (isMobile.value) {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom + 10
   }
@@ -1063,13 +1073,22 @@ watch(currentDay, (newDay) => {
 })
 
 async function saveTalk(session: Talk): Promise<void> {
-  await api.saveTalk(session as any).then((response: any) => {
-    if (response) {
+  const response: any = await api.saveTalk(session as any)
+  if (response && schedule.value) {
+    if (session.code && response.warnings) {
       warnings[session.code] = response.warnings
-      const talk = schedule.value?.talks.find((s) => s.id === session.id)
-      if (talk) talk.updated = response.updated
     }
-  })
+    const talk = schedule.value.talks.find((s) => String(s.id) === String(session.id))
+    if (talk) {
+      Object.assign(talk, {
+        start: response.start,
+        end: response.end,
+        room: response.room,
+        updated: response.updated,
+      })
+      schedule.value.talks = [...schedule.value.talks]
+    }
+  }
 }
 
 interface RescheduleEvent {
@@ -1089,9 +1108,7 @@ async function rescheduleSession(e: RescheduleEvent): Promise<void> {
   movedSession.room = e.room.id
   await saveTalk(movedSession)
   if (movedSession.code) {
-    fetchAdditionalScheduleData().catch((error) => {
-      console.error('Failed to refresh additional schedule data after reschedule', error)
-    })
+    api.fetchWarnings().then((w) => Object.assign(warnings, w)).catch(() => {})
   }
 }
 
@@ -1571,7 +1588,7 @@ async function unscheduleSession(session: { id: number | string; code?: string |
     return
   }
   try {
-    await fetchAdditionalScheduleData()
+    api.fetchWarnings().then((w) => Object.assign(warnings, w)).catch(() => {})
   } catch (error) {
     console.error('Failed to refresh schedule data after removing session', { sessionId: movedSession.id, error })
   }
@@ -1588,7 +1605,7 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
         if (movedSession && (mode === 'shifts' || mode === 'public-shifts')) {
           movedSession.room = undefined
           await saveTalk(movedSession)
-          await fetchAdditionalScheduleData()
+          api.fetchWarnings().then((w) => Object.assign(warnings, w)).catch(() => {})
         } else if (session.start) {
           await unscheduleSession(session)
         }
@@ -1597,7 +1614,7 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
         if (movedSession) {
           movedSession.room = undefined
           await saveTalk(movedSession)
-          await fetchAdditionalScheduleData()
+          api.fetchWarnings().then((w) => Object.assign(warnings, w)).catch(() => {})
         }
       } else {
         const breakId = session.id
@@ -1653,6 +1670,7 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
     draggedSession.value = null
     isPointerDragging.value = false
     isUnassigning.value = false
+    cachedUnassignedRect = null
   }
 }
 
@@ -1661,39 +1679,74 @@ function onWindowResize() {
   isMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
 }
 
+let pollTimeoutId: ReturnType<typeof setTimeout> | null = null
+let isPolling = false
+
+function triggerImmediatePoll() {
+  if (pollTimeoutId) {
+    clearTimeout(pollTimeoutId)
+    pollTimeoutId = null
+  }
+  if (!draggedSession.value) {
+    pollUpdates()
+  }
+}
+
+const onFocus = () => triggerImmediatePoll()
+const onVisibilityChange = () => {
+  if (!document.hidden) triggerImmediatePoll()
+}
+
 async function pollUpdates() {
-  if (!schedule.value) return
-  const sched = await fetchSchedule({ since: since.value, warnings: true })
-  if (sched.version !== schedule.value.version) {
-    window.location.reload()
+  if (pollTimeoutId) {
+    clearTimeout(pollTimeoutId)
+    pollTimeoutId = null
+  }
+  if (!schedule.value || draggedSession.value || isPolling) {
+    pollTimeoutId = window.setTimeout(pollUpdates, 5000)
     return
   }
-  const updatedTalks = [...schedule.value.talks]
-  let hasUpdates = false
-  sched.talks.forEach((talk) => {
-    const talkIdStr = String(talk.id)
-    if (pendingBreakDeletions.has(talkIdStr) || deletedBreakIds.has(talkIdStr)) {
+  isPolling = true
+  try {
+    const sched = await fetchSchedule({ since: since.value, warnings: true })
+    if (sched.version !== schedule.value.version) {
+      window.location.reload()
       return
     }
-    const oldTalk = updatedTalks.find((t) => t.id === talk.id)
-    if (!oldTalk) {
-      updatedTalks.push(talk)
-      hasUpdates = true
-    } else if (moment(talk.updated).isAfter(moment(oldTalk.updated))) {
-      Object.assign(oldTalk, talk)
-      hasUpdates = true
+    const updatedTalks = [...schedule.value.talks]
+    let hasUpdates = false
+    sched.talks.forEach((talk) => {
+      const talkIdStr = String(talk.id)
+      if (pendingBreakDeletions.has(talkIdStr) || deletedBreakIds.has(talkIdStr)) {
+        return
+      }
+      const oldTalk = updatedTalks.find((t) => String(t.id) === talkIdStr)
+      if (!oldTalk) {
+        updatedTalks.push(talk)
+        hasUpdates = true
+      } else if (!oldTalk.updated || moment(talk.updated).isAfter(moment(oldTalk.updated))) {
+        Object.assign(oldTalk, talk)
+        hasUpdates = true
+      }
+    })
+    if (hasUpdates) {
+      schedule.value.talks = updatedTalks
+      if (sched.warnings) {
+        Object.assign(warnings, sched.warnings)
+      }
     }
-  })
-  if (hasUpdates) {
-    schedule.value.talks = updatedTalks
-    await fetchAdditionalScheduleData()
+    since.value = sched.now || schedule.value.now
+  } catch (error) {
+    console.error('Failed to poll schedule updates', error)
+  } finally {
+    isPolling = false
+    pollTimeoutId = window.setTimeout(pollUpdates, document.hidden ? 30000 : 5000)
   }
-  since.value = sched.now || schedule.value.now
-  window.setTimeout(pollUpdates, 10 * 125)
 }
 
 onBeforeMount(async () => {
   schedule.value = await fetchSchedule()
+  since.value = schedule.value.now
   const match = window.location.pathname.match(/\/orga\/event\/([^/]+)\/([^/]+)/);
   organizerSlug.value = match ? match[1] : null;
   eventSlug.value = match ? match[2] : null;
@@ -1708,7 +1761,7 @@ onBeforeMount(async () => {
   moment.tz.setDefault(currentTimezone.value)
   locales.value = schedule.value.locales
   currentDay.value = days.value[0]
-  window.setTimeout(pollUpdates, 10 * 100)
+  pollTimeoutId = window.setTimeout(pollUpdates, 5000)
   await fetchAdditionalScheduleData()
   await new Promise<void>((resolve) => {
     const poll = () => {
@@ -1803,6 +1856,8 @@ onMounted(() => {
   document.addEventListener('touchmove', preventScrollOnDrag, { passive: false })
   document.addEventListener('fullscreenchange', onFullscreenChange)
   document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+  window.addEventListener('focus', onFocus)
+  document.addEventListener('visibilitychange', onVisibilityChange)
   window.addEventListener('pointermove', onGlobalPointerMove, { passive: true })
   window.addEventListener('pointerup', onGlobalPointerUp)
   window.addEventListener('click', onWindowClick)
@@ -1818,11 +1873,17 @@ onUnmounted(() => {
     actionsObserver.disconnect()
     actionsObserver = null
   }
+  if (pollTimeoutId) {
+    clearTimeout(pollTimeoutId)
+    pollTimeoutId = null
+  }
   if (unscheduleHintTimer) clearTimeout(unscheduleHintTimer)
   if (scheduleActionErrorTimer) clearTimeout(scheduleActionErrorTimer)
   document.removeEventListener('touchmove', preventScrollOnDrag)
   document.removeEventListener('fullscreenchange', onFullscreenChange)
   document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+  window.removeEventListener('focus', onFocus)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('pointermove', onGlobalPointerMove)
   window.removeEventListener('pointerup', onGlobalPointerUp)
   window.removeEventListener('click', onWindowClick)
@@ -2002,7 +2063,7 @@ onUnmounted(() => {
 			cursor: default
 			color: $clr-secondary-text-light
 	.date-selector
-		margin-top: 17px
+		margin-top: 0
 		display: flex
 		align-items: center
 		gap: 2px
