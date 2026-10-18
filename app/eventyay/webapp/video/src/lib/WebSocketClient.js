@@ -54,6 +54,7 @@ class WebSocketClient extends EventEmitter {
 			for (const id of Object.keys(this._openRequests)) {
 				const req = this._openRequests[id]
 				delete this._openRequests[id]
+				if (!req) continue
 				if (req.timeout) clearTimeout(req.timeout)
 				req.deferred?.reject(new Error('WebSocket connection reconnecting'))
 			}
@@ -137,6 +138,7 @@ class WebSocketClient extends EventEmitter {
 				for (const id of Object.keys(this._openRequests)) {
 					const req = this._openRequests[id]
 					delete this._openRequests[id]
+					if (!req) continue
 					if (req.timeout) clearTimeout(req.timeout)
 					req.deferred?.reject(new Error('WebSocket connection closed'))
 				}
@@ -248,7 +250,7 @@ class WebSocketClient extends EventEmitter {
 
 	_popPendingRequest(id) {
 		const req = this._openRequests[id]
-		this._openRequests[id] = undefined
+		delete this._openRequests[id]
 		if (req?.timeout) {
 			clearTimeout(req.timeout)
 			req.timeout = null

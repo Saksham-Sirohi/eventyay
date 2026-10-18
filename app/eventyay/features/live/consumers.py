@@ -194,7 +194,7 @@ class MainConsumer(AsyncJsonWebsocketConsumer):
                     raise e
                 if settings.SENTRY_DSN:
                     capture_exception(e)
-                logger.exception(f"Error handling live command {content[0]}: {e}")
+                logger.exception("Error handling live command %s", content[0])
                 log_event(
                     'video',
                     'live.command',
