@@ -1,5 +1,8 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 from asgiref.sync import async_to_sync
+from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.utils.timezone import now
@@ -16,6 +19,7 @@ from eventyay.base.settings import (
     is_video_provider_enabled_for_attendee,
     is_video_provider_enabled_for_organizer,
 )
+from eventyay.features.live.modules.auth import AuthModule
 
 
 @pytest.fixture
@@ -420,12 +424,6 @@ def test_video_max_connections_setting_and_admin_view(client, admin_user):
 @pytest.mark.asyncio
 @pytest.mark.django_db
 async def test_enforce_connection_limit_global_fallback():
-    from unittest.mock import AsyncMock, MagicMock, patch
-
-    from channels.db import database_sync_to_async
-
-    from eventyay.features.live.modules.auth import AuthModule
-
     gs = GlobalSettingsObject()
     await database_sync_to_async(gs.settings.set)("video_max_connections_per_user", 2)
 

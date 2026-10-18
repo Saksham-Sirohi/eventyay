@@ -245,8 +245,10 @@ class AuthModule(BaseModule):
                     )
 
     async def _enforce_connection_limit(self):
-        connection_limit = self._event_config().get("connection_limit")
-        if not connection_limit:
+        event_cfg = self._event_config()
+        if "connection_limit" in event_cfg and event_cfg.get("connection_limit") is not None:
+            connection_limit = event_cfg.get("connection_limit")
+        else:
             from eventyay.base.settings import GlobalSettingsObject
 
             def _get_global_limit():

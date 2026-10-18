@@ -242,16 +242,18 @@ class VideoSettings(AdministratorPermissionRequiredMixin, TemplateView):
         changed = []
 
         if "video_max_connections_per_user" in request.POST:
+            val = request.POST.get("video_max_connections_per_user", "").strip()
             try:
-                max_conn = int(request.POST.get("video_max_connections_per_user", 0))
+                max_conn = int(val)
                 if max_conn < 0:
-                    max_conn = 0
+                    messages.error(request, _("Max connections must be 0 or greater."))
+                else:
+                    prev_conn = gs.settings.get("video_max_connections_per_user", as_type=int, default=0)
+                    if max_conn != prev_conn:
+                        gs.settings.set("video_max_connections_per_user", max_conn)
+                        changed.append(f"max connections per user: {max_conn}")
             except (ValueError, TypeError):
-                max_conn = 0
-            prev_conn = gs.settings.get("video_max_connections_per_user", as_type=int, default=0)
-            if max_conn != prev_conn:
-                gs.settings.set("video_max_connections_per_user", max_conn)
-                changed.append(f"max connections per user: {max_conn}")
+                messages.error(request, _("Invalid number for max connections."))
 
         for p in SUPPORTED_VIDEO_PROVIDERS:
             sub_key = f"video_provider_{p}_submitted"
