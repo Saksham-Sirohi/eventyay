@@ -89,23 +89,18 @@
 								i.mdi.mdi-plus
 								span {{ $t('Configure Stream & Schedule') }}
 		panel.stage-tools(v-if="!isServerStreamRoom && !isEmbeddedSuiteRoom && ($features.enabled('schedule-control') || modules['poll'] || modules['question'])")
-			.minimal-schedule-section(v-if="$features.enabled('schedule-control')")
-				.minimal-schedule-header(
-					role="button",
-					tabindex="0",
-					:aria-expanded="scheduleExpanded ? 'true' : 'false'",
-					@click="scheduleExpanded = !scheduleExpanded",
-					@keydown.enter.space.prevent="scheduleExpanded = !scheduleExpanded"
-				)
-					.header-left
+			.room-schedule-section(v-if="$features.enabled('schedule-control')")
+				.schedule-toggle-header
+					.header-left(@click="scheduleComputeSession = !scheduleComputeSession", role="button", tabindex="0", @keydown.enter.space.prevent="scheduleComputeSession = !scheduleComputeSession")
 						i.mdi.mdi-calendar-clock-outline
-						span.section-title {{ $t('Room Schedule') }}
-						span.minimal-badge {{ $t('Minimal') }}
+						span.section-title {{ $t('Room schedule auto-compute') }}
 					.header-right
-						span.schedule-state {{ scheduleComputeSession ? $t('Auto-compute: On') : $t('Auto-compute: Off') }}
-						i.mdi(:class="scheduleExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down'")
-				.minimal-schedule-body(v-show="scheduleExpanded")
-					SchedulePanel(:room="room")
+						bunt-switch(
+							name="schedule-compute-session",
+							v-model="scheduleComputeSession",
+							:tooltip="$t('Compute current session from schedule')",
+							:aria-label="$t('Room schedule auto-compute')"
+						)
 			.split-section.section-polls(v-if="modules['poll']")
 				.header
 					h3 {{ $t('Polls') }}
@@ -218,17 +213,18 @@
 							button.btn-copy-link(type="button", @click="copyRoomLink")
 								i.mdi(:class="copiedLink ? 'mdi-check' : 'mdi-content-copy'")
 								span {{ copiedLink ? $t('Copied!') : $t('Copy Link') }}
-				.minimal-schedule-section(v-if="$features.enabled('schedule-control')")
-					.minimal-schedule-header(@click="scheduleExpanded = !scheduleExpanded")
-						.header-left
+				.room-schedule-section(v-if="$features.enabled('schedule-control')")
+					.schedule-toggle-header
+						.header-left(@click="scheduleComputeSession = !scheduleComputeSession", role="button", tabindex="0", @keydown.enter.space.prevent="scheduleComputeSession = !scheduleComputeSession")
 							i.mdi.mdi-calendar-clock-outline
-							span.section-title {{ $t('Room Schedule') }}
-							span.minimal-badge {{ $t('Minimal') }}
+							span.section-title {{ $t('Room Schedule Auto-compute') }}
 						.header-right
-							span.schedule-state {{ scheduleComputeSession ? $t('Auto-compute: On') : $t('Auto-compute: Off') }}
-							i.mdi(:class="scheduleExpanded ? 'mdi-chevron-up' : 'mdi-chevron-down'")
-					.minimal-schedule-body(v-show="scheduleExpanded")
-						SchedulePanel(:room="room")
+							bunt-switch(
+								name="server-stream-schedule-compute",
+								v-model="scheduleComputeSession",
+								:tooltip="$t('Compute current session from schedule')",
+								:aria-label="$t('Room Schedule Auto-compute')"
+							)
 				.config-section(v-if="activeConfigList.length > 0")
 					.config-section-header
 						h4 {{ $t('Room Controls & Policies') }}
@@ -316,13 +312,12 @@ import MenuDropdown from 'components/MenuDropdown'
 import Polls from 'components/Polls'
 import Prompt from 'components/Prompt'
 import Questions from 'components/Questions'
-import SchedulePanel from './ManagePanels/Schedule'
 import { hasEmbeddedSuite, isRoomVisibleToAttendee } from 'lib/video-providers'
 import { getRoomOccupancyCount } from 'lib/room-occupancy'
 
 export default {
 	name: 'RoomManager',
-	components: { Chat, ConfirmPrompt, CopyableText, DashboardLayout, MediaSourcePlaceholder, MenuDropdown, Panel, Polls, Prompt, Questions, SchedulePanel },
+	components: { Chat, ConfirmPrompt, CopyableText, DashboardLayout, MediaSourcePlaceholder, MenuDropdown, Panel, Polls, Prompt, Questions },
 	props: {
 		room: Object,
 		modules: Object
@@ -347,7 +342,6 @@ export default {
 			moderationReady: false,
 			copiedLink: false,
 			copiedStreamUrl: false,
-			scheduleExpanded: false,
 			isServerStreamPanelMinimized: false,
 			isSavingConfig: false,
 			savingKey: null,
@@ -394,8 +388,25 @@ export default {
 				(this.modules?.['call.zoom'] && (this.hasPermission('room:update') || this.$store.getters.isAdminMode))
 			)
 		},
-		scheduleComputeSession() {
-			return Boolean(this.room?.schedule_data?.computeSession)
+		scheduleComputeSession: {
+			get() {
+				return Boolean(this.room?.schedule_data?.computeSession)
+			},
+			set(value) {
+				if (value) {
+					this.$store.dispatch('updateRoomSchedule', {
+						room: this.room,
+						schedule_data: {
+							computeSession: true
+						}
+					})
+				} else {
+					this.$store.dispatch('updateRoomSchedule', {
+						room: this.room,
+						schedule_data: null
+					})
+				}
+			}
 		},
 		pendingMessageIds() {
 			return this.pendingQueue.map(item => item.id)
@@ -1415,7 +1426,7 @@ export default {
 		overflow: hidden
 		background: #ffffff
 
-		.minimal-schedule-section
+		.room-schedule-section
 			flex: none
 			border-radius: 0
 			border: none
@@ -1474,29 +1485,31 @@ export default {
 					min-height: 0
 					overflow-y: auto
 
-	.minimal-schedule-section
+	.room-schedule-section
 		background: #ffffff
 		border: 1px solid #e2e8f0
 		border-radius: 8px
 		overflow: hidden
 
-		.minimal-schedule-header
+		.schedule-toggle-header
 			display: flex
 			justify-content: space-between
 			align-items: center
 			padding: 10px 14px
 			background: #f8fafc
-			cursor: pointer
-			user-select: none
 			transition: background 0.15s ease
-
-			&:hover
-				background: #f1f5f9
 
 			.header-left
 				display: flex
 				align-items: center
 				gap: 8px
+				cursor: pointer
+				user-select: none
+				outline: none
+
+				&:focus-visible
+					border-radius: 4px
+					box-shadow: 0 0 0 2px var(--clr-primary, #2185d0)
 
 				i.mdi
 					font-size: 18px
@@ -1507,32 +1520,25 @@ export default {
 					font-weight: 700
 					color: #1e293b
 
-				.minimal-badge
-					display: inline-block
-					padding: 2px 6px
-					background: #e2e8f0
-					color: #475569
-					border-radius: 4px
-					font-size: 10px
-					font-weight: 600
-					text-transform: uppercase
-
 			.header-right
 				display: flex
 				align-items: center
 				gap: 8px
-				font-size: 12px
-				color: #64748b
 
-				i.mdi
-					font-size: 18px
+				.bunt-switch
+					display: inline-flex
+					align-items: center
+					height: 20px
+					margin: 0
+					margin-bottom: 0
+					white-space: nowrap
 
-		.minimal-schedule-body
-			padding: 8px 14px
-			border-top: 1px solid #e2e8f0
+					.bunt-switch-track
+						align-self: center
+						margin: 0
 
-			.c-manage-schedule .bunt-switch
-				margin: 8px 0
+					label
+						display: none
 
 	.media .manage-room-header
 		display: flex
