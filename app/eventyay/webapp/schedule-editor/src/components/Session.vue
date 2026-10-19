@@ -211,6 +211,7 @@ function onUnschedule(): void {
 <style lang="stylus">
 sessionTextClamp(lines)
 	min-width: 0
+	min-height: 0
 	display: -webkit-box
 	-webkit-line-clamp: lines
 	line-clamp: lines
@@ -479,6 +480,11 @@ sessionTextExpand()
 			outline: 2px solid var(--color-primary)
 			outline-offset: 1px
 
+	&.short-session
+		overflow: hidden
+		.info
+			overflow: hidden
+			min-height: 0
 	@media (hover: hover) and (pointer: fine)
 		&:hover:not(.dragging, .clone)
 			overflow: visible

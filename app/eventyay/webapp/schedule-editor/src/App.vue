@@ -1079,9 +1079,30 @@ async function fetchSchedule(options?: { since?: string; warnings?: boolean }): 
   return sched
 }
 
+function writeWarning(code: string, list: Warning[] | undefined): void {
+  if (list?.length) warnings[code] = list
+  else delete warnings[code]
+}
+
+function replaceWarnings(next: Record<string, Warning[]> | undefined | null): void {
+  if (!next) return
+  for (const code of Object.keys(warnings)) {
+    if (!next[code]?.length) delete warnings[code]
+  }
+  for (const [code, list] of Object.entries(next)) writeWarning(code, list)
+}
+
+function syncWarningsForTalks(talks: { code?: string | null }[], next: Record<string, Warning[]> | undefined): void {
+  if (!next) return
+  for (const talk of talks) {
+    if (!talk.code) continue
+    writeWarning(talk.code, next[talk.code])
+  }
+}
+
 async function fetchAdditionalScheduleData(): Promise<void> {
   Object.assign(availabilities, await api.fetchAvailabilities() as unknown)
-  Object.assign(warnings, await api.fetchWarnings() as unknown)
+  replaceWarnings(await api.fetchWarnings() as Record<string, Warning[]> | undefined)
 }
 
 function changeDay(day: Moment): void {
@@ -1102,8 +1123,8 @@ watch(currentDay, (newDay) => {
 async function saveTalk(session: Talk): Promise<void> {
   const response: any = await api.saveTalk(session as any)
   if (response && schedule.value) {
-    if (session.code && response.warnings) {
-      warnings[session.code] = response.warnings
+    if (session.code && Array.isArray(response.warnings)) {
+      writeWarning(session.code, response.warnings)
     }
     const talk = schedule.value.talks.find((s) => String(s.id) === String(session.id))
     if (talk) {
@@ -1136,7 +1157,7 @@ async function rescheduleSession(e: RescheduleEvent): Promise<void> {
   await saveTalk(movedSession)
   if (movedSession.code) {
     api.fetchWarnings()
-      .then((w) => Object.assign(warnings, w))
+      .then((w) => replaceWarnings(w))
       .catch((error) => {
         console.error('Failed to refresh schedule warnings after reschedule', { sessionId: movedSession.id, error })
       })
@@ -1211,8 +1232,8 @@ async function createSession(e: CreateSessionEvent): Promise<void> {
       return
     }
 
-    if (e.session.code) {
-      warnings[e.session.code] = response.warnings
+    if (e.session.code && Array.isArray(response.warnings)) {
+      writeWarning(e.session.code, response.warnings)
     }
     const realSession = {
       ...optimisticSession,
@@ -1620,7 +1641,7 @@ async function unscheduleSession(session: { id: number | string; code?: string |
     return
   }
   api.fetchWarnings()
-    .then((w) => Object.assign(warnings, w))
+    .then((w) => replaceWarnings(w))
     .catch((error) => {
       console.error('Failed to refresh schedule warnings after removing session', { sessionId: movedSession.id, error })
     })
@@ -1638,7 +1659,7 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
           movedSession.room = undefined
           await saveTalk(movedSession)
           api.fetchWarnings()
-            .then((w) => Object.assign(warnings, w))
+            .then((w) => replaceWarnings(w))
             .catch((error) => {
               console.error('Failed to refresh schedule warnings after update', { sessionId: movedSession.id, error })
             })
@@ -1651,7 +1672,7 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
           movedSession.room = undefined
           await saveTalk(movedSession)
           api.fetchWarnings()
-            .then((w) => Object.assign(warnings, w))
+            .then((w) => replaceWarnings(w))
             .catch((error) => {
               console.error('Failed to refresh schedule warnings after update', { sessionId: movedSession.id, error })
             })
@@ -1776,9 +1797,7 @@ async function pollUpdates() {
     })
     if (hasUpdates) {
       schedule.value.talks = updatedTalks
-      if (sched.warnings) {
-        Object.assign(warnings, sched.warnings)
-      }
+      syncWarningsForTalks(sched.talks, sched.warnings)
     }
     since.value = sched.now || schedule.value.now
   } catch (error) {

@@ -1,5 +1,5 @@
 <template lang="pug">
-.c-grid-schedule(ref="rootEl", :class="'density-' + density")
+.c-grid-schedule(ref="rootEl", :class="['density-' + density, timeDensityMinutes <= 10 ? 'fine-steps' : '']")
 	.grid(ref="grid", :style="gridStyle", :class="gridClasses", @click="onGridClick($event)", @pointerup="stopDragging($event)")
 		template(v-for="slice of visibleTimeslices", :key="slice.name")
 			.timeslice(:ref="setTimesliceRef", :class="slice.classes", :data-slice="slice.iso", :data-name="slice.name", :style="slice.style", @click="expandTimeslice(slice)") {{ slice.label }}
@@ -290,8 +290,13 @@ const hoverSliceLegal = computed(() => {
   return true
 })
 
+function timeStepMinutes(): number {
+  const step = props.timeDensityMinutes || 30
+  return step > 0 ? step : 30
+}
+
 const timeslices = computed<Timeslice[]>(() => {
-  const minimumSliceMins = props.timeDensityMinutes || 30
+  const minimumSliceMins = timeStepMinutes()
   const slices: Timeslice[] = []
   const slicesLookup: Record<string, Timeslice> = {}
 
@@ -321,120 +326,43 @@ const timeslices = computed<Timeslice[]>(() => {
     }
   }
 
-  const fillHalfHours = (start: Moment, end: Moment, { hasSession }: { hasSession?: boolean } = {}) => {
-    let mins = end.diff(start, 'minutes')
-    const startingMins = minimumSliceMins - (start.minute() % minimumSliceMins)
-    const halfHourSlices: Moment[] = []
+  if (!props.start?.isValid() || !props.end?.isValid()) return []
 
-    if (startingMins && startingMins !== minimumSliceMins) {
-      halfHourSlices.push(start.clone().add(startingMins, 'minutes'))
-      mins -= startingMins
+  const day = props.start.clone().startOf('day')
+  const lastDay = props.end.clone().startOf('day')
+  while (day.isSameOrBefore(lastDay, 'day')) {
+    pushSlice(day.clone())
+    let fromMinute = 9 * 60
+    let toMinute = 19 * 60
+    for (const session of props.sessions) {
+      if (!session.start?.isValid() || !session.end?.isValid()) continue
+      if (!session.start.isSame(day, 'day') && !session.end.isSame(day, 'day')) continue
+      const startMinute = Math.max(0, session.start.diff(day, 'minutes'))
+      const endMinute = session.end.diff(day, 'minutes')
+      fromMinute = Math.min(fromMinute, Math.floor(startMinute / minimumSliceMins) * minimumSliceMins)
+      toMinute = Math.max(toMinute, Math.ceil(endMinute / minimumSliceMins) * minimumSliceMins)
     }
-
-    const endingMins = end.minute() % minimumSliceMins
-
-    for (let i = 1; i <= mins / minimumSliceMins; i++) {
-      const sliceDate = start.clone().add(startingMins + minimumSliceMins * i, 'minutes')
-      if (sliceDate.isAfter(end)) break
-      halfHourSlices.push(sliceDate)
+    fromMinute = Math.max(0, fromMinute)
+    toMinute = Math.min(24 * 60, Math.max(toMinute, fromMinute))
+    for (let minute = fromMinute; minute <= toMinute && minute < 24 * 60; minute += minimumSliceMins) {
+      if (minute === 0) continue
+      pushSlice(day.clone().add(minute, 'minutes'))
     }
-
-    if (endingMins) {
-      halfHourSlices.push(end.clone().subtract(endingMins, 'minutes'))
+    for (const expanded of expandedTimes.value) {
+      if (expanded.isValid() && expanded.isSame(day, 'day')) pushSlice(expanded, { isExpanded: true })
     }
-
-    const lastSlice = halfHourSlices.pop()
-    halfHourSlices.forEach(slice => pushSlice(slice!, { hasSession }))
-    if (lastSlice) pushSlice(lastSlice)
+    day.add(1, 'day')
   }
 
-  for (const session of props.sessions) {
-    const lastSlice = slices[slices.length - 1]
-
-    if (!lastSlice) {
-      pushSlice(session.start.clone().startOf('day'))
-    } else if (session.start.isAfter(lastSlice.date, 'minutes')) {
-      fillHalfHours(lastSlice.date, session.start)
-    }
-
-    pushSlice(session.start, { hasStart: true, hasSession: true })
-    pushSlice(session.end, { hasEnd: true })
-    fillHalfHours(session.start, session.end, { hasSession: true })
-  }
-
-  for (const slice of expandedTimes.value) {
-    pushSlice(slice, { isExpanded: true })
-  }
-
-  fillHalfHours(props.start, props.end)
-
-  const sliceIsFraction = (slice?: Timeslice): boolean => {
-    if (!slice) return false
-    return slice.date.minutes() % minimumSliceMins !== 0
-  }
-
-  const sliceShouldDisplay = (slice?: Timeslice, index?: number): boolean => {
-    if (!slice || index === undefined) return false
-    if (slice.datebreak && slice.date.isAfter(props.end)) return false
-    if (slice.hasSession || slice.datebreak || slice.hasStart || slice.hasEnd || slice.isExpanded) return true
-    if (slice.date.hour() >= 9 && slice.date.hour() < 19) return true
-
-    const prevSlice = slices[index - 1]
-    const nextSlice = slices[index + 1]
-
-    if (sliceIsFraction(slice)) return true
-    if (
-      ((prevSlice?.hasSession || (prevSlice as any)?.hasBreak || prevSlice?.hasEnd) && sliceIsFraction(prevSlice)) ||
-      ((nextSlice?.hasSession || (nextSlice as any)?.hasBreak) && sliceIsFraction(nextSlice)) ||
-      ((!nextSlice?.hasSession || !(nextSlice as any)?.hasBreak) && (slice.hasSession || (slice as any).hasBreak) && sliceIsFraction(nextSlice))
-    ) return true
-    if ((prevSlice as any)?.hasBreak && (slice as any).hasBreak) return false
-    return false
-  }
-
-  slices.sort((a, b) => a.date.diff(b.date))
-  const compactedSlices: Timeslice[] = []
-
-  for (const [index, slice] of slices.entries()) {
-    if (sliceShouldDisplay(slice, index)) {
-      compactedSlices.push(slice)
-      continue
-    }
-
-    const prevSlice = slices[index - 1]
-    if (prevSlice && sliceShouldDisplay(prevSlice, index - 1) && !prevSlice.datebreak) {
-      prevSlice.gap = true
-    }
-  }
-
-  if (compactedSlices.length && compactedSlices[compactedSlices.length - 1].gap) {
-    compactedSlices[compactedSlices.length - 1].gap = false
-  }
-
-  return compactedSlices
-})
-
-const oddTimeslices = computed<Moment[]>(() => {
-  const minimumSliceMins = props.timeDensityMinutes || 30
-  const result: Moment[] = []
-  props.sessions.forEach(session => {
-    if (session.start.minute() % minimumSliceMins !== 0) result.push(session.start)
-    if (session.end.minute() % minimumSliceMins !== 0) result.push(session.end)
-  })
-  // Remove duplicates by stringifying dates (safe as moment objects)
-  return [...new Set(result.map(m => m.format()))].map(f => moment(f))
+  slices.sort((a, b) => a.date.valueOf() - b.date.valueOf())
+  return slices
 })
 
 const visibleTimeslices = computed<Timeslice[]>(() => {
-  const minimumSliceMins = props.timeDensityMinutes || 30
-  const filtered = timeslices.value.filter(slice =>
-    slice.date.minute() % minimumSliceMins === 0 ||
-    expandedTimes.value.some(et => et.isSame(slice.date)) ||
-    oddTimeslices.value.some(ot => ot.isSame(slice.date))
-  )
-  return filtered.map((slice, index) => {
-    const nextSlice = filtered[index + 1]
-    const expandable = !!nextSlice && nextSlice.date.diff(slice.date, 'minutes') > 5
+  const minimumSliceMins = timeStepMinutes()
+  return timeslices.value.map((slice, index) => {
+    const nextSlice = timeslices.value[index + 1]
+    const expandable = !!nextSlice && nextSlice.date.diff(slice.date, 'minutes') > minimumSliceMins
     return {
       ...slice,
       iso: slice.date.format(),
@@ -455,6 +383,32 @@ const densityScale = computed(() => {
   return 1
 })
 
+const rowHeightPx = computed(() => {
+  const step = timeStepMinutes()
+  return Math.round(60 * (step / 30) * densityScale.value)
+})
+
+const floorToStep = (date: Moment): Moment => {
+  const step = timeStepMinutes()
+  const dayStart = date.clone().startOf('day')
+  const minutes = date.diff(dayStart, 'minutes')
+  return dayStart.add(Math.floor(minutes / step) * step, 'minutes')
+}
+
+const gridRowSpan = (start: Moment, end: Moment): string => {
+  const slices = timeslices.value
+  const startName = getSliceName(floorToStep(start))
+  const endMs = end.valueOf()
+  for (const slice of slices) {
+    if (slice.date.valueOf() < endMs) continue
+    if (slice.name === startName) return startName
+    return `${startName} / ${slice.name}`
+  }
+  const last = slices[slices.length - 1]
+  if (last && last.name !== startName) return `${startName} / -1`
+  return startName
+}
+
 const shiftMinColWidth = computed(() => '320px')
 
 const shiftColumnLayout = computed(() => {
@@ -474,21 +428,15 @@ const shiftTrackMap = computed(() => {
 
 const gridStyle = computed(() => {
   const scale = densityScale.value
-  const minimumSliceMins = props.timeDensityMinutes || 30
-  const baseSliceHeight = 60 * (minimumSliceMins / 30)
+  const height = rowHeightPx.value
   let rows = `[header] ${Math.round(52 * scale)}px `
+  const step = timeStepMinutes()
   rows += timeslices.value.map((slice, index) => {
+    const labelMin = slice.datebreak ? 52 : 36
     const next = timeslices.value[index + 1]
-    let height = baseSliceHeight
-    if (slice.gap) {
-      height = 100 * (minimumSliceMins / 30)
-    } else if (slice.datebreak) {
-      height = Math.max(52, baseSliceHeight)
-    } else if (next) {
-      height = Math.min(baseSliceHeight, next.date.diff(slice.date, 'minutes') * 2)
-    }
-    height = Math.round(height * scale)
-    return `[${slice.name}] minmax(${height}px, auto)`
+    const minutes = next ? next.date.diff(slice.date, 'minutes') : step
+    const sliceHeight = minutes > 0 && minutes < step ? Math.round(height * (minutes / step)) : height
+    return `[${slice.name}] minmax(${Math.max(sliceHeight, labelMin)}px, auto)`
   }).join(' ')
 
   if (props.allowOverlap && visibleRooms.value.length) {
@@ -796,45 +744,19 @@ const onGridClick = (event: MouseEvent) => {
 }
 
 const layoutPreview = (slot: HoverSlice | null) => {
-  if (!slot?.name) {
+  if (!slot?.time) {
     previewStyle.value = {}
     return
   }
-  const rows = timeslices.value
-  const startIndex = rows.findIndex((slice) => slice.name === slot.name)
-  const startSlice = startIndex >= 0 ? rows[startIndex] : null
-  if (!startSlice) {
-    previewStyle.value = {}
-    return
-  }
-  const endMs = startSlice.date.valueOf() + slot.duration * 60_000
-  let endName = ''
-  for (let i = startIndex + 1; i < rows.length; i++) {
-    if (rows[i].date.valueOf() >= endMs) {
-      endName = rows[i].name
-      break
-    }
-  }
-  if (!endName) endName = rows[rows.length - 1]?.name || slot.name
+  const end = slot.time.clone().add(slot.duration, 'minutes')
   let col = slot.roomIndex + 2
   if (props.allowOverlap) {
     const layout = shiftColumnLayout.value.get(slot.room.id)
     if (layout) col = layout.colStart
   }
-  const column = `${col} / ${col + 1}`
-  if (endName === slot.name) {
-    const scale = densityScale.value
-    const height = Math.max(48, Math.round(slot.duration * 2 * scale))
-    previewStyle.value = {
-      'grid-row': slot.name,
-      'grid-column': column,
-      'min-height': `${height}px`,
-    }
-    return
-  }
   previewStyle.value = {
-    'grid-row': `${slot.name} / ${endName}`,
-    'grid-column': column,
+    'grid-row': gridRowSpan(slot.time, end),
+    'grid-column': `${col} / ${col + 1}`,
   }
 }
 
@@ -913,8 +835,11 @@ const getOverlapGroup = (session: SessionDatum | Availability): { index: number;
 }
 
 const getSessionStyle = (session: SessionDatum | Availability): Record<string, string | number> => {
-  if (!session.room || !session.start) return {}
+  if (!session.room || !session.start || !session.end) return {}
   const roomIndex = visibleRooms.value.indexOf(session.room)
+  const style: Record<string, string | number> = {
+    'grid-row': gridRowSpan(session.start, session.end),
+  }
 
   if (props.allowOverlap) {
     const { total } = getOverlapGroup(session)
@@ -924,37 +849,24 @@ const getSessionStyle = (session: SessionDatum | Availability): Record<string, s
         const track = shiftTrackMap.value.get((session as any).id)
         if (track != null) {
           const subCol = roomLayout.colStart + track
-          return {
-            'grid-row': `${getSliceName(session.start)} / ${getSliceName(session.end)}`,
-            'grid-column': `${subCol} / ${subCol + 1}`,
-          }
+          style['grid-column'] = `${subCol} / ${subCol + 1}`
+          return style
         }
       }
     }
     const layout = shiftColumnLayout.value.get(session.room.id)
     if (layout) {
-      if (!('id' in session)) {
-        return {
-          'grid-row': `${getSliceName(session.start)} / ${getSliceName(session.end)}`,
-          'grid-column': `${layout.colStart} / ${layout.colStart + layout.colSpan}`,
-        }
-      }
-      return {
-        'grid-row': `${getSliceName(session.start)} / ${getSliceName(session.end)}`,
-        'grid-column': layout.colStart.toString(),
-      }
+      style['grid-column'] = !('id' in session)
+        ? `${layout.colStart} / ${layout.colStart + layout.colSpan}`
+        : layout.colStart.toString()
+      return style
     }
-    const col = roomIndex > -1 ? roomIndex + 2 : 1
-    return {
-      'grid-row': `${getSliceName(session.start)} / ${getSliceName(session.end)}`,
-      'grid-column': col.toString(),
-    }
+    style['grid-column'] = (roomIndex > -1 ? roomIndex + 2 : 1).toString()
+    return style
   }
 
-  return {
-    'grid-row': `${getSliceName(session.start)} / ${getSliceName(session.end)}`,
-    'grid-column': roomIndex > -1 ? (roomIndex + 2).toString() : '',
-  }
+  style['grid-column'] = roomIndex > -1 ? (roomIndex + 2).toString() : ''
+  return style
 }
 
 
@@ -1228,9 +1140,17 @@ onUnmounted(() => {
 			min-width: 0
 			z-index: 10
 			transition: padding 0.2s ease, font-size 0.2s ease
+			&.short-session
+				align-self: start
+	&.fine-steps
+		.timeslice
+			padding: 4px 4px 0 4px
+			font-size: 11px
+			line-height: 1.15
 	.timeslice
 		color: $clr-secondary-text-light
 		padding: 8px 10px 0 10px
+		overflow: hidden
 		white-space: nowrap
 		position: sticky
 		left: 0
