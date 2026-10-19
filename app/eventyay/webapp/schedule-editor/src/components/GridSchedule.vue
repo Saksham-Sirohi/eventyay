@@ -6,7 +6,7 @@
 				svg(viewBox="0 0 10 10", v-if="slice.classes && slice.classes.expandable").expand
 					path(d="M 0 4 L 5 0 L 10 4 z")
 					path(d="M 0 6 L 5 10 L 10 6 z")
-			.timeseparator(:class="slice.classes", :style="slice.style")
+			.timeseparator(:class="slice.classes", :style="slice.separatorStyle")
 		.room(:style="cornerRoomStyle")
 		.room(v-for="room of visibleRooms", :key="room.id", :style="roomHeaderStyles.get(String(room.id))")
 			span.room-name(:title="getLocalizedString(room.name)") {{ getLocalizedString(room.name) }}
@@ -106,6 +106,7 @@ interface Timeslice {
   label?: string
   classes?: { datebreak: boolean; gap: boolean; expandable: boolean }
   style?: Record<string, string>
+  separatorStyle?: Record<string, string>
 }
 
 interface CachedRoom {
@@ -348,6 +349,12 @@ const timeslices = computed<Timeslice[]>(() => {
       if (minute === 0) continue
       pushSlice(day.clone().add(minute, 'minutes'))
     }
+    for (const session of props.sessions) {
+      if (!session.start?.isValid() || !session.end?.isValid()) continue
+      if (!session.start.isSame(day, 'day') && !session.end.isSame(day, 'day')) continue
+      pushSlice(session.start, { hasStart: true, hasSession: true })
+      pushSlice(session.end, { hasEnd: true })
+    }
     for (const expanded of expandedTimes.value) {
       if (expanded.isValid() && expanded.isSame(day, 'day')) pushSlice(expanded, { isExpanded: true })
     }
@@ -373,6 +380,7 @@ const visibleTimeslices = computed<Timeslice[]>(() => {
         expandable,
       },
       style: { 'grid-area': `${slice.name} / 1 / auto / auto` },
+      separatorStyle: { 'grid-area': `${slice.name} / 1 / auto / -1` },
     }
   })
 })
@@ -405,7 +413,7 @@ const gridRowSpan = (start: Moment, end: Moment): string => {
     return `${startName} / ${slice.name}`
   }
   const last = slices[slices.length - 1]
-  if (last && last.name !== startName) return `${startName} / -1`
+  if (last && last.name !== startName) return `${startName} / ${last.name}`
   return startName
 }
 
@@ -861,11 +869,17 @@ const getSessionStyle = (session: SessionDatum | Availability): Record<string, s
         : layout.colStart.toString()
       return style
     }
-    style['grid-column'] = (roomIndex > -1 ? roomIndex + 2 : 1).toString()
+    if (roomIndex > -1) {
+      const col = roomIndex + 2
+      style['grid-column'] = `${col} / ${col + 1}`
+    }
     return style
   }
 
-  style['grid-column'] = roomIndex > -1 ? (roomIndex + 2).toString() : ''
+  if (roomIndex > -1) {
+    const col = roomIndex + 2
+    style['grid-column'] = `${col} / ${col + 1}`
+  }
   return style
 }
 
@@ -1156,11 +1170,13 @@ onUnmounted(() => {
 		left: 0
 		width: 78px
 		min-width: 78px
+		max-width: 78px
 		box-sizing: border-box
 		text-align: center
 		background-color: $clr-grey-50
 		border-top: 1px solid $clr-dividers-light
 		z-index: 25
+		contain: paint
 		transition: padding 0.2s ease, font-size 0.2s ease
 		.expand
 			display: none
@@ -1260,12 +1276,13 @@ onUnmounted(() => {
 			font-size: 20px
 			padding: 12px
 
-	.timeseparator
+	.grid > .timeseparator
 		height: 1px
 		background-color: $clr-dividers-light
-		position: absolute
-		// transform: translate(-16px, -8px)
-		width: 100%
+		position: relative
+		z-index: 0
+		pointer-events: none
+		align-self: start
 		&.datebreak
 			height: 3px
 

@@ -2257,6 +2257,9 @@ onUnmounted(() => {
 			box-sizing: border-box
 			border-radius: 6px
 			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05)
+			&:hover:not(.dragging):not(.clone),
+			&:focus-within:not(.dragging):not(.clone)
+				z-index: 1
 			.time-box
 				width: 52px
 				padding: 8px 4px
@@ -2291,7 +2294,7 @@ onUnmounted(() => {
 		.unassigned-header
 			position: sticky
 			top: 0
-			z-index: 10
+			z-index: 50
 			background-color: $clr-white
 			padding-bottom: 2px
 			display: flex
@@ -2598,7 +2601,7 @@ onUnmounted(() => {
 		width: 100%
 		height: 100%
 		margin-right: 0
-		padding-left: 8px
+		margin-left: 8px
 		box-sizing: border-box
 		overflow: auto
 		scrollbar-width: thin
@@ -2652,7 +2655,7 @@ html.rtl
 		border-left: 1px solid #e2e8f0
 	#schedule-wrapper
 		padding-left: 0
-		padding-right: 8px
+		margin-right: 8px
 	.schedule-controls
 		padding-right: 0
 		padding-left: 220px
@@ -3211,7 +3214,7 @@ html[dir="rtl"],
 html.rtl
 	#schedule-wrapper
 		padding-left: 0
-		padding-right: 8px
+		margin-right: 8px
 	.schedule-timezone-selector
 		.timezone-dropdown-menu
 			right: auto
