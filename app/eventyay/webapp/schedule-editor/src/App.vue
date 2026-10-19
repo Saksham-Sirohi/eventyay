@@ -3,7 +3,7 @@
 	teleport(to="body")
 		.dragged-session-avatar(
 			v-if="draggedSession && isPointerDragging",
-			:style="dragAvatarStyle"
+			ref="dragAvatarEl"
 		)
 			session(
 				:session="draggedSession",
@@ -232,14 +232,13 @@
 									|  {{ $t('Add Role') }}
 
 
-						.data-row(v-if="editorSession.code && warnings[editorSession.code] && warnings[editorSession.code].length").form-group.row
-							label.data-label.col-form-label.col-md-3
-								i.fa.fa-exclamation-triangle.warning
+						.data-row.session-warnings.form-group.row(v-if="editorSession.code && warnings[editorSession.code] && warnings[editorSession.code].length")
+							label.data-label.col-form-label.col-md-3.session-warnings-label
+								i.fa.fa-exclamation-triangle(aria-hidden="true")
 								span {{ $t('Warnings') }}
 							.col-md-9.data-value
-								ul(v-if="warnings[editorSession.code].length > 1")
-									li.warning(v-for="warning of warnings[editorSession.code]") {{ warning.message }}
-								span(v-else) {{ warnings[editorSession.code][0].message }}
+								ul.session-warnings-list
+									li(v-for="warning of warnings[editorSession.code]") {{ warning.message }}
 					.button-row
 						input(type="submit")
 						bunt-button#btn-delete(v-if="caps.canEditRoles ? editorSession.id : !editorSession.code", @click="editorDelete", :loading="editorSessionWaiting") {{ $t('Delete') }}
@@ -580,27 +579,47 @@ const canDropToDismissOrUnassign = computed<boolean>(() => {
   )
 })
 const isPointerDragging = ref<boolean>(false)
-const pointerPos = ref<{ x: number; y: number }>({ x: 0, y: 0 })
-const dragGrabOffset = ref<{ x: number; y: number }>({ x: 50, y: 30 })
-const dragCardWidth = ref<number>(280)
-const dragStartPos = ref<{ x: number; y: number }>({ x: 0, y: 0 })
+const dragAvatarEl = ref<HTMLElement | null>(null)
+// The ghost is moved by writing transform directly. A reactive style would re-render the whole editor on every pointer event.
+let dragPointerX = 0
+let dragPointerY = 0
+let dragOffsetX = 50
+let dragOffsetY = 30
+let dragAvatarWidth = 280
+let dragOriginX = 0
+let dragOriginY = 0
+let dragAvatarFrame: number | null = null
 
-const dragAvatarStyle = computed(() => {
-  if (!draggedSession.value || !isPointerDragging.value) return { display: 'none' }
-  const x = pointerPos.value.x - dragGrabOffset.value.x
-  const y = pointerPos.value.y - dragGrabOffset.value.y
-  return {
-    transform: `translate3d(${x}px, ${y}px, 0) scale(1.02)`,
-    position: 'fixed',
-    top: '0',
-    left: '0',
-    width: `${dragCardWidth.value}px`,
-    pointerEvents: 'none',
-    zIndex: '99999',
-    opacity: '0.94',
-    willChange: 'transform',
-    cursor: 'grabbing',
+function positionDragAvatar() {
+  const el = dragAvatarEl.value
+  if (!el) return
+  el.style.transform = `translate3d(${dragPointerX - dragOffsetX}px, ${dragPointerY - dragOffsetY}px, 0) scale(1.02)`
+}
+
+function scheduleDragAvatar() {
+  if (dragAvatarFrame !== null) return
+  dragAvatarFrame = requestAnimationFrame(() => {
+    dragAvatarFrame = null
+    positionDragAvatar()
+  })
+}
+
+function resetDragAvatar() {
+  if (dragAvatarFrame !== null) {
+    cancelAnimationFrame(dragAvatarFrame)
+    dragAvatarFrame = null
   }
+}
+
+watch(isPointerDragging, (active) => {
+  if (!active) return
+  nextTick(() => {
+    const el = dragAvatarEl.value
+    if (!el) return
+    el.style.width = `${dragAvatarWidth}px`
+    el.style.visibility = 'visible'
+    positionDragAvatar()
+  })
 })
 
 let cachedUnassignedRect: DOMRect | null = null
@@ -627,12 +646,15 @@ function checkIsOverUnassigned(x: number, y: number): boolean {
 
 function onGlobalPointerMove(e: PointerEvent) {
   if (!draggedSession.value) return
-  pointerPos.value = { x: e.clientX, y: e.clientY }
-  const dist = Math.abs(e.clientX - dragStartPos.value.x) + Math.abs(e.clientY - dragStartPos.value.y)
-  if (dist >= 4) {
+  dragPointerX = e.clientX
+  dragPointerY = e.clientY
+  const dist = Math.abs(e.clientX - dragOriginX) + Math.abs(e.clientY - dragOriginY)
+  if (dist >= 4 && !isPointerDragging.value) {
     isPointerDragging.value = true
   }
-  isUnassigning.value = checkIsOverUnassigned(e.clientX, e.clientY)
+  if (isPointerDragging.value) scheduleDragAvatar()
+  const overUnassigned = checkIsOverUnassigned(e.clientX, e.clientY)
+  if (overUnassigned !== isUnassigning.value) isUnassigning.value = overUnassigned
 }
 
 function onGlobalPointerUp(e: PointerEvent) {
@@ -1557,21 +1579,22 @@ function startDragging({ event, session }: DragStartEvent) {
     session.availabilities = availabilities.talks[session.id! ?? 0]
   }
   draggedSession.value = session as SessionData
-  dragStartPos.value = { x: event.clientX, y: event.clientY }
-  pointerPos.value = { x: event.clientX, y: event.clientY }
+  dragOriginX = event.clientX
+  dragOriginY = event.clientY
+  dragPointerX = event.clientX
+  dragPointerY = event.clientY
   isPointerDragging.value = false
 
   const targetEl = (event.target as HTMLElement)?.closest('.c-linear-schedule-session') as HTMLElement | null
   if (targetEl) {
     const rect = targetEl.getBoundingClientRect()
-    dragGrabOffset.value = {
-      x: Math.max(10, Math.min(rect.width - 10, event.clientX - rect.left)),
-      y: Math.max(10, Math.min(rect.height - 10, event.clientY - rect.top)),
-    }
-    dragCardWidth.value = Math.max(220, Math.min(320, rect.width))
+    dragOffsetX = Math.max(10, Math.min(rect.width - 10, event.clientX - rect.left))
+    dragOffsetY = Math.max(10, Math.min(rect.height - 10, event.clientY - rect.top))
+    dragAvatarWidth = Math.max(220, Math.min(320, rect.width))
   } else {
-    dragGrabOffset.value = { x: 50, y: 30 }
-    dragCardWidth.value = 260
+    dragOffsetX = 50
+    dragOffsetY = 30
+    dragAvatarWidth = 260
   }
 }
 
@@ -1684,6 +1707,7 @@ async function stopDragging(event?: PointerEvent): Promise<void> {
       }
     }
   } finally {
+    resetDragAvatar()
     draggedSession.value = null
     isPointerDragging.value = false
     isUnassigning.value = false
@@ -1902,6 +1926,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   isUnmounted = true
+  resetDragAvatar()
   if (unassignedResizeObserver) {
     unassignedResizeObserver.disconnect()
     unassignedResizeObserver = null
@@ -1941,8 +1966,10 @@ onUnmounted(() => {
 	will-change: transform
 	cursor: grabbing
 	opacity: 0.94
+	visibility: hidden
 	transform-origin: 20px 20px
-	filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.22)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.14))
+	border-radius: 6px
+	box-shadow: 0 14px 28px rgba(0, 0, 0, 0.22), 0 4px 10px rgba(0, 0, 0, 0.14)
 	.c-linear-schedule-session
 		margin: 0
 		min-width: 0
@@ -2808,6 +2835,28 @@ html.rtl
 					width: 100px
 		.warning
 			color: #b23e65
+		.session-warnings
+			.session-warnings-label
+				display: flex
+				flex-direction: row
+				align-items: center
+				justify-content: flex-end
+				gap: 6px
+				white-space: nowrap
+				text-align: right
+				i
+					flex: none
+					display: inline-flex
+					color: #b23e65
+					line-height: 1
+					font-size: 14px
+			.session-warnings-list
+				margin: 0
+				padding: 0
+				list-style: none
+				line-height: 1.4
+				li + li
+					margin-top: 4px
 		.session-editor-error
 			display: flex
 			align-items: center
