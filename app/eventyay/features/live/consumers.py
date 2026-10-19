@@ -265,6 +265,9 @@ class MainConsumer(AsyncJsonWebsocketConsumer):
                 error_code='server_fatal',
                 event_id=getattr(self.event, 'pk', None),
             )
+            # Async events are not the client command stored in self.content.
+            # Clear it so server.fatal is not correlated with that request.
+            self.content = []
             await self.send_error(code="server.fatal", message="Fatal Server Error")
             await asyncio.sleep(0.5)
             await self.close()
