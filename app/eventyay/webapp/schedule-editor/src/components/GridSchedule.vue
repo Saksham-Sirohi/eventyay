@@ -351,9 +351,12 @@ const timeslices = computed<Timeslice[]>(() => {
     }
     for (const session of props.sessions) {
       if (!session.start?.isValid() || !session.end?.isValid()) continue
-      if (!session.start.isSame(day, 'day') && !session.end.isSame(day, 'day')) continue
-      pushSlice(session.start, { hasStart: true, hasSession: true })
-      pushSlice(session.end, { hasEnd: true })
+      if (session.start.isSame(day, 'day')) {
+        pushSlice(session.start.clone(), { hasStart: true, hasSession: true })
+      }
+      if (session.end.isSame(day, 'day') && !session.end.isSame(day)) {
+        pushSlice(session.end.clone(), { hasEnd: true })
+      }
     }
     for (const expanded of expandedTimes.value) {
       if (expanded.isValid() && expanded.isSame(day, 'day')) pushSlice(expanded, { isExpanded: true })
@@ -405,7 +408,8 @@ const floorToStep = (date: Moment): Moment => {
 
 const gridRowSpan = (start: Moment, end: Moment): string => {
   const slices = timeslices.value
-  const startName = getSliceName(floorToStep(start))
+  const exactName = getSliceName(start)
+  const startName = slices.some((slice) => slice.name === exactName) ? exactName : getSliceName(floorToStep(start))
   const endMs = end.valueOf()
   for (const slice of slices) {
     if (slice.date.valueOf() < endMs) continue

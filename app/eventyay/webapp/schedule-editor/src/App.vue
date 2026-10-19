@@ -1092,14 +1092,6 @@ function replaceWarnings(next: Record<string, Warning[]> | undefined | null): vo
   for (const [code, list] of Object.entries(next)) writeWarning(code, list)
 }
 
-function syncWarningsForTalks(talks: { code?: string | null }[], next: Record<string, Warning[]> | undefined): void {
-  if (!next) return
-  for (const talk of talks) {
-    if (!talk.code) continue
-    writeWarning(talk.code, next[talk.code])
-  }
-}
-
 async function fetchAdditionalScheduleData(): Promise<void> {
   Object.assign(availabilities, await api.fetchAvailabilities() as unknown)
   replaceWarnings(await api.fetchWarnings() as Record<string, Warning[]> | undefined)
@@ -1797,7 +1789,11 @@ async function pollUpdates() {
     })
     if (hasUpdates) {
       schedule.value.talks = updatedTalks
-      syncWarningsForTalks(sched.talks, sched.warnings)
+      api.fetchWarnings()
+        .then((w) => replaceWarnings(w))
+        .catch((error) => {
+          console.error('Failed to refresh schedule warnings after poll', error)
+        })
     }
     since.value = sched.now || schedule.value.now
   } catch (error) {
