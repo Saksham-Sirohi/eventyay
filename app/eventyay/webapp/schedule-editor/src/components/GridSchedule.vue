@@ -875,14 +875,17 @@ const updateHoverSlice = (e: PointerEvent) => {
 
 let pointerRaf: number | null = null
 let lastPointerEvent: PointerEvent | null = null
+const scheduleHoverUpdate = () => {
+  if (!props.draggedSession || !lastPointerEvent || pointerRaf !== null) return
+  pointerRaf = requestAnimationFrame(() => {
+    pointerRaf = null
+    if (props.draggedSession && lastPointerEvent) updateHoverSlice(lastPointerEvent)
+  })
+}
 const onDocPointerMove = (e: PointerEvent) => {
   if (props.draggedSession && e.isPrimary) {
     lastPointerEvent = e
-    if (pointerRaf !== null) return
-    pointerRaf = requestAnimationFrame(() => {
-      pointerRaf = null
-      if (props.draggedSession && lastPointerEvent) updateHoverSlice(lastPointerEvent)
-    })
+    scheduleHoverUpdate()
   }
 }
 
@@ -1017,6 +1020,7 @@ const scrollToDayStart = (day: Moment | null) => {
 
 const onScroll = () => {
   syncCachedGridToScroll()
+  scheduleHoverUpdate()
 }
 
 const scrollBy = (offset: number) => {
