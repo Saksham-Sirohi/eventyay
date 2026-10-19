@@ -53,6 +53,18 @@ from eventyay.base.operational_logging import OUTCOME_FAILURE, log_event
 
 logger = logging.getLogger(__name__)
 
+DROP_EXCESS_CHANNELS_LUA = """
+local total_channels = redis.call("LLEN", KEYS[1])
+local connection_limit = tonumber(ARGV[1])
+if total_channels <= connection_limit then
+    return {}
+end
+local num_to_drop = total_channels - connection_limit
+local channels_to_drop = redis.call("LRANGE", KEYS[1], 0, num_to_drop - 1)
+redis.call("LTRIM", KEYS[1], num_to_drop, -1)
+return channels_to_drop
+"""
+
 
 class AuthModule(BaseModule):
     prefix = "user"
@@ -276,13 +288,12 @@ class AuthModule(BaseModule):
         if settings.REDIS_USE_PUBSUB:
             async with aredis() as redis:
                 key = f"connections.list.user:{self.consumer.user.id}"
-                total_channels = await redis.llen(key)
-                if total_channels > connection_limit:
-                    num_to_drop = total_channels - connection_limit
-                    channels_to_drop = await redis.lrange(key, 0, num_to_drop - 1)
-                    await redis.ltrim(key, num_to_drop, -1)
-                    for c in channels_to_drop:
-                        await self.consumer.channel_layer.send(c.decode(), message)
+                channels_to_drop = await redis.eval(
+                    DROP_EXCESS_CHANNELS_LUA, 1, key, connection_limit
+                )
+                for c in (channels_to_drop or []):
+                    channel_name = c.decode() if isinstance(c, bytes) else str(c)
+                    await self.consumer.channel_layer.send(channel_name, message)
         else:
             channel_names = []
             group = GROUP_USER.format(id=self.consumer.user.id)

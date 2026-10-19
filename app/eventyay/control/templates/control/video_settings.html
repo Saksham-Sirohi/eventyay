@@ -142,7 +142,7 @@
                         <div class="col-md-9">
                             <input type="number" min="0" step="1" name="video_max_connections_per_user" id="id_video_max_connections_per_user" value="{{ video_max_connections_per_user|default:0 }}" class="form-control video-limit-input">
                             <div class="help-block">
-                                {% trans "Maximum number of simultaneous video connections (open browser tabs or devices) permitted per user across events. Set to 0 to allow unlimited connections." %}
+                                {% trans "Maximum number of simultaneous video connections (open browser tabs or devices) permitted per user within each event. This setting applies to all events. Set to 0 to allow unlimited connections." %}
                             </div>
                         </div>
                     </div>

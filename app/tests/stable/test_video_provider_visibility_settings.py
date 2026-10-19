@@ -20,7 +20,7 @@ from eventyay.base.settings import (
     is_video_provider_enabled_for_attendee,
     is_video_provider_enabled_for_organizer,
 )
-from eventyay.features.live.modules.auth import AuthModule
+from eventyay.features.live.modules.auth import AuthModule, DROP_EXCESS_CHANNELS_LUA
 
 
 @pytest.fixture
@@ -449,48 +449,98 @@ async def test_enforce_connection_limit_global_fallback():
         with patch("eventyay.features.live.modules.auth.settings.REDIS_USE_PUBSUB", True):
             with patch("eventyay.features.live.modules.auth.aredis") as mock_aredis:
                 mock_redis = AsyncMock()
-                mock_redis.llen = AsyncMock(return_value=3)
-                mock_redis.lrange = AsyncMock(return_value=[b"ch-1"])
-                mock_redis.ltrim = AsyncMock()
+                mock_redis.eval = AsyncMock(return_value=[b"ch-1"])
                 mock_aredis.return_value.__aenter__.return_value = mock_redis
                 consumer.channel_layer = MagicMock()
                 consumer.channel_layer.send = AsyncMock()
 
                 await auth_module._enforce_connection_limit()
-                # connection_limit 2 with total_channels 3 drops 3 - 2 = 1 channel (index 0 to 0)
-                mock_redis.lrange.assert_awaited_once_with(
-                    "connections.list.user:user-123",
-                    0,
-                    0,
-                )
-                mock_redis.ltrim.assert_awaited_once_with(
-                    "connections.list.user:user-123",
+                # connection_limit 2 with total_channels 3 drops 3 - 2 = 1 channel
+                mock_redis.eval.assert_awaited_once_with(
+                    DROP_EXCESS_CHANNELS_LUA,
                     1,
-                    -1,
+                    "connections.list.user:user-123",
+                    2,
                 )
+                consumer.channel_layer.send.assert_awaited_once_with(
+                    "ch-1",
+                    {"type": "connection.replaced"},
+                )
+
+    # Test within limit returns empty list, no channel dropped
+    with patch.object(auth_module, "_event_config", return_value={}):
+        with patch("eventyay.features.live.modules.auth.settings.REDIS_USE_PUBSUB", True):
+            with patch("eventyay.features.live.modules.auth.aredis") as mock_aredis:
+                mock_redis = AsyncMock()
+                mock_redis.eval = AsyncMock(return_value=[])
+                mock_aredis.return_value.__aenter__.return_value = mock_redis
+                consumer.channel_layer = MagicMock()
+                consumer.channel_layer.send = AsyncMock()
+
+                await auth_module._enforce_connection_limit()
+                mock_redis.eval.assert_awaited_once_with(
+                    DROP_EXCESS_CHANNELS_LUA,
+                    1,
+                    "connections.list.user:user-123",
+                    2,
+                )
+                consumer.channel_layer.send.assert_not_called()
 
     # Test event cannot bypass platform cap (global cap is 2, event requests 10 -> caps at 2)
     with patch.object(auth_module, "_event_config", return_value={"connection_limit": 10}):
         with patch("eventyay.features.live.modules.auth.settings.REDIS_USE_PUBSUB", True):
             with patch("eventyay.features.live.modules.auth.aredis") as mock_aredis:
                 mock_redis = AsyncMock()
-                mock_redis.llen = AsyncMock(return_value=4)
-                mock_redis.lrange = AsyncMock(return_value=[b"ch-1", b"ch-2"])
-                mock_redis.ltrim = AsyncMock()
+                mock_redis.eval = AsyncMock(return_value=[b"ch-1", b"ch-2"])
                 mock_aredis.return_value.__aenter__.return_value = mock_redis
                 consumer.channel_layer = MagicMock()
                 consumer.channel_layer.send = AsyncMock()
 
                 await auth_module._enforce_connection_limit()
-                # 4 channels with limit capped at 2 drops 4 - 2 = 2 channels (index 0 to 1)
-                mock_redis.lrange.assert_awaited_once_with(
-                    "connections.list.user:user-123",
-                    0,
+                # 4 channels with limit capped at 2 drops 2 channels
+                mock_redis.eval.assert_awaited_once_with(
+                    DROP_EXCESS_CHANNELS_LUA,
                     1,
+                    "connections.list.user:user-123",
+                    2,
                 )
+                assert consumer.channel_layer.send.await_count == 2
 
     # Cleanup
     await database_sync_to_async(gs.settings.set)("video_max_connections_per_user", 0)
+
+
+@pytest.mark.asyncio
+async def test_enforce_connection_limit_lua_eval_execution():
+    consumer = MagicMock()
+    consumer.user = MagicMock()
+    consumer.user.id = "user-999"
+    consumer.event = MagicMock()
+    consumer.event.id = 1
+    consumer.event.config = {}
+
+    auth_module = AuthModule(consumer)
+    with patch("eventyay.features.live.modules.auth.database_sync_to_async", return_value=AsyncMock(return_value=3)):
+        with patch.object(auth_module, "_event_config", return_value={}):
+            with patch("eventyay.features.live.modules.auth.settings.REDIS_USE_PUBSUB", True):
+                with patch("eventyay.features.live.modules.auth.aredis") as mock_aredis:
+                    mock_redis = AsyncMock()
+                    mock_redis.eval = AsyncMock(return_value=[b"channel-old"])
+                    mock_aredis.return_value.__aenter__.return_value = mock_redis
+                    consumer.channel_layer = MagicMock()
+                    consumer.channel_layer.send = AsyncMock()
+
+                    await auth_module._enforce_connection_limit()
+                    mock_redis.eval.assert_awaited_once_with(
+                        DROP_EXCESS_CHANNELS_LUA,
+                        1,
+                        "connections.list.user:user-999",
+                        3,
+                    )
+                    consumer.channel_layer.send.assert_awaited_once_with(
+                        "channel-old",
+                        {"type": "connection.replaced"},
+                    )
 
 
 
