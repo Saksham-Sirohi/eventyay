@@ -154,7 +154,7 @@ const SpeakersList = defineAsyncComponent(() => import('~/components/SpeakersLis
 const FeaturedSpeakers = defineAsyncComponent(() => import('~/components/FeaturedSpeakers'))
 const SpeakerDetail = defineAsyncComponent(() => import('~/components/SpeakerDetail'))
 const TalkDetail = defineAsyncComponent(() => import('~/components/TalkDetail'))
-import { findScrollParent, getLocalizedString, getSessionTime, getSessionTypeLabel, isProperSession, isPopularityFeatureEnabled, isPopularitySortAvailable, isPopularityVisibleOnSchedule, normalizePopularityCount, computeTalkExporters, areScheduleExportsDisabled, resolveScheduleApiBase, talksToScheduleSessions, buildSessionsBySpeaker, talkToSession, sortSessionsByStart, isTalkSchedulePending, visiblePageItems, pageStatusRange, getCsrfToken, loadStarredSharingPreference, updateStarredSharingPreference, fetchWidgetScheduleData, fetchTalkScheduleDetail, mergeCompactScheduleDay, sessionIntersectsDay } from '~/utils'
+import { findScrollParent, isDocumentScroller, readScrollOffset, writeScrollOffset, runWithoutSmoothScroll, getLocalizedString, getSessionTime, getSessionTypeLabel, isProperSession, isPopularityFeatureEnabled, isPopularitySortAvailable, isPopularityVisibleOnSchedule, normalizePopularityCount, computeTalkExporters, areScheduleExportsDisabled, resolveScheduleApiBase, talksToScheduleSessions, buildSessionsBySpeaker, talkToSession, sortSessionsByStart, isTalkSchedulePending, visiblePageItems, pageStatusRange, getCsrfToken, loadStarredSharingPreference, updateStarredSharingPreference, fetchWidgetScheduleData, fetchTalkScheduleDetail, mergeCompactScheduleDay, sessionIntersectsDay } from '~/utils'
 import { changeScheduleLanguage } from './i18n.js'
 import { isShiftSchedule, resolveMode } from './teamshifts-adapter'
 import { logOperational } from './operationalLog.js'
@@ -331,8 +331,6 @@ export default {
 			now: moment(),
 			currentDay: null,
 			forceScrollDay: 0,
-			userNavigatingToDay: null,
-			_dayNavTimeout: null,
 			currentTimezone: null,
 			favs: [],
 			userCode: null,
@@ -777,6 +775,11 @@ export default {
 		},
 		currentDay () {
 			if (!this._initialized || !this.schedule?.compact || this.scheduleNeedsEveryDay) return
+			// Scrolling only moves the highlight when that day is already on screen.
+			if (this._fromScrollDay) {
+				this._fromScrollDay = false
+				if (this.loadedScheduleDays[this.currentDay] && this.gridScrollDays.includes(this.currentDay)) return
+			}
 			this.syncCompactCoverage()
 		},
 		currentTimezone () {
@@ -969,24 +972,20 @@ export default {
 			}
 			poll()
 		})
-		this.scrollParent = findScrollParent(this.$el.parentElement || this.$el.getRootNode().host)
-		this._onScheduleScroll = () => this.maybeLoadNextGridDay()
-		if (this.scrollParent) {
-			this.scrollParentResizeObserver = new ResizeObserver(this.onScrollParentResize)
-			this.scrollParentResizeObserver.observe(this.scrollParent)
-			this.scrollParentWidth = this.scrollParent.offsetWidth
-			this.scrollParent.addEventListener('scroll', this._onScheduleScroll, { passive: true })
-		} else { // scrolling document
-			window.addEventListener('resize', this.onWindowResize)
-			this.onWindowResize()
-			window.addEventListener('scroll', this._onScheduleScroll, { passive: true })
+		this._onScheduleScroll = () => {
+			this.maybeLoadPreviousGridDay()
+			this.maybeLoadNextGridDay()
 		}
+		this._pageScrollParent = findScrollParent(this.$el.parentElement || this.$el.getRootNode().host)
+		this.bindScrollParent(this._pageScrollParent)
+		this._onFullscreenChange = () => this.syncFullscreenScrollParent()
+		document.addEventListener('fullscreenchange', this._onFullscreenChange)
 	},
 	unmounted () {
-		if (this._onScheduleScroll) {
-			window.removeEventListener('scroll', this._onScheduleScroll)
-			this.scrollParent?.removeEventListener('scroll', this._onScheduleScroll)
-		}
+		if (this._toolbarJumpTimer) window.clearTimeout(this._toolbarJumpTimer)
+		document.documentElement.style.scrollBehavior = ''
+		document.removeEventListener('fullscreenchange', this._onFullscreenChange)
+		this.bindScrollParent(null, { detach: true })
 	},
 	destroyed () {
 		// TODO destroy observers
@@ -1118,10 +1117,16 @@ export default {
 					this.gridScrollDays = [this.currentDay]
 				}
 				this.prefetchAdjacentScheduleDays(this.currentDay)
-				if (this.userNavigatingToDay === this.currentDay) {
-					this.$nextTick(() => { this.forceScrollDay++ })
-				}
-				this.$nextTick(() => this.maybeLoadNextGridDay())
+				const navigatingTo = this._toolbarDay
+				this.$nextTick(async () => {
+					if (navigatingTo && navigatingTo === this.currentDay) this.forceScrollDay++
+					// A date click has already moved to that day. Prepending the
+					// previous day here pushes it back under the old room bar.
+					if (!navigatingTo) await this.maybeLoadPreviousGridDay()
+					await this.maybeLoadNextGridDay()
+					if (this._toolbarJumpTimer) window.clearTimeout(this._toolbarJumpTimer)
+					this._toolbarJumpTimer = window.setTimeout(() => this.releaseToolbarJump(navigatingTo), 180)
+				})
 				this.pruneFavsAfterCompactCoverage()
 			} catch (error) {
 				console.error('Failed to load schedule day', this.currentDay, error)
@@ -1129,24 +1134,59 @@ export default {
 				this.dayLoading = false
 			}
 		},
+		distanceToScheduleStart () {
+			return readScrollOffset(this.scrollParent)
+		},
+		setScheduleScroll (top) {
+			runWithoutSmoothScroll(this.scrollParent, () => writeScrollOffset(this.scrollParent, top))
+		},
 		distanceToScheduleEnd () {
 			const el = this.scrollParent
-			if (!el || el === document.documentElement || el === document.body) {
-				const doc = document.documentElement
-				return doc.scrollHeight - window.scrollY - window.innerHeight
+			if (isDocumentScroller(el)) {
+				return document.documentElement.scrollHeight - window.scrollY - window.innerHeight
 			}
 			return el.scrollHeight - el.scrollTop - el.clientHeight
 		},
 		scheduleScrollHeight () {
-			const el = this.scrollParent
-			if (!el || el === document.documentElement || el === document.body) {
-				return document.documentElement.scrollHeight
+			if (isDocumentScroller(this.scrollParent)) return document.documentElement.scrollHeight
+			return this.scrollParent.scrollHeight
+		},
+		canExtendCompactGrid () {
+			return this._initialized && this.schedule?.compact && this.showGrid && !this.sessionsMode && !this.scheduleNeedsEveryDay && !this._extendingGrid
+		},
+		async maybeLoadPreviousGridDay () {
+			if (!this.canExtendCompactGrid()) return
+			const distance = this.distanceToScheduleStart()
+			if (distance == null || distance > 480) return
+			const days = this.schedule.days || []
+			const shown = this.gridScrollDays.length ? [...this.gridScrollDays] : (this.currentDay ? [this.currentDay] : [])
+			const first = shown[0]
+			const index = days.indexOf(first)
+			if (index <= 0) return
+			const previous = days[index - 1]
+			const heightBefore = this.scheduleScrollHeight()
+			const scrollBefore = distance
+			this._extendingGrid = true
+			try {
+				await this.ensureScheduleDay(previous, { includeText: false })
+				if (!this.gridScrollDays.includes(previous)) {
+					this.gridScrollDays = [previous, ...shown]
+				}
+				this.prefetchAdjacentScheduleDays(previous)
+				this.pruneFavsAfterCompactCoverage()
+			} catch (error) {
+				console.error('Failed to load the previous schedule day', previous, error)
+				return
+			} finally {
+				this._extendingGrid = false
 			}
-			return el.scrollHeight
+			this.$nextTick(() => {
+				const added = this.scheduleScrollHeight() - heightBefore
+				if (added > 0) this.setScheduleScroll(scrollBefore + added)
+			})
 		},
 		async maybeLoadNextGridDay () {
-			if (!this._initialized || !this.schedule?.compact || !this.showGrid || this.sessionsMode || this.scheduleNeedsEveryDay) return
-			if (this._extendingGrid) return
+			if (!this.canExtendCompactGrid()) return
 			const distance = this.distanceToScheduleEnd()
 			if (distance == null || distance > 640) return
 			const days = this.schedule.days || []
@@ -1308,36 +1348,54 @@ export default {
 				// ignore invalid URL contexts
 			}
 		},
+		bindScrollParent (next, { detach = false } = {}) {
+			window.removeEventListener('scroll', this._onScheduleScroll)
+			window.removeEventListener('resize', this.onWindowResize)
+			this.scrollParent?.removeEventListener('scroll', this._onScheduleScroll)
+			this.scrollParentResizeObserver?.disconnect()
+			this.scrollParentResizeObserver = null
+			if (detach) {
+				this.scrollParent = null
+				return
+			}
+			// null means the document scrolls.
+			this.scrollParent = next || null
+			if (this.scrollParent) {
+				this.scrollParentResizeObserver = new ResizeObserver(this.onScrollParentResize)
+				this.scrollParentResizeObserver.observe(this.scrollParent)
+				this.scrollParentWidth = this.scrollParent.offsetWidth
+				this.scrollParent.addEventListener('scroll', this._onScheduleScroll, { passive: true })
+			} else {
+				window.addEventListener('resize', this.onWindowResize)
+				this.onWindowResize()
+				window.addEventListener('scroll', this._onScheduleScroll, { passive: true })
+			}
+		},
+		syncFullscreenScrollParent () {
+			// Fullscreen turns this element into the scroller. Day jumps and the
+			// active-day observer have to follow that element, then the page scroller again on exit.
+			if (document.fullscreenElement === this.$el) {
+				this.bindScrollParent(this.$el)
+			} else {
+				this.bindScrollParent(this._pageScrollParent || null)
+			}
+			this.$nextTick(() => { this.forceScrollDay++ })
+		},
 		setCurrentDay (day) {
 			const dayStr = day.format('YYYY-MM-DD')
-			if (this.userNavigatingToDay && dayStr !== this.userNavigatingToDay) {
-				return
-			}
-			const matchingDays = this.days.filter(d => d.format('YYYY-MM-DD') === dayStr)
+			if (this._toolbarDay && dayStr !== this._toolbarDay) return
+			const pool = (this.allDays && this.allDays.length) ? this.allDays : (this.days || [])
+			const matchingDays = pool.filter(d => d.format('YYYY-MM-DD') === dayStr)
 			if (!matchingDays.length) return
 			const nextDay = matchingDays[0].format('YYYY-MM-DD')
-			if (nextDay === this.currentDay) {
-				if (this.userNavigatingToDay === nextDay) {
-					this.clearDayNavigationLock()
-				}
-				return
-			}
+			if (nextDay === this.currentDay) return
+			this._fromScrollDay = true
 			this.currentDay = nextDay
-			if (this.userNavigatingToDay === nextDay) {
-				this.clearDayNavigationLock()
+			try {
+				window.history.replaceState(null, null, '#' + nextDay)
+			} catch (e) {
+				window.location.hash = nextDay
 			}
-		},
-		clearDayNavigationLock () {
-			if (this._dayNavTimeout) {
-				clearTimeout(this._dayNavTimeout)
-				this._dayNavTimeout = null
-			}
-			this.userNavigatingToDay = null
-		},
-		beginDayNavigation (dayId) {
-			this.clearDayNavigationLock()
-			this.userNavigatingToDay = dayId
-			this._dayNavTimeout = setTimeout(() => this.clearDayNavigationLock(), 2000)
 		},
 		changeDay (day) {
 			if (day.clone().startOf('day').format('YYYY-MM-DD') === this.currentDay) return
@@ -1348,20 +1406,28 @@ export default {
 				window.location.hash = day.format('YYYY-MM-DD')
 			}
 		},
+		releaseToolbarJump (dayId) {
+			if (this._toolbarDay !== dayId) return
+			this._toolbarDay = null
+			document.documentElement.style.scrollBehavior = ''
+		},
 		selectDay (dayId) {
 			try {
 				window.history.replaceState(null, null, '#' + dayId)
 			} catch (e) {
 				window.location.hash = dayId
 			}
-			if (dayId !== this.currentDay) {
-				this.beginDayNavigation(dayId)
-				this.currentDay = dayId
-			}
+			document.documentElement.style.scrollBehavior = 'auto'
+			this._toolbarDay = dayId
+			const changedDay = dayId !== this.currentDay
+			if (changedDay) this.currentDay = dayId
 			// Always scroll on toolbar click. When the day is already visible,
 			// scroll-sync may have set currentDay with _scrollDayUpdate, which
 			// skips the currentDay watcher — forceScrollDay handles that case.
 			this.forceScrollDay++
+			if (this._toolbarJumpTimer) window.clearTimeout(this._toolbarJumpTimer)
+			// Hold scroll-sync until the jump finishes. A later load shortens this.
+			this._toolbarJumpTimer = window.setTimeout(() => this.releaseToolbarJump(dayId), changedDay ? 2000 : 180)
 		},
 		goToNow() {
 			const todayMoment = this.resolvedNow.clone().tz(this.currentTimezone).startOf('day')
