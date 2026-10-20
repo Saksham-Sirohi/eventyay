@@ -99,11 +99,20 @@ import { required, integer, isJson, url } from 'lib/validators'
 const store = useStore()
 const loaded = ref(false)
 
+const videoProviders = computed(() => store.state.world?.video_providers || window.eventyay?.video_providers || {})
+
+const isProviderEnabledForOrganizer = (provId) => {
+	const prov = videoProviders.value[provId]
+	if (prov === undefined) return true
+	if (prov === false) return false
+	return prov.organizer !== false
+}
+
 const hasGeneral = computed(() => Boolean(store.getters['hasPermission']?.('world:update') || store.getters['isAdminMode']))
-const hasBBB = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.bbb') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
-const hasZoom = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.bbb') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
-const hasJitsi = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.jitsi') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
-const hasJanus = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.chat') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
+const hasBBB = computed(() => Boolean((store.getters['hasPermission']?.('world:rooms.create.bbb') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']) && isProviderEnabledForOrganizer('bbb')))
+const hasZoom = computed(() => Boolean((store.getters['hasPermission']?.('world:rooms.create.bbb') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']) && isProviderEnabledForOrganizer('zoom')))
+const hasJitsi = computed(() => Boolean((store.getters['hasPermission']?.('world:rooms.create.jitsi') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']) && isProviderEnabledForOrganizer('jitsi')))
+const hasJanus = computed(() => Boolean((store.getters['hasPermission']?.('world:rooms.create.chat') || store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']) && isProviderEnabledForOrganizer('janus')))
 const hasStage = computed(() => Boolean(store.getters['hasPermission']?.('world:rooms.create.stage') || store.getters['isAdminMode']))
 const hasInterpretation = computed(() => Boolean(window.eventyay?.plugins?.some(p => p.includes('interpretation'))))
 
