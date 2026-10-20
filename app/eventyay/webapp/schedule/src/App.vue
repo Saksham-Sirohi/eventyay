@@ -1119,11 +1119,14 @@ export default {
 				this.prefetchAdjacentScheduleDays(this.currentDay)
 				const navigatingTo = this._toolbarDay
 				this.$nextTick(async () => {
+					// A newer date click owns the jump. Do not scroll or release that hold.
+					if (this._toolbarDay !== navigatingTo) return
 					if (navigatingTo && navigatingTo === this.currentDay) this.forceScrollDay++
 					// A date click has already moved to that day. Prepending the
 					// previous day here pushes it back under the old room bar.
 					if (!navigatingTo) await this.maybeLoadPreviousGridDay()
 					await this.maybeLoadNextGridDay()
+					if (this._toolbarDay !== navigatingTo) return
 					if (this._toolbarJumpTimer) window.clearTimeout(this._toolbarJumpTimer)
 					this._toolbarJumpTimer = window.setTimeout(() => this.releaseToolbarJump(navigatingTo), 180)
 				})
