@@ -630,10 +630,13 @@ watch(draggedSession, (val) => {
   }
 })
 
+function isUnassignedListClosed(): boolean {
+  return isMobile.value ? isUnassignedCollapsed.value : isSidebarCollapsed.value
+}
+
 function checkIsOverUnassigned(x: number, y: number): boolean {
   if (typeof document === 'undefined') return false
-  // A closed desktop sidebar is not a drop target until the organiser opens it.
-  if (!isMobile.value && isSidebarCollapsed.value) return false
+  if (isUnassignedListClosed()) return false
   if (!cachedUnassignedRect) {
     const el = document.getElementById('unassigned')
     cachedUnassignedRect = el ? el.getBoundingClientRect() : null
@@ -1543,6 +1546,7 @@ function onNewBreakKeydown(event: KeyboardEvent) {
 }
 
 function onUnassignedEnter() {
+  if (isUnassignedListClosed()) return
   isUnassigning.value = true
 }
 
@@ -1635,7 +1639,7 @@ async function unscheduleSession(session: { id: number | string; code?: string |
 
 async function stopDragging(event?: PointerEvent): Promise<void> {
   const session = draggedSession.value
-  const wasOverLeft = isUnassigning.value || (event && checkIsOverUnassigned(event.clientX, event.clientY))
+  const wasOverLeft = !isUnassignedListClosed() && (isUnassigning.value || Boolean(event && checkIsOverUnassigned(event.clientX, event.clientY)))
 
   try {
     if (wasOverLeft && session) {
