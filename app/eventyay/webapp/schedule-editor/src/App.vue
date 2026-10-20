@@ -632,6 +632,8 @@ watch(draggedSession, (val) => {
 
 function checkIsOverUnassigned(x: number, y: number): boolean {
   if (typeof document === 'undefined') return false
+  // A closed desktop sidebar is not a drop target until the organiser opens it.
+  if (!isMobile.value && isSidebarCollapsed.value) return false
   if (!cachedUnassignedRect) {
     const el = document.getElementById('unassigned')
     cachedUnassignedRect = el ? el.getBoundingClientRect() : null
@@ -1580,14 +1582,6 @@ function startNewBreak({ event }: DragStartEvent) {
 
 function startDragging({ event, session }: DragStartEvent) {
   isUnassigning.value = false
-  if (session.start && session.id) {
-    if (isSidebarCollapsed.value) {
-      isSidebarCollapsed.value = false
-    }
-    if (isUnassignedCollapsed.value) {
-      isUnassignedCollapsed.value = false
-    }
-  }
   if (availabilities && availabilities.talks[session.id! ?? 0] && availabilities.talks[session.id! ?? 0].length !== 0) {
     session.availabilities = availabilities.talks[session.id! ?? 0]
   }
