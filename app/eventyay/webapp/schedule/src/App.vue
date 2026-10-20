@@ -1183,6 +1183,8 @@ export default {
 			return this._initialized && this.schedule?.compact && this.showGrid && !this.sessionsMode && !this.scheduleNeedsEveryDay && !this._extendingGrid
 		},
 		async maybeLoadPreviousGridDay () {
+			// A date click is still settling. Inserting the day above would open it over the day that was just chosen.
+			if (this._toolbarDay) return
 			if (!this.canExtendCompactGrid()) return
 			const distance = this.distanceToScheduleStart()
 			if (distance == null || distance > 480) return
@@ -1438,9 +1440,6 @@ export default {
 			if (this._toolbarDay !== dayId) return
 			this._toolbarDay = null
 			document.documentElement.style.scrollBehavior = ''
-			// The jump lands at the top of that day. Load the day above so
-			// scrolling up has something to reveal.
-			this.maybeLoadPreviousGridDay()
 		},
 		selectDay (dayId) {
 			try {
