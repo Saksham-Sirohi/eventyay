@@ -21,6 +21,7 @@ from eventyay.base.settings import (
     is_video_provider_enabled_for_organizer,
 )
 from eventyay.features.live.modules.auth import AuthModule, DROP_EXCESS_CHANNELS_LUA
+from eventyay.features.live.modules.event import EventModule
 
 
 @pytest.fixture
@@ -431,6 +432,26 @@ def test_video_max_connections_setting_and_admin_view(client, admin_user):
     gs.settings.set("video_max_connections_per_user", 0)
 
 
+@pytest.mark.django_db
+def test_create_room_with_module_config_rejects_disabled_provider(sample_event, admin_user):
+    gs = GlobalSettingsObject()
+    gs.settings.set("video_provider_bbb_organizer", False)
+
+    data = {
+        "name": "Test Room BBB",
+        "module_config": [
+            {"type": "call.bigbluebutton", "config": {}}
+        ]
+    }
+
+    try:
+        with pytest.raises(ValidationError) as exc:
+            async_to_sync(create_room)(sample_event, data, creator=admin_user)
+        assert "disabled for room creation" in str(exc.value)
+    finally:
+        gs.settings.set("video_provider_bbb_organizer", True)
+
+
 @pytest.mark.asyncio
 @pytest.mark.django_db
 async def test_enforce_connection_limit_global_fallback():
@@ -543,4 +564,38 @@ async def test_enforce_connection_limit_lua_eval_execution():
                     )
 
 
+@pytest.mark.asyncio
+@pytest.mark.django_db
+async def test_event_config_disabled_provider_filtered_and_rejected():
+    gs = GlobalSettingsObject()
+    await database_sync_to_async(gs.settings.set)("video_provider_bbb_organizer", False)
+
+    consumer = MagicMock()
+    consumer.event = MagicMock()
+    consumer.event.id = 1
+    consumer.event.has_permission_async = AsyncMock(return_value=True)
+    consumer.send_success = AsyncMock()
+    consumer.send_error = AsyncMock()
+
+    module = EventModule(consumer)
+
+    try:
+        # 1. config_get should filter out bbb_defaults
+        with patch(
+            "eventyay.features.live.modules.event._get_serialized_config",
+            AsyncMock(return_value={"title": "Test", "bbb_defaults": {"record": True}}),
+        ):
+            await module.config_get({})
+            sent_data = consumer.send_success.call_args[0][0]
+            assert "bbb_defaults" not in sent_data
+            assert sent_data["title"] == "Test"
+
+        # 2. config_patch should reject bbb_defaults when disabled
+        await module.config_patch({"bbb_defaults": {"record": True}})
+        consumer.send_error.assert_awaited_once_with(
+            code="provider.disabled",
+            message="Video provider 'bbb' is disabled by platform administrator.",
+        )
+    finally:
+        await database_sync_to_async(gs.settings.set)("video_provider_bbb_organizer", True)
 
