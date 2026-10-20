@@ -976,6 +976,28 @@ export default {
 			this.maybeLoadPreviousGridDay()
 			this.maybeLoadNextGridDay()
 		}
+		// At the top, scrolling up does not move the page, so the scroll
+		// listener never runs. Wheel and touch still report that attempt.
+		this._onScheduleWheel = (event) => {
+			if (this._toolbarDay) return
+			if (event.deltaY < 0) this.maybeLoadPreviousGridDay()
+			else if (event.deltaY > 0) this.maybeLoadNextGridDay()
+		}
+		this._onScheduleTouchStart = (event) => {
+			this._scheduleTouchY = event.touches[0]?.clientY
+		}
+		this._onScheduleTouchMove = (event) => {
+			if (this._toolbarDay) return
+			const y = event.touches[0]?.clientY
+			if (y == null || this._scheduleTouchY == null) return
+			const delta = this._scheduleTouchY - y
+			this._scheduleTouchY = y
+			if (delta < -8) this.maybeLoadPreviousGridDay()
+			else if (delta > 8) this.maybeLoadNextGridDay()
+		}
+		window.addEventListener('wheel', this._onScheduleWheel, { passive: true })
+		window.addEventListener('touchstart', this._onScheduleTouchStart, { passive: true })
+		window.addEventListener('touchmove', this._onScheduleTouchMove, { passive: true })
 		this._pageScrollParent = findScrollParent(this.$el.parentElement || this.$el.getRootNode().host)
 		this.bindScrollParent(this._pageScrollParent)
 		this._onFullscreenChange = () => this.syncFullscreenScrollParent()
@@ -985,6 +1007,9 @@ export default {
 		if (this._toolbarJumpTimer) window.clearTimeout(this._toolbarJumpTimer)
 		document.documentElement.style.scrollBehavior = ''
 		document.removeEventListener('fullscreenchange', this._onFullscreenChange)
+		window.removeEventListener('wheel', this._onScheduleWheel)
+		window.removeEventListener('touchstart', this._onScheduleTouchStart)
+		window.removeEventListener('touchmove', this._onScheduleTouchMove)
 		this.bindScrollParent(null, { detach: true })
 	},
 	destroyed () {
@@ -1413,6 +1438,9 @@ export default {
 			if (this._toolbarDay !== dayId) return
 			this._toolbarDay = null
 			document.documentElement.style.scrollBehavior = ''
+			// The jump lands at the top of that day. Load the day above so
+			// scrolling up has something to reveal.
+			this.maybeLoadPreviousGridDay()
 		},
 		selectDay (dayId) {
 			try {
