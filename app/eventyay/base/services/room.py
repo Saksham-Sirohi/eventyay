@@ -336,7 +336,7 @@ def clear_stream_schedules_unless_schedule_driven(room):
     if not room.stream_schedules.exists():
         return False
     room.stream_schedules.all().delete()
-    async_to_sync(broadcast_stream_change)(room.pk, None, reload=True)
+    publish_room_stream_schedule(room)
     return True
 
 
@@ -474,22 +474,41 @@ def normalize_after_priority_change(event, room_id, new_priority):
     )
 
 
-async def broadcast_stream_change(room_id, stream_schedule, reload=False):
+def _serialize_stream_schedule(stream_schedule):
     from eventyay.api.serializers.stream_schedule import StreamScheduleSerializer
 
-    data = None
-    if stream_schedule:
-        serializer = StreamScheduleSerializer(stream_schedule)
-        data = serializer.data
+    if not stream_schedule:
+        return None
+    return StreamScheduleSerializer(stream_schedule).data
 
+
+async def broadcast_stream_change(room_id, stream_schedule, reload=False):
     await get_channel_layer().group_send(
         GROUP_ROOM.format(id=room_id),
         {
             'type': 'room.stream.change',
-            'stream': data,
+            'stream': _serialize_stream_schedule(stream_schedule),
             'reload': reload,
         },
     )
+
+
+async def broadcast_upcoming_stream(room_id, stream_schedule):
+    data = _serialize_stream_schedule(stream_schedule)
+    await get_channel_layer().group_send(
+        GROUP_ROOM.format(id=room_id),
+        {
+            'type': 'room.stream.will_change',
+            'stream': data,
+            'starts_at': data.get('start_time') if data else None,
+        },
+    )
+
+
+def publish_room_stream_schedule(room):
+    """Tell connected clients which stream is live and which one is next."""
+    async_to_sync(broadcast_stream_change)(room.pk, room.get_current_stream(), reload=True)
+    async_to_sync(broadcast_upcoming_stream)(room.pk, room.get_next_stream())
 
 
 @receiver(signal=periodic_task)

@@ -27,7 +27,8 @@ export default {
 			upcomingStream: null,
 			timeUntilStart: 0,
 			countdownInterval: null,
-			fetching: false
+			fetching: false,
+			applyingStart: false
 		}
 	},
 	computed: {
@@ -138,7 +139,7 @@ export default {
 				const headers = { Accept: 'application/json' }
 				if (authHeader) headers.Authorization = authHeader
 
-				const response = await fetch(url, { headers, credentials: 'include' })
+				const response = await fetch(url, { headers, credentials: 'include', cache: 'no-store' })
 				if (response.ok) {
 					const stream = await response.json()
 					if (this.isStreamUpcoming(stream)) {
@@ -171,16 +172,33 @@ export default {
 			this.timeUntilStart = remaining
 
 			if (remaining === 0) {
+				if (this.applyingStart) return
+				this.applyingStart = true
 				const started = this.upcomingStream
+				const roomId = this.room?.id
 				const endMs = started?.end_time ? Date.parse(started.end_time) : NaN
 				const stillActive = !Number.isFinite(endMs) || endMs > nowMs
-				this.clearStream()
-				if (started?.url && stillActive && this.room?.id) {
-					this.$store.commit('setRoomCurrentStream', { roomId: this.room.id, stream: started })
-					this.$store.dispatch('scheduleStreamBoundary', this.room.id)
-				}
-				if (!this.fetching) {
-					this.fetchNextStream()
+				this.upcomingStream = null
+				this.timeUntilStart = 0
+				try {
+					if (started?.url && stillActive && roomId) {
+						try {
+							await this.$store.dispatch('fetchCurrentStream', roomId)
+						} catch (error) {
+							console.warn('Failed to load the current scheduled stream', error)
+						}
+						const room = this.$store.state.rooms?.find(item => item.id === roomId)
+						if (!room?.currentStream?.url) {
+							this.$store.commit('setRoomCurrentStream', { roomId, stream: started })
+							this.$store.dispatch('scheduleStreamBoundary', roomId)
+						}
+					}
+					this.clearStream()
+					if (!this.fetching) {
+						this.fetchNextStream()
+					}
+				} finally {
+					this.applyingStart = false
 				}
 			}
 		}

@@ -378,7 +378,7 @@ export default new Vuex.Store({
 			const headers = { Accept: 'application/json' }
 			if (authHeader) headers.Authorization = authHeader
 
-			const response = await fetch(url, { headers, credentials: 'include' })
+			const response = await fetch(url, { headers, credentials: 'include', cache: 'no-store' })
 			if (!response.ok && response.status !== 404) {
 				const error = new Error(`Failed to fetch current stream: ${response.status}`)
 				error.status = response.status
@@ -740,15 +740,16 @@ export default new Vuex.Store({
 				})
 			}
 		},
-		'api::room.stream.will_change'({state, commit}, {stream, starts_at}) {
+		'api::room.stream.will_change'({state, commit, dispatch}, {stream, starts_at}) {
 			if (!state.activeRoom) return
 			const room = state.rooms.find(r => r.id === state.activeRoom.id)
 			if (!room) return
 			commit('setRoomUpcomingStream', {
 				roomId: room.id,
 				stream,
-				startsAt: starts_at
+				startsAt: starts_at || stream?.start_time || null,
 			})
+			dispatch('scheduleStreamBoundary', room.id)
 		}
 	},
 	modules: {
