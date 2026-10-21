@@ -11,8 +11,8 @@
 </template>
 <script>
 import moment from 'lib/timetravelMoment'
-import { mapState } from 'vuex'
 import api from 'lib/api'
+import { secondsUntilStart } from 'store/streamPolling'
 
 export default {
 	name: 'UpcomingStreamCountdown',
@@ -27,15 +27,10 @@ export default {
 			upcomingStream: null,
 			timeUntilStart: 0,
 			countdownInterval: null,
-			fetching: false,
-			tickOffsetSeconds: 0
+			fetching: false
 		}
 	},
 	computed: {
-		...mapState(['now']),
-		effectiveNow() {
-			return moment(this.now).add(this.tickOffsetSeconds, 'seconds')
-		},
 		eventTimezone() {
 			return this.$store.state.world?.timezone || 'UTC'
 		},
@@ -59,10 +54,6 @@ export default {
 		}
 	},
 	watch: {
-		now() {
-			this.tickOffsetSeconds = 0
-			this.updateCountdown()
-		},
 		room: {
 			handler: 'fetchNextStream',
 			immediate: true
@@ -94,7 +85,7 @@ export default {
 	methods: {
 		getTickIntervalMs() {
 			if (!this.upcomingStream) return 5000
-			return document.visibilityState === 'visible' ? 1000 : 5000
+			return document.visibilityState === 'visible' ? 250 : 5000
 		},
 		startCountdownTimer() {
 			const intervalMs = this.getTickIntervalMs()
@@ -102,7 +93,6 @@ export default {
 				clearInterval(this.countdownInterval)
 			}
 			this.countdownInterval = setInterval(() => {
-				this.tickOffsetSeconds += intervalMs / 1000
 				this.updateCountdown()
 			}, intervalMs)
 		},
@@ -112,8 +102,7 @@ export default {
 		},
 		isStreamUpcoming(stream) {
 			if (!stream || !stream.start_time) return false
-			const startTime = moment(stream.start_time)
-			return startTime.isAfter(this.effectiveNow)
+			return secondsUntilStart(stream.start_time, moment.now()) > 0
 		},
 		syncUpcoming(stream) {
 			this.upcomingStream = stream
@@ -173,14 +162,18 @@ export default {
 				this.timeUntilStart = 0
 				return
 			}
-			const startTime = moment(this.upcomingStream.start_time)
-			const remainingMs = startTime.diff(this.effectiveNow)
-			this.timeUntilStart = remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0
+			const nowMs = moment.now()
+			const remaining = secondsUntilStart(this.upcomingStream.start_time, nowMs)
+			if (remaining == null) {
+				this.timeUntilStart = 0
+				return
+			}
+			this.timeUntilStart = remaining
 
-			if (remainingMs <= 0) {
+			if (remaining === 0) {
 				const started = this.upcomingStream
-				const endTime = started?.end_time ? moment(started.end_time) : null
-				const stillActive = !endTime?.isValid() || endTime.isAfter(this.effectiveNow)
+				const endMs = started?.end_time ? Date.parse(started.end_time) : NaN
+				const stillActive = !Number.isFinite(endMs) || endMs > nowMs
 				this.clearStream()
 				if (started?.url && stillActive && this.room?.id) {
 					this.$store.commit('setRoomCurrentStream', { roomId: this.room.id, stream: started })

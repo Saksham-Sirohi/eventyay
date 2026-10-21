@@ -384,11 +384,12 @@ export default new Vuex.Store({
 			}
 
 			let currentStream = response.status === 404 ? null : await response.json()
-			if (currentStream && !streamIsActive(currentStream)) {
+			const nowMs = moment.now()
+			if (currentStream && !streamIsActive(currentStream, nowMs)) {
 				currentStream = null
 			}
 			// A slot that just started locally must survive a cached "nothing is live" response.
-			if (!streamIsActive(currentStream) && streamIsActive(room.currentStream)) {
+			if (!streamIsActive(currentStream, nowMs) && streamIsActive(room.currentStream, nowMs)) {
 				dispatch('scheduleStreamBoundary', roomId)
 				return
 			}
@@ -419,12 +420,13 @@ export default new Vuex.Store({
 			}
 			if (!roomId || state.activeRoom?.id !== roomId) return
 			const room = state.rooms?.find(r => r.id === roomId)
+			const nowMs = moment.now()
 			const at = earliestFutureMs([
 				room?.currentStream?.end_time,
 				room?.upcomingStream?.start_time,
-			])
+			], nowMs)
 			if (at == null) return
-			const delay = Math.min(Math.max(at - Date.now() + 250, 250), 2147483647)
+			const delay = Math.min(Math.max(at - nowMs + 250, 250), 2147483647)
 			commit('setStreamBoundaryTimer', setTimeout(() => {
 				dispatch('applyStreamBoundary', roomId)
 			}, delay))
@@ -434,7 +436,7 @@ export default new Vuex.Store({
 			if (!state.activeRoom || state.activeRoom.id !== roomId) return
 			const room = state.rooms?.find(r => r.id === roomId)
 			if (!room) return
-			const nowMs = Date.now()
+			const nowMs = moment.now()
 			if (streamIsActive(room.upcomingStream, nowMs)) {
 				commit('setRoomCurrentStream', {roomId, stream: room.upcomingStream})
 			} else if (room.currentStream && !streamIsActive(room.currentStream, nowMs)) {
@@ -707,9 +709,21 @@ export default new Vuex.Store({
 			if (!state.activeRoom) return
 			const room = state.rooms.find(r => r.id === state.activeRoom.id)
 			if (!room) return
+			// A server clock that is slightly ahead must not start playback while the
+			// countdown still has time left. Keep the slot upcoming until its start.
+			if (stream && !streamIsActive(stream, moment.now())) {
+				commit('setRoomUpcomingStream', {
+					roomId: room.id,
+					stream,
+					startsAt: stream.start_time || null,
+				})
+				dispatch('scheduleStreamBoundary', room.id)
+				return
+			}
 			const streamId = stream?.id || null
 			commit('setRoomCurrentStream', { roomId: room.id, stream })
 			commit('setLastKnownStreamId', streamId)
+			dispatch('scheduleStreamBoundary', room.id)
 			if (reload && usesHttpStreamFallback(state.connected)) {
 				dispatch('fetchCurrentStream', room.id).catch(() => {
 					// Stream refresh failures are non-critical

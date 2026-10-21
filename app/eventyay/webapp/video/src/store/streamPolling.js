@@ -27,6 +27,14 @@ export function usesHttpStreamFallback (connected) {
 	return !connected
 }
 
+export function secondsUntilStart (start, nowMs = Date.now()) {
+	const startMs = typeof start === 'number' ? start : Date.parse(start)
+	if (!Number.isFinite(startMs)) return null
+	const remainingMs = startMs - nowMs
+	if (remainingMs <= 0) return 0
+	return Math.ceil(remainingMs / 1000)
+}
+
 export function streamIsActive (stream, nowMs = Date.now()) {
 	if (!stream?.url) return false
 	const start = stream.start_time ? Date.parse(stream.start_time) : NaN

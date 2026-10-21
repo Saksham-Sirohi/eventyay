@@ -11,6 +11,7 @@ import {
 	nextStreamPollDelay,
 	shouldStopAfterTransientErrors,
 	earliestFutureMs,
+	secondsUntilStart,
 	streamIsActive,
 	usesHttpStreamFallback,
 } from './streamPolling.js'
@@ -57,6 +58,16 @@ test('a stream is active only inside its slot', () => {
 	assert.equal(streamIsActive(stream, Date.parse('2026-10-21T12:30:00Z')), false)
 	assert.equal(streamIsActive({...stream, start_time: '2026-10-21T12:05:00Z'}, nowMs), false)
 	assert.equal(streamIsActive(null, nowMs), false)
+})
+
+test('the countdown reaches zero only at the start instant', () => {
+	const start = '2026-10-21T12:00:10Z'
+	const startMs = Date.parse(start)
+	assert.equal(secondsUntilStart(start, startMs - 10000), 10)
+	assert.equal(secondsUntilStart(start, startMs - 1), 1)
+	assert.equal(secondsUntilStart(start, startMs), 0)
+	assert.equal(secondsUntilStart(start, startMs + 500), 0)
+	assert.equal(secondsUntilStart('not-a-date', startMs), null)
 })
 
 test('the next boundary is the soonest future timestamp', () => {
