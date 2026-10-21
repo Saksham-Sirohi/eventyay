@@ -1009,11 +1009,13 @@ export default {
 		this.bindScrollParent(this._pageScrollParent)
 		this._onFullscreenChange = () => this.syncFullscreenScrollParent()
 		document.addEventListener('fullscreenchange', this._onFullscreenChange)
+		document.addEventListener('webkitfullscreenchange', this._onFullscreenChange)
 	},
 	unmounted () {
 		if (this._toolbarJumpTimer) window.clearTimeout(this._toolbarJumpTimer)
 		document.documentElement.style.scrollBehavior = ''
 		document.removeEventListener('fullscreenchange', this._onFullscreenChange)
+		document.removeEventListener('webkitfullscreenchange', this._onFullscreenChange)
 		window.removeEventListener('wheel', this._onScheduleWheel)
 		window.removeEventListener('touchstart', this._onScheduleTouchStart)
 		window.removeEventListener('touchmove', this._onScheduleTouchMove)
@@ -1430,14 +1432,27 @@ export default {
 			}
 		},
 		syncFullscreenScrollParent () {
-			// Fullscreen turns this element into the scroller. Day jumps and the
-			// active-day observer have to follow that element, then the page scroller again on exit.
-			if (document.fullscreenElement === this.$el) {
-				this.bindScrollParent(this.$el)
-			} else {
-				this.bindScrollParent(this._pageScrollParent || null)
-			}
+			// Day jumps follow whichever element is actually fullscreen, then the page scroller again on exit.
+			const scroller = this.fullscreenScroller()
+			if (scroller) this.bindScrollParent(scroller)
+			else this.bindScrollParent(this._pageScrollParent || null)
 			this.$nextTick(() => { this.forceScrollDay++ })
+		},
+		fullscreenScroller () {
+			const root = this.$el
+			if (!root) return null
+			const shadow = typeof root.getRootNode === 'function' ? root.getRootNode() : null
+			// The widget is a custom element. document.fullscreenElement is the
+			// shadow host; the schedule root inside the shadow is the scroller.
+			const inShadow = shadow?.fullscreenElement || shadow?.webkitFullscreenElement || null
+			if (inShadow === root || (inShadow && root.contains(inShadow))) return inShadow
+			const reported = document.fullscreenElement || document.webkitFullscreenElement || null
+			if (reported === root || (reported && root.contains(reported))) return reported
+			const host = shadow?.host
+			if (!host || reported !== host) return null
+			if (root.matches(':fullscreen')) return root
+			if (typeof CSS !== 'undefined' && CSS.supports('selector(:-webkit-full-screen)') && root.matches(':-webkit-full-screen')) return root
+			return host
 		},
 		setCurrentDay (day) {
 			const dayStr = day.format('YYYY-MM-DD')
@@ -1897,13 +1912,20 @@ export default {
 .pretalx-schedule, dialog.pretalx-modal
 	color: rgb(13 15 16)
 
+:host(:fullscreen)
+	background: #fff
+	overflow: auto
+:host(:-webkit-full-screen)
+	background: #fff
+	overflow: auto
+
 .pretalx-schedule
 	display: flex
 	flex-direction: column
 	min-height: 0
 	font-size: 14px
 	--pretalx-clr-text: rgb(13,15,16)
-	&:fullscreen
+	fullscreen-root()
 		background: #fff
 		padding: 0 8px
 		margin: 0
@@ -1912,6 +1934,10 @@ export default {
 		--pretalx-sticky-top-offset: 0px
 		> .c-schedule-toolbar
 			border-bottom: 1px solid $clr-dividers-light
+	&:fullscreen
+		fullscreen-root()
+	&:-webkit-full-screen
+		fullscreen-root()
 	&.grid-schedule
 		overflow-x: clip
 		margin: 0 auto
