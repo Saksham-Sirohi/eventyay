@@ -54,8 +54,8 @@ export default {
 			return `${minutes}:${String(seconds).padStart(2, '0')}`
 		},
 		formattedStartTime() {
-			if (!this.upcomingStream) return ''
-			return moment(this.upcomingStream.start_time).format('HH:mm')
+			if (!this.upcomingStream?.start_time) return ''
+			return moment(this.upcomingStream.start_time).tz(this.eventTimezone).format('h:mm A')
 		}
 	},
 	watch: {
@@ -165,7 +165,11 @@ export default {
 			this.timeUntilStart = Math.max(0, startTime.diff(now, 'seconds'))
 
 			if (this.timeUntilStart === 0 || !this.isStreamUpcoming(this.upcomingStream)) {
+				const started = this.timeUntilStart === 0 ? this.upcomingStream : null
 				this.clearStream()
+				if (started?.url && this.room?.id) {
+					this.$store.commit('setRoomCurrentStream', { roomId: this.room.id, stream: started })
+				}
 				if (!this.fetching) {
 					this.fetchNextStream()
 				}
