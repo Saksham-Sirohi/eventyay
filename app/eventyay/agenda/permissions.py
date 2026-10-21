@@ -12,6 +12,7 @@ def is_agenda_visible(user, event):
         and event.talks_published
         and event.get_feature_flag("show_schedule")
         and event.current_schedule
+        and not event.private_testmode_talks_enabled
     )
 
 
@@ -90,22 +91,24 @@ def is_speaker_viewable(user, profile):
     if not profile:
         return False
     event = getattr(profile, "event", None)
-    if (
-        event
-        and event.get_feature_flag("show_accepted_publicly")
-        and not getattr(event, "private_testmode_talks_enabled", False)
-    ):
-        from eventyay.base.models import SubmissionStates
+    if not event:
+        return False
+    from eventyay.base.models import SubmissionStates
 
-        with scope(event=event):
-            if profile.user.submissions.filter(
+    with scope(event=event):
+        if (
+            event.get_feature_flag("show_accepted_publicly")
+            and not event.private_testmode_talks_enabled
+            and profile.user.submissions.filter(
                 event=event,
                 state__in=SubmissionStates.accepted_states,
-            ).exists():
-                return True
-    is_speaker = profile.user.submissions.filter(
-        slots__schedule=profile.event.current_schedule
-    ).exists()
+            ).exists()
+        ):
+            return True
+        is_speaker = profile.user.submissions.filter(
+            event=event,
+            slots__schedule=profile.event.current_schedule,
+        ).exists()
     return is_speaker and is_agenda_visible(user, profile.event)
 
 
@@ -123,10 +126,4 @@ rules.add_perm("agenda.view_feedback_page", event_uses_feedback & is_submission_
 rules.add_perm(
     "agenda.view_widget",
     is_agenda_visible | is_widget_always_visible | can_change_submissions,
-)
-# Used by the favourites REST API and agenda utility views to gate access
-# to schedule data.  Matches the predicate used for agenda.view_schedule.
-rules.set_perm(
-    "base.list_schedule",
-    is_agenda_visible | can_change_submissions,
 )

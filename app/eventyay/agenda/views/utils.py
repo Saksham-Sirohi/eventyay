@@ -52,6 +52,7 @@ from eventyay.talk_rules.agenda import (
     pending_public_submission_codes_for_speaker,
     public_speakers_list_available,
     require_wip_schedule_access,
+    schedule_exposes_slot_times,
     speaker_may_show_pending_sessions,
     submission_belongs_to_public_featured_speaker,
 )
@@ -867,8 +868,15 @@ def build_enriched_schedule_json(request: HttpRequest, *, wip_preview: bool = Fa
         return '{}'
 
     featured = include_public_featured_speaker_metadata(request.user, event)
+    settings_part = schedule_widget_featured_cache_key_part(event)
+    slots_public = schedule_exposes_slot_times(
+        request.user,
+        event,
+        schedule,
+        preview=wip_preview,
+    )
     if schedule.version:
-        cache_key = f'eagenda:enriched:{schedule.pk}:{int(featured)}'
+        cache_key = f'eagenda:enriched:{schedule.pk}:{int(featured)}:{settings_part}:slots={int(slots_public)}'
         cached = cache.get(cache_key)
         if cached is not None:
             return cached
@@ -878,6 +886,7 @@ def build_enriched_schedule_json(request: HttpRequest, *, wip_preview: bool = Fa
         all_talks=wip_preview or not schedule.version,
         enrich=True,
         include_featured_speaker_metadata=featured,
+        include_scheduled_slots=slots_public,
         respect_public_visibility=not wip_preview,
     )
 
@@ -934,6 +943,8 @@ def build_schedule_json(
     include_text: bool = False,
     on_date=None,
     view_timezone: str | None = None,
+    include_scheduled_slots: bool | None = None,
+    respect_public_visibility: bool = True,
 ) -> str:
     """Build schedule JSON for inline embedding on schedule pages.
 
@@ -949,11 +960,14 @@ def build_schedule_json(
 
     featured = include_public_featured_speaker_metadata(request.user, request.event)
     settings_part = schedule_widget_featured_cache_key_part(request.event)
+    if include_scheduled_slots is None:
+        include_scheduled_slots = schedule_exposes_slot_times(request.user, request.event, schedule)
     language = get_language() or ''
     if schedule.version:
         cache_key = (
             f'eagenda:schedule:{schedule.pk}:{int(featured)}:{settings_part}:'
             f'compact={int(compact)}:text={int(include_text)}:'
+            f'slots={int(include_scheduled_slots)}:'
             f'date={on_date or ""}:tz={view_timezone or ""}:{language}'
         )
         cached = cache.get(cache_key)
@@ -964,6 +978,8 @@ def build_schedule_json(
         'all_talks': not bool(schedule.version),
         'enrich': False,
         'include_featured_speaker_metadata': featured,
+        'include_scheduled_slots': include_scheduled_slots,
+        'respect_public_visibility': respect_public_visibility,
     }
     if compact:
         build_kwargs.update(
@@ -1644,6 +1660,11 @@ def clear_schedule_caches(event, submission=None, speaker=None):
                 keys.append(f'eagenda:schedule:{schedule_pk}:{featured}')
                 keys.append(f'eagenda:schedule:{schedule_pk}:{featured}:{settings_part}')
                 keys.append(f'eagenda:enriched:{schedule_pk}:{featured}')
+                keys.append(f'eagenda:enriched:{schedule_pk}:{featured}:{settings_part}')
+                for slots_public in (0, 1):
+                    keys.append(
+                        f'eagenda:enriched:{schedule_pk}:{featured}:{settings_part}:slots={slots_public}'
+                    )
                 if submission:
                     keys.append(f'eagenda:talk:{schedule_pk}:{submission.code}:{featured}')
                 keys.extend(

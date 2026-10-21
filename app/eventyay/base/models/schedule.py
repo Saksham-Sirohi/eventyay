@@ -1006,6 +1006,7 @@ class Schedule(PretalxModel):
         include_featured_speaker_metadata=True,
         include_qrcodes=False,
         respect_public_visibility=True,
+        include_scheduled_slots=True,
         compact=False,
         on_date=None,
         view_timezone=None,
@@ -1020,6 +1021,10 @@ class Schedule(PretalxModel):
 
         ``respect_public_visibility``: when False, keeps organizer-only field data.
 
+        ``include_scheduled_slots``: when False, omit room and time assignments.
+        Callers that render a public page decide this. Accepted sessions can still
+        be appended as pending entries.
+
         ``submission_codes``: optional collection of submission codes; when given, only those
         talks are included.  Useful for building per-talk or per-speaker slim payloads.
 
@@ -1030,10 +1035,14 @@ class Schedule(PretalxModel):
         """
         talks = self.talks.all()
         if not all_talks:
-            talks = self.talks.filter(is_visible=True)
+            from eventyay.talk_rules.agenda import public_talk_visibility_q
+
+            talks = self.talks.filter(public_talk_visibility_q(self.event))
         if respect_public_visibility:
             talks = talks.filter(room__isnull=False).exclude(room__deleted=True)
         scheduled_slots = talks
+        if not include_scheduled_slots:
+            talks = talks.none()
         if filter_updated:
             talks = talks.filter(updated__gte=filter_updated)
         if submission_codes is not None:
@@ -1312,9 +1321,13 @@ class Schedule(PretalxModel):
             from eventyay.base.models import SubmissionStates
 
             with scope(event=self.event):
-                scheduled_codes = set(
-                    scheduled_slots.exclude(submission__isnull=True).values_list('submission__code', flat=True)
-                )
+                if include_scheduled_slots:
+                    scheduled_codes = set(
+                        scheduled_slots.exclude(submission__isnull=True).values_list('submission__code', flat=True)
+                    )
+                else:
+                    # Placements stay hidden, so those sessions are listed as pending instead.
+                    scheduled_codes = set()
                 sub_qs = self.event.submissions.filter(
                     state__in=SubmissionStates.accepted_states,
                 )

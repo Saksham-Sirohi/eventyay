@@ -235,6 +235,9 @@ class ScheduleToggleAcceptedView(EventPermissionRequired, View):
         flags['show_accepted_publicly'] = is_shown
         event.feature_flags = flags
         event.save(update_fields=['feature_flags'])
+        from eventyay.agenda.views.utils import clear_schedule_caches
+
+        clear_schedule_caches(event)
         log_event('talk', 'feature_flag', OUTCOME_SUCCESS, event_id=event.pk, flag_name='show_accepted_publicly')
 
     def post(self, request, *args, **kwargs):

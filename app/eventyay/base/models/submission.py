@@ -508,7 +508,10 @@ class Submission(GenerateCode, PretalxModel):
             old_state = self.state
             self.state = new_state
             self.pending_state = None
-            update_fields = ['state', 'pending_state']
+            # State changes must move ``updated`` so schedule polling
+            # (``filter_updated``) can see a newly accepted session.
+            self.updated = now()
+            update_fields = ['state', 'pending_state', 'updated']
             if new_state in SubmissionStates.terminal_states:
                 self.is_featured = False
                 update_fields.append('is_featured')
