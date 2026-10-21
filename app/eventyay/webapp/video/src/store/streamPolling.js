@@ -26,3 +26,20 @@ export function streamPollJitter (ms) {
 export function usesHttpStreamFallback (connected) {
 	return !connected
 }
+
+export function streamIsActive (stream, nowMs = Date.now()) {
+	if (!stream?.url) return false
+	const start = stream.start_time ? Date.parse(stream.start_time) : NaN
+	const end = stream.end_time ? Date.parse(stream.end_time) : NaN
+	if (Number.isFinite(start) && start > nowMs) return false
+	if (Number.isFinite(end) && end <= nowMs) return false
+	return true
+}
+
+export function earliestFutureMs (timestamps, nowMs = Date.now()) {
+	const future = timestamps
+		.map((value) => (typeof value === 'number' ? value : Date.parse(value)))
+		.filter((value) => Number.isFinite(value) && value > nowMs)
+	if (!future.length) return null
+	return Math.min(...future)
+}

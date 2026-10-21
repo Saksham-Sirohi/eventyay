@@ -18,6 +18,8 @@ import {
 	nextStreamPollDelay,
 	shouldStopAfterTransientErrors,
 	streamPollJitter,
+	streamIsActive,
+	earliestFutureMs,
 	usesHttpStreamFallback,
 } from './streamPolling'
 
@@ -62,6 +64,7 @@ export default new Vuex.Store({
 		autoplayUserSetting: !localStorage.disableAutoplay ? null : localStorage.disableAutoplay !== 'true',
 		stageStreamCollapsed: false,
 		streamPollInterval: null,
+		streamBoundaryTimer: null,
 		streamVisibilityHandler: null,
 		streamPollingErrorCount: 0,
 		streamPollingRetryDelay: STREAM_POLL_BASE_DELAY,
@@ -189,6 +192,9 @@ export default new Vuex.Store({
 		},
 		setStreamPollInterval(state, streamPollInterval) {
 			state.streamPollInterval = streamPollInterval
+		},
+		setStreamBoundaryTimer(state, streamBoundaryTimer) {
+			state.streamBoundaryTimer = streamBoundaryTimer
 		},
 		resetStreamPollingBackoff(state) {
 			state.streamPollingErrorCount = 0
@@ -377,7 +383,15 @@ export default new Vuex.Store({
 				throw error
 			}
 
-			const currentStream = response.status === 404 ? null : await response.json()
+			let currentStream = response.status === 404 ? null : await response.json()
+			if (currentStream && !streamIsActive(currentStream)) {
+				currentStream = null
+			}
+			// A slot that just started locally must survive a cached "nothing is live" response.
+			if (!streamIsActive(currentStream) && streamIsActive(room.currentStream)) {
+				dispatch('scheduleStreamBoundary', roomId)
+				return
+			}
 			const streamId = currentStream?.id || null
 			const previousStreamId = room.currentStream?.id || null
 			const previousStreamUrl = room.currentStream?.url || null
@@ -386,6 +400,7 @@ export default new Vuex.Store({
 			const previousConfig = JSON.stringify(room.currentStream?.config || {})
 			const currentConfig = JSON.stringify(currentStream?.config || {})
 			if (
+				room.currentStream === undefined ||
 				previousStreamId !== streamId ||
 				previousStreamUrl !== currentStreamUrl ||
 				previousConfig !== currentConfig
@@ -395,6 +410,48 @@ export default new Vuex.Store({
 			if (state.lastKnownStreamId !== streamId) {
 				commit('setLastKnownStreamId', streamId)
 			}
+			dispatch('scheduleStreamBoundary', roomId)
+		},
+		scheduleStreamBoundary({state, commit, dispatch}, roomId) {
+			if (state.streamBoundaryTimer) {
+				clearTimeout(state.streamBoundaryTimer)
+				commit('setStreamBoundaryTimer', null)
+			}
+			if (!roomId || state.activeRoom?.id !== roomId) return
+			const room = state.rooms?.find(r => r.id === roomId)
+			const at = earliestFutureMs([
+				room?.currentStream?.end_time,
+				room?.upcomingStream?.start_time,
+			])
+			if (at == null) return
+			const delay = Math.min(Math.max(at - Date.now() + 250, 250), 2147483647)
+			commit('setStreamBoundaryTimer', setTimeout(() => {
+				dispatch('applyStreamBoundary', roomId)
+			}, delay))
+		},
+		async applyStreamBoundary({state, commit, dispatch}, roomId) {
+			commit('setStreamBoundaryTimer', null)
+			if (!state.activeRoom || state.activeRoom.id !== roomId) return
+			const room = state.rooms?.find(r => r.id === roomId)
+			if (!room) return
+			const nowMs = Date.now()
+			if (streamIsActive(room.upcomingStream, nowMs)) {
+				commit('setRoomCurrentStream', {roomId, stream: room.upcomingStream})
+			} else if (room.currentStream && !streamIsActive(room.currentStream, nowMs)) {
+				commit('setRoomCurrentStream', {roomId, stream: null})
+			}
+			try {
+				await dispatch('fetchCurrentStream', roomId)
+			} catch (error) {
+				logOperational({
+					action: 'stream.poll',
+					outcome: 'failure',
+					backend: 'live',
+					error_code: 'boundary',
+					status: typeof error?.status === 'number' ? error.status : undefined,
+				})
+				dispatch('scheduleStreamBoundary', roomId)
+			}
 		},
 		refreshStreamPolling({state, dispatch}) {
 			if (state.activeRoom?.id) {
@@ -403,10 +460,6 @@ export default new Vuex.Store({
 		},
 		startStreamPolling({state, commit, dispatch}, roomId) {
 			dispatch('stopStreamPolling')
-
-			if (!usesHttpStreamFallback(state.connected)) {
-				return
-			}
 
 			const scheduleNext = (delay) => {
 				commit('setStreamPollInterval', setTimeout(tick, delay))
@@ -420,9 +473,12 @@ export default new Vuex.Store({
 					}
 					return
 				}
+				dispatch('fetchCurrentStream', roomId).catch((error) => {
+					logOperational({action: 'stream.poll', outcome: 'failure', backend: 'live', error_code: 'visibility', status: typeof error?.status === 'number' ? error.status : undefined})
+				})
 				// tick() exits without rescheduling while the tab is hidden; restart
 				// fallback polling when the tab becomes visible again.
-				if (!state.connected) {
+				if (!state.connected && !state.streamPollInterval) {
 					scheduleNext(STREAM_POLL_BASE_DELAY)
 				}
 			}
@@ -465,12 +521,30 @@ export default new Vuex.Store({
 
 			commit('setStreamVisibilityHandler', onVisibilityChange)
 			document.addEventListener('visibilitychange', onVisibilityChange)
-			scheduleNext(streamPollJitter(0))
+			if (usesHttpStreamFallback(state.connected)) {
+				scheduleNext(streamPollJitter(0))
+				return
+			}
+			// The socket does not carry the current slot on join, so load it once.
+			const retryConnectedFetch = () => {
+				dispatch('fetchCurrentStream', roomId).catch((error) => {
+					logOperational({action: 'stream.poll', outcome: 'failure', backend: 'live', error_code: isPermanentStreamPollError(error) ? 'permanent' : 'transient', status: typeof error?.status === 'number' ? error.status : undefined})
+					if (isPermanentStreamPollError(error)) return
+					commit('incrementStreamPollingErrorCount')
+					if (shouldStopAfterTransientErrors(state.streamPollingErrorCount)) return
+					commit('setStreamPollInterval', setTimeout(retryConnectedFetch, 3000))
+				})
+			}
+			retryConnectedFetch()
 		},
 		stopStreamPolling({state, commit}) {
 			if (state.streamPollInterval) {
 				clearTimeout(state.streamPollInterval)
 				commit('setStreamPollInterval', null)
+			}
+			if (state.streamBoundaryTimer) {
+				clearTimeout(state.streamBoundaryTimer)
+				commit('setStreamBoundaryTimer', null)
 			}
 			if (state.streamVisibilityHandler) {
 				document.removeEventListener('visibilitychange', state.streamVisibilityHandler)

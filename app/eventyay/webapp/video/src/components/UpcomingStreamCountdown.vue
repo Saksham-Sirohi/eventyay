@@ -71,12 +71,14 @@ export default {
 			this.startCountdownTimer()
 		},
 		'room.upcomingStream'(stream) {
+			if (stream === this.upcomingStream) return
 			if (this.isStreamUpcoming(stream)) {
 				this.upcomingStream = stream
 				this.updateCountdown()
-			} else {
-				this.clearStream()
+				return
 			}
+			this.upcomingStream = null
+			this.timeUntilStart = 0
 		}
 	},
 	created() {
@@ -113,8 +115,18 @@ export default {
 			const startTime = moment(stream.start_time)
 			return startTime.isAfter(this.effectiveNow)
 		},
+		syncUpcoming(stream) {
+			this.upcomingStream = stream
+			if (!this.room?.id) return
+			this.$store.commit('setRoomUpcomingStream', {
+				roomId: this.room.id,
+				stream,
+				startsAt: stream?.start_time || null,
+			})
+			this.$store.dispatch('scheduleStreamBoundary', this.room.id)
+		},
 		clearStream() {
-			this.upcomingStream = null
+			this.syncUpcoming(null)
 			this.timeUntilStart = 0
 		},
 		async fetchNextStream() {
@@ -141,7 +153,7 @@ export default {
 				if (response.ok) {
 					const stream = await response.json()
 					if (this.isStreamUpcoming(stream)) {
-						this.upcomingStream = stream
+						this.syncUpcoming(stream)
 						this.updateCountdown()
 					} else {
 						this.clearStream()
@@ -150,6 +162,7 @@ export default {
 					this.clearStream()
 				}
 			} catch (error) {
+				console.warn('Failed to load the next scheduled stream', error)
 				this.clearStream()
 			} finally {
 				this.fetching = false
@@ -161,16 +174,17 @@ export default {
 				return
 			}
 			const startTime = moment(this.upcomingStream.start_time)
-			const now = this.effectiveNow
-			this.timeUntilStart = Math.max(0, startTime.diff(now, 'seconds'))
+			const remainingMs = startTime.diff(this.effectiveNow)
+			this.timeUntilStart = remainingMs > 0 ? Math.ceil(remainingMs / 1000) : 0
 
-			if (this.timeUntilStart === 0 || !this.isStreamUpcoming(this.upcomingStream)) {
-				const started = this.timeUntilStart === 0 ? this.upcomingStream : null
+			if (remainingMs <= 0) {
+				const started = this.upcomingStream
 				const endTime = started?.end_time ? moment(started.end_time) : null
 				const stillActive = !endTime?.isValid() || endTime.isAfter(this.effectiveNow)
 				this.clearStream()
 				if (started?.url && stillActive && this.room?.id) {
 					this.$store.commit('setRoomCurrentStream', { roomId: this.room.id, stream: started })
+					this.$store.dispatch('scheduleStreamBoundary', this.room.id)
 				}
 				if (!this.fetching) {
 					this.fetchNextStream()

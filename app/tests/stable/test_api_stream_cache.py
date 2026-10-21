@@ -68,6 +68,50 @@ def test_invalidate_current_stream_cache_forces_lookup():
     assert lookups == [1, 1]
 
 
+def test_current_stream_hot_ttl_expires_when_the_slot_ends():
+    end = now() + dt.timedelta(seconds=5)
+    stream = _fake_stream()
+    stream.end_time = end
+    room = SimpleNamespace(pk=11, get_next_stream=lambda: None)
+    ttl = room_service.current_stream_hot_ttl(room, room_service.serialize_current_stream(stream))
+    assert 1 <= ttl <= 5
+
+
+def test_current_stream_hot_ttl_expires_when_the_next_stream_starts():
+    upcoming = SimpleNamespace(start_time=now() + dt.timedelta(seconds=8))
+    room = SimpleNamespace(pk=12, get_next_stream=lambda: upcoming)
+    ttl = room_service.current_stream_hot_ttl(room, 'none')
+    assert 1 <= ttl <= 8
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+def test_ended_current_stream_cache_is_replaced():
+    from django.core.cache import cache
+
+    cache.clear()
+    ended = _fake_stream()
+    ended.end_time = now() - dt.timedelta(seconds=5)
+    ended.url = 'https://example.com/old.m3u8'
+    fresh = _fake_stream()
+    fresh.url = 'https://example.com/new.m3u8'
+    fresh.end_time = now() + dt.timedelta(hours=1)
+    room = SimpleNamespace(
+        pk=13,
+        get_current_stream=lambda: ended,
+        get_next_stream=lambda: None,
+    )
+    room_service.get_cached_current_stream_data(room)
+    room.get_current_stream = lambda: fresh
+    data = room_service.get_cached_current_stream_data(room)
+    assert data['url'] == 'https://example.com/new.m3u8'
+
+
+def test_stream_http_max_age_shrinks_to_the_slot_end():
+    end = (now() + dt.timedelta(seconds=5)).isoformat()
+    assert room_service.stream_http_max_age({'end_time': end}, 30, 'end_time') <= 5
+    assert room_service.stream_http_max_age({'id': 1}, 30, 'end_time') == 30
+
+
 def test_current_stream_response_sets_cache_headers_and_etag():
     from django.test import RequestFactory
 

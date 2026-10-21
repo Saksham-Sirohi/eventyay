@@ -10,6 +10,8 @@ import {
 	isPermanentStreamPollError,
 	nextStreamPollDelay,
 	shouldStopAfterTransientErrors,
+	earliestFutureMs,
+	streamIsActive,
 	usesHttpStreamFallback,
 } from './streamPolling.js'
 
@@ -42,6 +44,25 @@ test('polling stops after five consecutive transient errors', () => {
 	assert.equal(shouldStopAfterTransientErrors(4), false)
 	assert.equal(shouldStopAfterTransientErrors(5), true)
 	assert.equal(shouldStopAfterTransientErrors(6), true)
+})
+
+test('a stream is active only inside its slot', () => {
+	const nowMs = Date.parse('2026-10-21T12:00:00Z')
+	const stream = {
+		url: 'https://example.com/live',
+		start_time: '2026-10-21T11:00:00Z',
+		end_time: '2026-10-21T12:30:00Z',
+	}
+	assert.equal(streamIsActive(stream, nowMs), true)
+	assert.equal(streamIsActive(stream, Date.parse('2026-10-21T12:30:00Z')), false)
+	assert.equal(streamIsActive({...stream, start_time: '2026-10-21T12:05:00Z'}, nowMs), false)
+	assert.equal(streamIsActive(null, nowMs), false)
+})
+
+test('the next boundary is the soonest future timestamp', () => {
+	const nowMs = Date.parse('2026-10-21T12:00:00Z')
+	assert.equal(earliestFutureMs(['2026-10-21T11:00:00Z', '2026-10-21T12:10:00Z'], nowMs), Date.parse('2026-10-21T12:10:00Z'))
+	assert.equal(earliestFutureMs(['2026-10-21T11:00:00Z'], nowMs), null)
 })
 
 test('fallback polling resumes after websocket disconnect', () => {
