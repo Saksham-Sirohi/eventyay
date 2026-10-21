@@ -20,6 +20,8 @@ import {
 	streamPollJitter,
 	streamIsActive,
 	earliestFutureMs,
+	keepLocalStreamOverEmptyServer,
+	streamStartsInFuture,
 	usesHttpStreamFallback,
 } from './streamPolling'
 
@@ -388,8 +390,9 @@ export default new Vuex.Store({
 			if (currentStream && !streamIsActive(currentStream, nowMs)) {
 				currentStream = null
 			}
-			// A slot that just started locally must survive a cached "nothing is live" response.
-			if (!streamIsActive(currentStream, nowMs) && streamIsActive(room.currentStream, nowMs)) {
+			// A slot that just started locally must survive a cached "nothing is live"
+			// response, but only for the cache window. A later 404 is a real stop.
+			if (keepLocalStreamOverEmptyServer(room.currentStream, currentStream, nowMs)) {
 				dispatch('scheduleStreamBoundary', roomId)
 				return
 			}
@@ -709,14 +712,21 @@ export default new Vuex.Store({
 			if (!state.activeRoom) return
 			const room = state.rooms.find(r => r.id === state.activeRoom.id)
 			if (!room) return
-			// A server clock that is slightly ahead must not start playback while the
-			// countdown still has time left. Keep the slot upcoming until its start.
-			if (stream && !streamIsActive(stream, moment.now())) {
+			const nowMs = moment.now()
+			if (stream && streamStartsInFuture(stream, nowMs)) {
 				commit('setRoomUpcomingStream', {
 					roomId: room.id,
 					stream,
 					startsAt: stream.start_time || null,
 				})
+				dispatch('scheduleStreamBoundary', room.id)
+				return
+			}
+			if (stream && !streamIsActive(stream, nowMs)) {
+				if (!room.currentStream || room.currentStream.id === stream.id) {
+					commit('setRoomCurrentStream', { roomId: room.id, stream: null })
+					commit('setLastKnownStreamId', null)
+				}
 				dispatch('scheduleStreamBoundary', room.id)
 				return
 			}

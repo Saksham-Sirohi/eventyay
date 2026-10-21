@@ -35,6 +35,24 @@ export function secondsUntilStart (start, nowMs = Date.now()) {
 	return Math.ceil(remainingMs / 1000)
 }
 
+export function streamStartsInFuture (stream, nowMs = Date.now()) {
+	if (!stream?.start_time) return false
+	const start = Date.parse(stream.start_time)
+	return Number.isFinite(start) && start > nowMs
+}
+
+// Matches the current-stream HTTP cache lifetime, so a cached 404 just after a
+// slot starts does not wipe the stream that the countdown already applied.
+export const LOCAL_STREAM_GRACE_MS = 30000
+
+export function keepLocalStreamOverEmptyServer (local, server, nowMs = Date.now(), graceMs = LOCAL_STREAM_GRACE_MS) {
+	if (streamIsActive(server, nowMs) || !streamIsActive(local, nowMs)) return false
+	const start = local?.start_time ? Date.parse(local.start_time) : NaN
+	if (!Number.isFinite(start)) return false
+	const elapsed = nowMs - start
+	return elapsed >= 0 && elapsed < graceMs
+}
+
 export function streamIsActive (stream, nowMs = Date.now()) {
 	if (!stream?.url) return false
 	const start = stream.start_time ? Date.parse(stream.start_time) : NaN
