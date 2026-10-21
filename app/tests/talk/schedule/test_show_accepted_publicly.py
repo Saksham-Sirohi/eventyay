@@ -10,7 +10,7 @@ from django_scopes import scope
 from eventyay.agenda.permissions import (
     is_submission_visible_via_accepted as agenda_submission_visible_via_accepted,
 )
-from eventyay.base.models import SpeakerProfile, Submission, SubmissionType
+from eventyay.base.models import SpeakerProfile, Submission, SubmissionType, TalkSlot
 from eventyay.talk_rules.agenda import is_submission_visible_via_accepted
 from eventyay.talk_rules.submission import schedule_widget_featured_cache_key_part
 
@@ -328,6 +328,79 @@ class TestShowAcceptedPubliclyVisibility:
             )
             codes = {talk["code"] for talk in data["talks"] if talk.get("code")}
             assert sub.code in codes
+
+    @pytest.mark.django_db
+    def test_public_unreleased_schedule_hides_private_grid_entries(self, client, rf, event, user, room):
+        from django.contrib.auth.models import AnonymousUser
+
+        from eventyay.agenda.views.utils import build_schedule_json
+
+        request = rf.get('/schedule/')
+        request.user = AnonymousUser()
+        request.event = event
+        with scope(event=event):
+            event.talks_published = False
+            event.feature_flags['show_schedule'] = False
+            event.feature_flags['show_accepted_publicly'] = True
+            event.save()
+            sub_type = SubmissionType.objects.create(event=event, name='Talk')
+            accepted = Submission.objects.create(
+                title='Public Accepted Talk',
+                event=event,
+                submission_type=sub_type,
+                abstract='Abstract',
+                content_locale='en',
+            )
+            accepted.speakers.add(user)
+            accepted.accept()
+            slot = event.wip_schedule.talks.get(submission=accepted)
+            slot.room = room
+            slot.start = event.datetime_from
+            slot.end = event.datetime_from + dt.timedelta(minutes=30)
+            slot.save()
+            TalkSlot.objects.create(
+                schedule=event.wip_schedule,
+                room=room,
+                description='Secret Break',
+                start=event.datetime_from + dt.timedelta(hours=1),
+                end=event.datetime_from + dt.timedelta(hours=1, minutes=15),
+            )
+            schedule = event.wip_schedule
+
+        with scope(event=event):
+            public = json.loads(
+                build_schedule_json(
+                    request,
+                    schedule,
+                    compact=False,
+                    respect_public_visibility=True,
+                    include_scheduled_slots=True,
+                )
+            )
+        public_talks = {item.get('code'): item for item in public['talks'] if item.get('code')}
+        assert accepted.code in public_talks
+        assert public_talks[accepted.code]['room'] == room.pk
+        assert public_talks[accepted.code]['state'] is None
+        assert 'Secret Break' not in json.dumps(public)
+
+        with scope(event=event):
+            preview = json.loads(
+                build_schedule_json(
+                    request,
+                    schedule,
+                    compact=False,
+                    respect_public_visibility=False,
+                    include_scheduled_slots=True,
+                )
+            )
+        assert 'Secret Break' in json.dumps(preview)
+
+        widget = client.get(event.urls.schedule + 'widgets/schedule.json')
+        assert widget.status_code == 200
+        assert 'Secret Break' not in widget.content.decode()
+        widget_talk = next(item for item in widget.json()['talks'] if item.get('code') == accepted.code)
+        assert widget_talk['room'] == room.pk
+        assert widget_talk['state'] is None
 
     @pytest.mark.django_db
     def test_public_wip_schedule_json_refreshes_when_acceptance_changes(

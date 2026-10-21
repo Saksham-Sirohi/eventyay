@@ -115,7 +115,7 @@ def parse_schedule_day(value):
 def schedule_talk_detail(schedule, talk_code, *, preview, include_featured_speaker_metadata, include_scheduled_slots=True):
     """Full public fields for one session. QR codes are a separate request."""
     data = schedule.build_data(
-        all_talks=not schedule.version,
+        all_talks=not schedule.version and preview,
         enrich=True,
         submission_codes={talk_code},
         include_featured_speaker_metadata=include_featured_speaker_metadata,
@@ -230,7 +230,7 @@ def widget_data(request, organizer=None, event=None, version=None, **kwargs):
         response['Access-Control-Allow-Origin'] = '*'
         return response
     result = schedule.build_data(
-        all_talks=not schedule.version,
+        all_talks=not schedule.version and url_preview,
         enrich=enrich,
         include_featured_speaker_metadata=are_featured_speakers_visible(AnonymousUser(), event),
         include_qrcodes=include_qrcodes and not compact,

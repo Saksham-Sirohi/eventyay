@@ -985,7 +985,10 @@ def build_schedule_json(
             return cached
 
     build_kwargs = {
-        'all_talks': not bool(schedule.version),
+        # An unreleased schedule has no version. Organiser previews still need
+        # every grid entry. Public responses use the public slot filter so
+        # unpublished breaks and other private placements stay off the page.
+        'all_talks': not bool(schedule.version) and not respect_public_visibility,
         'enrich': False,
         'include_featured_speaker_metadata': featured,
         'include_scheduled_slots': include_scheduled_slots,
