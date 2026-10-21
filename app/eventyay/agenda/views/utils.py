@@ -71,6 +71,9 @@ from eventyay.talk_rules.submission import (
 JSON_SCRIPT_ESCAPES = {ord('>'): '\\u003E', ord('<'): '\\u003C', ord('&'): '\\u0026'}
 
 CACHE_TTL = 600
+# Public pages can hit the unreleased schedule before the first release.
+# The version in the key drops the entry when schedule data changes.
+PUBLIC_WIP_SCHEDULE_CACHE_TTL = 60
 FEATURED_SESSIONS_PAGE_SIZE = 48
 FEATURED_SESSIONS_SORTS = ('title', 'title_desc', 'popularity')
 
@@ -951,7 +954,8 @@ def build_schedule_json(
     The interactive schedule embeds one compact day (no abstracts, descriptions,
     biographies, exporter URLs, or full-size avatars). List view asks for session
     text because those pages render abstracts. Released schedules are cached for
-    5 minutes keyed on schedule PK; WIP is never cached.
+    5 minutes keyed on schedule PK. The public unreleased schedule is cached
+    briefly and keyed on the schedule cache version. Organiser previews are not.
     """
     if schedule is None:
         schedule = request.event.current_schedule
@@ -963,12 +967,18 @@ def build_schedule_json(
     if include_scheduled_slots is None:
         include_scheduled_slots = schedule_exposes_slot_times(request.user, request.event, schedule)
     language = get_language() or ''
-    if schedule.version:
+    cache_public_wip = respect_public_visibility and not schedule.version
+    if schedule.version or cache_public_wip:
+        version_part = ''
+        if cache_public_wip:
+            version_part = f':ver={get_schedule_cache_version(schedule.event_id)}'
         cache_key = (
             f'eagenda:schedule:{schedule.pk}:{int(featured)}:{settings_part}:'
             f'compact={int(compact)}:text={int(include_text)}:'
             f'slots={int(include_scheduled_slots)}:'
+            f'pub={int(respect_public_visibility)}:'
             f'date={on_date or ""}:tz={view_timezone or ""}:{language}'
+            f'{version_part}'
         )
         cached = cache.get(cache_key)
         if cached is not None:
@@ -992,6 +1002,8 @@ def build_schedule_json(
 
     if schedule.version:
         cache.set(cache_key, result, CACHE_TTL)
+    elif cache_public_wip:
+        cache.set(cache_key, result, PUBLIC_WIP_SCHEDULE_CACHE_TTL)
     return result
 
 

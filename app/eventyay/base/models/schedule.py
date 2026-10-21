@@ -1342,7 +1342,7 @@ class Schedule(PretalxModel):
                         'track',
                         'submission_type',
                     )
-                    .prefetch_related('speakers')
+                    .prefetch_related('speakers', 'tags')
                     .order_by('title')
                 )
                 for sub in sub_qs:

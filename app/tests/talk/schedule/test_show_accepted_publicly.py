@@ -330,6 +330,58 @@ class TestShowAcceptedPubliclyVisibility:
             assert sub.code in codes
 
     @pytest.mark.django_db
+    def test_public_wip_schedule_json_refreshes_when_acceptance_changes(
+        self, rf, event, user, django_capture_on_commit_callbacks
+    ):
+        from django.contrib.auth.models import AnonymousUser
+
+        from eventyay.agenda.views.utils import build_schedule_json
+
+        request = rf.get('/schedule/')
+        request.user = AnonymousUser()
+        request.event = event
+        with scope(event=event):
+            event.feature_flags['show_accepted_publicly'] = True
+            event.save()
+            sub_type = SubmissionType.objects.create(event=event, name='Talk')
+            first = Submission.objects.create(
+                title='First Accepted',
+                event=event,
+                submission_type=sub_type,
+                abstract='Abstract',
+                content_locale='en',
+            )
+            first.speakers.add(user)
+            with django_capture_on_commit_callbacks(execute=True):
+                first.accept()
+            schedule = event.wip_schedule
+
+        with scope(event=event):
+            cached = build_schedule_json(request, schedule, compact=False, respect_public_visibility=True)
+        assert first.code in cached
+
+        with scope(event=event):
+            second = Submission.objects.create(
+                title='Second Accepted',
+                event=event,
+                submission_type=sub_type,
+                abstract='Abstract',
+                content_locale='en',
+            )
+            second.speakers.add(user)
+            with django_capture_on_commit_callbacks(execute=True):
+                second.accept()
+            refreshed = build_schedule_json(request, schedule, compact=False, respect_public_visibility=True)
+        assert second.code in refreshed
+
+        with scope(event=event):
+            with django_capture_on_commit_callbacks(execute=True):
+                second.reject()
+            after_reject = build_schedule_json(request, schedule, compact=False, respect_public_visibility=True)
+        assert second.code not in after_reject
+        assert first.code in after_reject
+
+    @pytest.mark.django_db
     def test_toggle_normalizes_legacy_flag_list(self, orga_client, event):
         event.feature_flags = ["show_schedule"]
         event.save(update_fields=["feature_flags"])
