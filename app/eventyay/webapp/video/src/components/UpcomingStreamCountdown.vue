@@ -166,8 +166,10 @@ export default {
 
 			if (this.timeUntilStart === 0 || !this.isStreamUpcoming(this.upcomingStream)) {
 				const started = this.timeUntilStart === 0 ? this.upcomingStream : null
+				const endTime = started?.end_time ? moment(started.end_time) : null
+				const stillActive = !endTime?.isValid() || endTime.isAfter(this.effectiveNow)
 				this.clearStream()
-				if (started?.url && this.room?.id) {
+				if (started?.url && stillActive && this.room?.id) {
 					this.$store.commit('setRoomCurrentStream', { roomId: this.room.id, stream: started })
 				}
 				if (!this.fetching) {
