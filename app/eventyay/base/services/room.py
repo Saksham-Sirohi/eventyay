@@ -73,7 +73,10 @@ def _seconds_until(value):
     if isinstance(value, dt.datetime):
         moment = value
     else:
-        moment = parse_datetime(str(value))
+        try:
+            moment = parse_datetime(str(value))
+        except ValueError:
+            return None
         if moment is None:
             return None
     if is_naive(moment):

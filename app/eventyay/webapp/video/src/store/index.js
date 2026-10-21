@@ -361,7 +361,7 @@ export default new Vuex.Store({
 			// Use Object.assign so Vue's reactivity proxy tracks the updated key
 			state.user = Object.assign({}, state.user, {show_publicly: newValue})
 		},
-		async fetchCurrentStream({state, getters, commit}, roomId) {
+		async fetchCurrentStream({state, getters, commit, dispatch}, roomId) {
 			if (!roomId) return
 			const room = state.rooms?.find(r => r.id === roomId)
 			if (!room) return

@@ -82,7 +82,13 @@ def get_stale_cached(hot_key, stale_key, loader, hot_ttl, stale_ttl, *, log_cont
 
     stored_ttl = hot_ttl
     if ttl_for_value is not None:
-        stored_ttl = ttl_for_value(value)
+        try:
+            stored_ttl = ttl_for_value(value)
+        except _DB_ERRORS as exc:
+            # The fresh value is already loaded. A TTL lookup must not discard it
+            # for an older stale entry, which can be a slot that has already ended.
+            logger.warning('TTL lookup failed for %s: %s', log_context or hot_key, exc)
+            stored_ttl = hot_ttl
     if not stored_ttl or stored_ttl < 1:
         stored_ttl = 1
     store_hot_and_stale(

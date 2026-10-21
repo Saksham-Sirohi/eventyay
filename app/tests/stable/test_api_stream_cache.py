@@ -110,6 +110,31 @@ def test_stream_http_max_age_shrinks_to_the_slot_end():
     end = (now() + dt.timedelta(seconds=5)).isoformat()
     assert room_service.stream_http_max_age({'end_time': end}, 30, 'end_time') <= 5
     assert room_service.stream_http_max_age({'id': 1}, 30, 'end_time') == 30
+    assert room_service.stream_http_max_age(
+        {'end_time': '2026-02-30T10:00:00+00:00'}, 30, 'end_time'
+    ) == 30
+
+
+@override_settings(CACHES=LOCMEM_CACHE)
+def test_ttl_lookup_database_error_keeps_the_loaded_stream():
+    from django.core.cache import cache
+    from django.db import DatabaseError
+    from eventyay.base.services.stale_cache import get_stale_cached
+
+    cache.clear()
+
+    def fail_ttl(value):
+        raise DatabaseError('next stream lookup failed')
+
+    value = get_stale_cached(
+        'stream:current:21',
+        'stream:current:21:stale',
+        lambda: {'url': 'https://example.com/fresh.m3u8'},
+        60,
+        3600,
+        ttl_for_value=fail_ttl,
+    )
+    assert value['url'] == 'https://example.com/fresh.m3u8'
 
 
 def test_current_stream_response_sets_cache_headers_and_etag():
