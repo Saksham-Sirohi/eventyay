@@ -158,7 +158,7 @@ export default {
 				this.fetching = false
 			}
 		},
-		updateCountdown() {
+		async updateCountdown() {
 			if (!this.upcomingStream) {
 				this.timeUntilStart = 0
 				return
