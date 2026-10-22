@@ -1337,14 +1337,13 @@ class Schedule(PretalxModel):
                     sub_qs = sub_qs.exclude(code__in=scheduled_codes)
                 if filter_updated:
                     sub_qs = sub_qs.filter(updated__gte=filter_updated)
-                sub_qs = (
-                    sub_qs.select_related(
-                        'track',
-                        'submission_type',
-                    )
-                    .prefetch_related('speakers', 'tags')
-                    .order_by('title')
+                sub_qs = sub_qs.select_related(
+                    'track',
+                    'submission_type',
                 )
+                if popularity_enabled:
+                    sub_qs = sub_qs.annotate(_pending_fav_count=Count('favourites'))
+                sub_qs = sub_qs.prefetch_related('speakers', 'tags').order_by('title')
                 for sub in sub_qs:
                     if sub.track:
                         tracks.add(sub.track)
@@ -1362,9 +1361,7 @@ class Schedule(PretalxModel):
                         'duration': sub.get_duration(),
                         'updated': sub.updated.isoformat() if sub.updated else None,
                         'state': None,
-                        'fav_count': (
-                            fav_counts.get(sub.code, 0) if (popularity_enabled and sub) else 0
-                        ),
+                        'fav_count': sub._pending_fav_count if popularity_enabled else 0,
                         'do_not_record': (sub.do_not_record if show_do_not_record else None),
                         'tags': sub.get_tag(),
                         'session_type': sub.submission_type.name,

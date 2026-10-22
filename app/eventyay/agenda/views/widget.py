@@ -207,6 +207,10 @@ def widget_data(request, organizer=None, event=None, version=None, **kwargs):
     include_qrcodes = request.GET.get('qrcodes') in {'1', 'true', 'True'}
     url_preview = version == 'wip'
     show_slots = schedule_exposes_slot_times(request.user, event, schedule, preview=url_preview)
+    # External embeds may show a released timetable while the on-site schedule
+    # stays hidden. That flag does not apply to the public schedule page.
+    if not show_slots and not url_preview and schedule.version and is_widget_visible(request.user, event):
+        show_slots = True
     talk_code = (request.GET.get('talk') or '').strip()
     if talk_code:
         detail = schedule_talk_detail(

@@ -10,7 +10,7 @@ from django_scopes import scope
 from eventyay.agenda.permissions import (
     is_submission_visible_via_accepted as agenda_submission_visible_via_accepted,
 )
-from eventyay.base.models import SpeakerProfile, Submission, SubmissionType, TalkSlot
+from eventyay.base.models import SpeakerProfile, Submission, SubmissionFavourite, SubmissionType, TalkSlot
 from eventyay.talk_rules.agenda import is_submission_visible_via_accepted
 from eventyay.talk_rules.submission import schedule_widget_featured_cache_key_part
 
@@ -403,6 +403,31 @@ class TestShowAcceptedPubliclyVisibility:
         assert widget_talk['state'] is None
 
     @pytest.mark.django_db
+    def test_pending_cards_include_favourite_counts(self, event, user):
+        with scope(event=event):
+            event.feature_flags['show_accepted_publicly'] = True
+            event.feature_flags['session_popularity_enabled'] = True
+            event.save()
+            sub_type = SubmissionType.objects.create(event=event, name='Talk')
+            accepted = Submission.objects.create(
+                title='Favourited Pending Talk',
+                event=event,
+                submission_type=sub_type,
+                abstract='Abstract',
+                content_locale='en',
+            )
+            accepted.speakers.add(user)
+            accepted.accept()
+            SubmissionFavourite.objects.create(user=user, submission=accepted)
+            data = event.wip_schedule.build_data(
+                respect_public_visibility=True,
+                include_scheduled_slots=False,
+            )
+        talk = next(item for item in data['talks'] if item.get('code') == accepted.code)
+        assert talk['schedule_pending'] is True
+        assert talk['fav_count'] == 1
+
+    @pytest.mark.django_db
     def test_public_wip_schedule_json_refreshes_when_acceptance_changes(
         self, rf, event, user, django_capture_on_commit_callbacks
     ):
@@ -624,6 +649,20 @@ class TestShowAcceptedPubliclyEndToEnd:
         assert talk["room"] is None
         assert title in page.content.decode()
         assert str(slot.room.name) not in page.content.decode()
+
+        event.feature_flags["show_widget_if_not_public"] = True
+        event.save()
+        hidden = client.get(event.urls.schedule, HTTP_ACCEPT="text/html")
+        assert hidden.status_code == 200
+        hidden_payload = _inline_schedule_payload(hidden.text)
+        hidden_talk = next(item for item in hidden_payload["talks"] if item.get("code") == code)
+        assert hidden_talk["start"] is None
+        assert hidden_talk["room"] is None
+        widget = client.get(event.urls.schedule + "widgets/schedule.json")
+        assert widget.status_code == 200
+        widget_talk = next(item for item in widget.json()["talks"] if item.get("code") == code)
+        assert widget_talk["start"] is not None
+        assert widget_talk["room"] == slot.room_id
 
         event.feature_flags["show_schedule"] = True
         event.save()

@@ -341,15 +341,16 @@ def schedule_exposes_slot_times(user, event, schedule, *, preview=False) -> bool
     Placed sessions keep those details when the timetable is published, and
     also before the first release while accepted sessions are public. After a
     release, an unpublished timetable stays coming soon: visitors see pending
-    cards until the schedule is published. The WIP preview URL passes
-    ``preview=True``. Sessions that were never placed stay pending either way.
-    Private talk test mode hides both.
+    cards until the schedule is published. The embed widget has its own flag
+    and must not unlock these times on the public schedule. The WIP preview
+    URL passes ``preview=True``. Sessions that were never placed stay pending
+    either way. Private talk test mode hides both.
     """
     if preview:
         return True
     if schedule is None:
         return False
-    if is_agenda_visible(user, event) or is_widget_visible(user, event):
+    if is_agenda_visible(user, event):
         return True
     if not accepted_sessions_publicly_visible(event):
         return False
