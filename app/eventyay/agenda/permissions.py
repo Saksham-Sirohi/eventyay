@@ -1,6 +1,7 @@
 import rules
 from django_scopes import scope
 
+from eventyay.base.models.submission import SubmissionStates
 from eventyay.person.permissions import can_change_submissions
 from eventyay.talk_rules.submission import are_featured_submissions_visible
 
@@ -54,8 +55,6 @@ def is_submission_visible_via_accepted(user, submission):
         or getattr(event, "private_testmode_talks_enabled", False)
     ):
         return False
-    from eventyay.base.models import SubmissionStates
-
     return submission.state in SubmissionStates.accepted_states
 
 
@@ -93,8 +92,6 @@ def is_speaker_viewable(user, profile):
     event = getattr(profile, "event", None)
     if not event:
         return False
-    from eventyay.base.models import SubmissionStates
-
     with scope(event=event):
         if (
             event.get_feature_flag("show_accepted_publicly")

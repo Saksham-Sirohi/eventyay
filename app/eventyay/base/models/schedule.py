@@ -39,6 +39,7 @@ from eventyay.talk_rules.agenda import (
     can_view_wip_schedule,
     is_agenda_visible,
     is_widget_visible,
+    public_talk_visibility_q,
 )
 from eventyay.talk_rules.submission import is_wip, orga_can_change_submissions
 
@@ -1035,8 +1036,6 @@ class Schedule(PretalxModel):
         """
         talks = self.talks.all()
         if not all_talks:
-            from eventyay.talk_rules.agenda import public_talk_visibility_q
-
             talks = self.talks.filter(public_talk_visibility_q(self.event))
         if respect_public_visibility:
             talks = talks.filter(room__isnull=False).exclude(room__deleted=True)
@@ -1089,8 +1088,6 @@ class Schedule(PretalxModel):
             and self.event.get_feature_flag('show_accepted_publicly')
             and not getattr(self.event, 'private_testmode_talks_enabled', False)
         ):
-            from eventyay.base.models import SubmissionStates
-
             with scope(event=self.event):
                 accepted_types = list(
                     self.event.submissions.filter(
@@ -1318,8 +1315,6 @@ class Schedule(PretalxModel):
             and self.event.get_feature_flag('show_accepted_publicly')
             and not getattr(self.event, 'private_testmode_talks_enabled', False)
         ):
-            from eventyay.base.models import SubmissionStates
-
             with scope(event=self.event):
                 if include_scheduled_slots:
                     scheduled_codes = set(

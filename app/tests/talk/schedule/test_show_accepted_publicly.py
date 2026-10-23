@@ -549,13 +549,28 @@ class TestShowAcceptedPubliclyEndToEnd:
             unplaced.speakers.add(user)
             unplaced.accept()
 
-            # Placed on the working schedule, before any release.
+            confirmed = Submission.objects.create(
+                title="Confirmed On The Grid",
+                event=event,
+                submission_type=sub_type,
+                abstract="Ready",
+                content_locale="en",
+            )
+            confirmed.speakers.add(user)
+            confirmed.accept()
+            confirmed.confirm()
+
+            # Placed on the working schedule before any release, without forcing visibility.
             slot = event.wip_schedule.talks.get(submission=accepted)
             slot.room = room
             slot.start = event.datetime_from
             slot.end = event.datetime_from + dt.timedelta(minutes=30)
-            slot.is_visible = True
             slot.save()
+            confirmed_slot = event.wip_schedule.talks.get(submission=confirmed)
+            confirmed_slot.room = room
+            confirmed_slot.start = event.datetime_from + dt.timedelta(hours=1)
+            confirmed_slot.end = event.datetime_from + dt.timedelta(hours=1, minutes=30)
+            confirmed_slot.save()
 
             event.talks_published = False
             event.feature_flags["show_schedule"] = False
@@ -565,6 +580,7 @@ class TestShowAcceptedPubliclyEndToEnd:
             profile = user.profiles.get(event=event)
 
         assert client.get(event.urls.schedule, HTTP_ACCEPT="text/html").status_code == 404
+        assert client.get(event.urls.talks).status_code == 404
 
         event.feature_flags["show_accepted_publicly"] = True
         event.save()
@@ -572,6 +588,7 @@ class TestShowAcceptedPubliclyEndToEnd:
         page = client.get(event.urls.schedule, HTTP_ACCEPT="text/html")
         assert page.status_code == 200
         assert "Accepted Coming Soon" in page.content.decode()
+        assert "Confirmed On The Grid" in page.content.decode()
         assert "Hidden Rejected Talk" not in page.content.decode()
         assert "Hidden Withdrawn Talk" not in page.content.decode()
         payload = _inline_schedule_payload(page.text)
@@ -581,6 +598,11 @@ class TestShowAcceptedPubliclyEndToEnd:
         assert talk["room"] == room.pk
         assert talk.get("schedule_pending") is not True
         assert str(room.name) in page.text
+        confirmed_talk = next(item for item in payload["talks"] if item.get("code") == confirmed.code)
+        assert confirmed_talk["start"] is not None
+        assert confirmed_talk["end"] is not None
+        assert confirmed_talk["room"] == room.pk
+        assert confirmed_talk.get("schedule_pending") is not True
         pending = next(item for item in payload["talks"] if item.get("code") == unplaced.code)
         assert pending["start"] is None
         assert pending["room"] is None
@@ -594,6 +616,14 @@ class TestShowAcceptedPubliclyEndToEnd:
         widget_pending = next(item for item in widget.json()["talks"] if item.get("code") == unplaced.code)
         assert widget_pending["start"] is None
         assert widget_pending["room"] is None
+
+        # /sessions/ redirects to the schedule. The middleware must allow it
+        # while talk pages are still unpublished.
+        sessions = client.get(event.urls.talks, follow=True, HTTP_ACCEPT="text/html")
+        assert sessions.redirect_chain
+        assert sessions.redirect_chain[0][1] == 301
+        assert sessions.status_code == 200
+        assert "Accepted Coming Soon" in sessions.content.decode()
 
         talk_page = client.get(accepted.urls.public)
         assert talk_page.status_code == 200
@@ -701,7 +731,6 @@ class TestShowAcceptedPubliclyEndToEnd:
             slot.room = room
             slot.start = event.datetime_from
             slot.end = event.datetime_from + dt.timedelta(minutes=45)
-            slot.is_visible = True
             slot.save()
             event.talks_published = False
             event.feature_flags["show_schedule"] = False

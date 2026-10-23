@@ -1,4 +1,5 @@
 import rules
+from django.db.models import Q
 from django.http import Http404
 from django_scopes import scope
 
@@ -35,18 +36,17 @@ def accepted_sessions_publicly_visible(event) -> bool:
 def public_talk_visibility_q(event):
     """Slots a public timetable may include.
 
-    Confirmed slots still follow ``is_visible``, which a release sets.
-    A placed accepted session is included as well while this feature is on,
-    because a release only marks confirmed talks visible.
+    A release sets ``is_visible`` only for confirmed talks. Before that, and
+    after a speaker confirms a session that was already placed, accepted and
+    confirmed sessions with a room and time stay on the public timetable.
     """
-    from django.db.models import Q
-
-    from eventyay.base.models import SubmissionStates
+    # submission.py imports this module before SubmissionStates is defined.
+    from eventyay.base.models.submission import SubmissionStates
 
     visibility = Q(is_visible=True)
     if accepted_sessions_publicly_visible(event):
         visibility |= Q(
-            submission__state=SubmissionStates.ACCEPTED,
+            submission__state__in=SubmissionStates.accepted_states,
             start__isnull=False,
             room__isnull=False,
         )
@@ -56,7 +56,8 @@ def public_talk_visibility_q(event):
 def is_submission_visible_via_accepted(user, submission):
     if not submission or not accepted_sessions_publicly_visible(getattr(submission, 'event', None)):
         return False
-    from eventyay.base.models import SubmissionStates
+    # submission.py imports this module before SubmissionStates is defined.
+    from eventyay.base.models.submission import SubmissionStates
 
     return submission.state in SubmissionStates.accepted_states
 
@@ -70,7 +71,8 @@ def submission_belongs_to_public_featured_speaker(user, submission):
         return False
     if not are_featured_speakers_visible(user, event):
         return False
-    from eventyay.base.models import SubmissionStates
+    # submission.py imports this module before SubmissionStates is defined.
+    from eventyay.base.models.submission import SubmissionStates
 
     if submission.state not in SubmissionStates.accepted_states:
         return False
@@ -236,7 +238,8 @@ def speaker_has_public_accepted_submissions(user, profile):
     event = getattr(profile, 'event', None)
     if not accepted_sessions_publicly_visible(event):
         return False
-    from eventyay.base.models import SubmissionStates
+    # submission.py imports this module before SubmissionStates is defined.
+    from eventyay.base.models.submission import SubmissionStates
 
     with scope(event=event):
         return profile.user.submissions.filter(
@@ -360,7 +363,8 @@ def schedule_exposes_slot_times(user, event, schedule, *, preview=False) -> bool
 
 def pending_public_submission_codes_for_speaker(event, user, speaker_code):
     """Submission codes that may appear as coming-soon for this speaker on public pages."""
-    from eventyay.base.models import SubmissionStates
+    # submission.py imports this module before SubmissionStates is defined.
+    from eventyay.base.models.submission import SubmissionStates
 
     profile = _speaker_profile_by_code(event, speaker_code, select_related=('user', 'event'))
     if not profile:
@@ -409,6 +413,7 @@ PUBLIC_ACCEPTED_SCHEDULE_URLS = frozenset(
     {
         'schedule',
         'schedule-nojs',
+        'talks',
         'widget.data',
         'widget.data.legacy',
         'export.schedule.json',
