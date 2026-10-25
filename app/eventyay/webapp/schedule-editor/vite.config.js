@@ -81,7 +81,7 @@ export default {
 	  fs: {
 		allow: [
 			path.resolve(dirname),
-			path.resolve(dirname, '../../locale'),
+			path.resolve(dirname, '../locales'),
 			path.resolve(dirname, '../i18n'),
 		]
 	  }
