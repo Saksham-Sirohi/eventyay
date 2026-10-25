@@ -10,9 +10,6 @@ localecompile:
 localegen:
 	./manage.py makemessages --keep-pot $(LNGS)
 	./manage.py makemessages --keep-pot -d djangojs $(LNGS)
-	npm run i18n:extract --prefix=eventyay/webapp/video
-	npm run i18n:extract --prefix=eventyay/webapp/schedule
-	npm run i18n:extract --prefix=eventyay/webapp/schedule-editor
 
 staticfiles: jsi18n
 	./manage.py collectstatic --noinput
