@@ -70,7 +70,12 @@ export function createI18nRuntime({
 		const lng = toDjangoLanguage(language) || 'en'
 		try {
 			if (!isEnglishLocale(lng) && !i18n.hasResourceBundle(lng, 'translation')) {
-				i18n.addResourceBundle(lng, 'translation', await readCatalog(lng), true, true)
+				const catalog = await readCatalog(lng)
+				i18n.addResourceBundle(lng, 'translation', catalog, true, true)
+				const formatted = i18n.services?.languageUtils?.formatLanguageCode?.(lng)
+				if (formatted && formatted !== lng) {
+					i18n.addResourceBundle(formatted, 'translation', catalog, true, true)
+				}
 			}
 			await i18n.changeLanguage(isEnglishLocale(lng) ? 'en' : lng)
 		} catch (error) {
