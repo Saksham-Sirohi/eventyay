@@ -10,6 +10,7 @@
     "lint": "eslint . --ext .js,.vue",
     "lint:fix": "eslint . --ext .js,.vue --fix",
     "test:i18n": "node --test \"../i18n/*.test.js\"",
+    "i18n:extract": "node ../i18n/extract.js",
     "analyze": "ANALYZE=true vite build"
   },
   "dependencies": {

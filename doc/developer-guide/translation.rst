@@ -98,6 +98,25 @@ Weblate maintains these webapps as a single JSON component:
 * Template for new translations: ``app/eventyay/webapp/locales/en.json``
 * Source language: English (``en``)
 
+Extracting Strings
+~~~~~~~~~~~~~~~~~~
+
+To extract new UI strings from Vue and JavaScript components across all webapps,
+run from ``app/``:
+
+.. code-block:: bash
+
+   make localegen
+
+Or run directly from any webapp directory (``video``, ``schedule``, or ``schedule-editor``):
+
+.. code-block:: bash
+
+   npm run i18n:extract
+
+This scans all Vue and JS components and updates ``app/eventyay/webapp/locales/en.json``
+with newly introduced translation keys.
+
 
 .. _translate.eventyay.com: https://translate.eventyay.com
 .. _eventyay project page: https://translate.eventyay.com/projects/eventyay/
