@@ -822,6 +822,11 @@ export default {
 	beforeUnmount() {
 		if (this.queueTimer) clearInterval(this.queueTimer)
 		if (this._popperInstance) this._popperInstance.destroy()
+		if (this.$store.state.chat?.call) {
+			this.$store.dispatch('chat/leaveCall').catch(err => {
+				console.warn('Failed to leave chat call during room exit:', err)
+			})
+		}
 	},
 	methods: {
 		formatTime(momentDate) {
