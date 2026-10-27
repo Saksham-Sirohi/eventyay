@@ -326,6 +326,9 @@ class EventModule(BaseModule):
     @command("auditlog.list")
     @require_event_permission(Permission.EVENT_UPDATE)
     async def auditlog_get(self, body):
+        if body is not None and not isinstance(body, dict):
+            await self.consumer.send_error("command.error", "Invalid request body")
+            return
         body = body or {}
         search = body.get("search") or body.get("search_term") or ""
         result = await get_audit_log(

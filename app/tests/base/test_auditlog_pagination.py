@@ -198,3 +198,42 @@ async def test_get_audit_log_invalid_page():
         assert result["page"] == 999
         assert result["results"] == []
         assert result["isLastPage"] is True
+
+
+@pytest.mark.asyncio
+async def test_event_module_auditlog_get_invalid_body_shape():
+    consumer = MagicMock()
+    consumer.user = MagicMock()
+    consumer.event = MagicMock()
+    consumer.event.has_permission_async = AsyncMock(return_value=True)
+    consumer.send_error = AsyncMock()
+
+    module = EventModule(consumer)
+
+    with patch("eventyay.features.live.modules.event.get_audit_log") as mock_get:
+        await module.auditlog_get("not-a-dict")
+        consumer.send_error.assert_awaited_once_with("command.error", "Invalid request body")
+        mock_get.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_audit_log_service_page_size_capping():
+    event = MagicMock()
+    event.id = "event_123"
+
+    mock_qs = MagicMock()
+    mock_qs.prefetch_related.return_value = mock_qs
+    mock_qs.order_by.return_value = mock_qs
+    mock_qs.count.return_value = 0
+    mock_qs.__len__.return_value = 0
+    mock_qs.__getitem__.side_effect = lambda s: []
+
+    with patch.object(AuditLog.objects, "filter", return_value=mock_qs):
+        # 200 should be allowed
+        result = await get_audit_log(event, page=1, page_size=200)
+        assert result["page_size"] == 200
+
+        # > 200 should be capped at 200
+        result_capped = await get_audit_log(event, page=1, page_size=500)
+        assert result_capped["page_size"] == 200
+

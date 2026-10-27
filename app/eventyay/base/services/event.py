@@ -873,9 +873,13 @@ def get_audit_log(event, page=1, page_size=50, search="", order="desc"):
         qs = AuditLog.objects.filter(event_id=event.id).prefetch_related("user")
 
         if search:
-            qs = qs.annotate(data_text=Cast("data", TextField())).filter(
+            qs = qs.annotate(
+                data_text=Cast("data", TextField()),
+                user_id_text=Cast("user_id", TextField()),
+            ).filter(
                 Q(type__icontains=search)
                 | Q(user__profile__display_name__icontains=search)
+                | Q(user_id_text__icontains=search)
                 | Q(data_text__icontains=search)
             )
 
@@ -884,7 +888,7 @@ def get_audit_log(event, page=1, page_size=50, search="", order="desc"):
         qs = qs.order_by(order_field, secondary_field)
 
         try:
-            page_size = max(1, min(int(page_size), 100))
+            page_size = max(1, min(int(page_size), 200))
         except (ValueError, TypeError):
             page_size = 50
 

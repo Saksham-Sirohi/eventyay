@@ -22,7 +22,12 @@
 				) {{ $t('Current page') }}
 	.auditlog-list
 		.header
-			.timestamp.sortable(@click="toggleSort", :title="$t('Sort by timestamp')")
+			button.timestamp.sortable(
+				type="button",
+				@click="toggleSort",
+				:title="$t('Sort by timestamp')",
+				:aria-label="order === 'desc' ? $t('Sort ascending') : $t('Sort descending')"
+			)
 				span {{ $t('Timestamp') }}
 				span.sort-indicator {{ order === 'desc' ? '▼' : '▲' }}
 			.user {{ $t('User') }}
@@ -50,14 +55,15 @@
 					.timestamp {{ moment(entry.timestamp).format('L LT') }}
 					.user
 						template(v-if="entry.user")
-							avatar.avatar(:user="entry.user", :size="22")
+							avatar.avatar(v-if="entry.user.profile && (entry.user.profile.display_name || entry.user.profile.avatar)", :user="entry.user", :size="22")
 							.name {{ entry.user.profile?.display_name || entry.user.id }}
 						.name.empty-user(v-else) –
 					.type(:title="entry.type") {{ entry.type }}
 					.data(:title="formatData(entry.data)") {{ formatData(entry.data) }}
 	.pagination-bar(v-if="entries !== null")
 		.record-info
-			span(v-if="totalRecords > 0") {{ $t('Showing') }} {{ recordRangeStart }}–{{ recordRangeEnd }} {{ $t('of') }} {{ totalRecords }} {{ $t('records') }}
+			span(v-if="searchScope === 'page' && search.trim()") {{ $t('Showing') }} {{ displayedEntries.length }} {{ $t('matches on this page (of') }} {{ totalRecords }} {{ $t('total)') }}
+			span(v-else-if="totalRecords > 0") {{ $t('Showing') }} {{ recordRangeStart }}–{{ recordRangeEnd }} {{ $t('of') }} {{ totalRecords }} {{ $t('records') }}
 			span(v-else) {{ $t('0 records') }}
 		.pagination-controls
 			.page-size-selector
@@ -68,9 +74,10 @@
 						@change="onPageSizeChange",
 						:aria-label="$t('Records per page')"
 					)
-						option(:value="25") 25
+						option(:value="20") 20
 						option(:value="50") 50
 						option(:value="100") 100
+						option(:value="200") 200
 					svg.select-arrow(viewBox="0 0 12 12", width="10", height="10", aria-hidden="true")
 						path(d="M2.5 4.5L6 8L9.5 4.5", fill="none", stroke="currentColor", stroke-width="1.5", stroke-linecap="round", stroke-linejoin="round")
 			.nav-buttons
@@ -140,7 +147,7 @@ export default {
 			currentPage: 1,
 			totalPages: 1,
 			totalRecords: 0,
-			pageSize: 25,
+			pageSize: 50,
 			order: 'desc',
 			loading: false,
 			debouncedSearch: null,
@@ -154,6 +161,7 @@ export default {
 				const q = this.search.trim().toLowerCase()
 				return this.entries.filter(entry =>
 					entry.user?.profile?.display_name?.toLowerCase()?.includes(q) ||
+					String(entry.user?.id || '').toLowerCase().includes(q) ||
 					entry.type?.toLowerCase()?.includes(q) ||
 					JSON.stringify(entry.data)?.toLowerCase()?.includes(q)
 				)
@@ -204,7 +212,10 @@ export default {
 		setSearchScope(scope) {
 			if (this.searchScope === scope) return
 			this.searchScope = scope
-			if (this.search.trim() && scope === 'all') {
+			if (this.debouncedSearch) {
+				this.debouncedSearch.cancel()
+			}
+			if (this.search.trim()) {
 				this.currentPage = 1
 				this.fetchEntries()
 			}
@@ -263,7 +274,7 @@ export default {
 			} catch (e) {
 				if (this.currentRequestId === requestId) {
 					console.error('Failed to fetch audit log entries', e)
-					if (!this.entries) this.entries = []
+					this.entries = []
 					this.totalRecords = 0
 					this.totalPages = 1
 				}
@@ -404,9 +415,21 @@ export default {
 				display: flex
 				align-items: center
 				gap: 4px
+				background: transparent
+				border: none
+				padding: 0 10px
+				font-size: inherit
+				font-family: inherit
+				font-weight: inherit
+				color: inherit
+				text-align: left
 
 				&:hover
 					color: $clr-primary
+
+				&:focus-visible
+					outline: 2px solid $clr-primary
+					outline-offset: -2px
 
 				.sort-indicator
 					font-size: 10px
