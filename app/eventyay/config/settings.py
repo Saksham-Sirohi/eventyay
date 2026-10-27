@@ -119,6 +119,9 @@ class BaseSettings(_BaseSettings):
     email_use_tls: bool = True
     default_from_email: str = 'info@eventyay.com'
     allowed_hosts: list[str] = []
+    # Extra origins allowed to call /api/v1/ cross-site (e.g. a local check-in app
+    # "http://localhost:8085"). The production check-in app is always allowed.
+    cors_allowed_origins: list[str] = []
     # Used by "Talk" (pretalx). Not sure why it is named like this.
     core_modules: Annotated[tuple[str, ...], Field(default_factory=tuple)]
     # The MultiDomainMiddleware is depending on SITE_URL.
@@ -412,15 +415,11 @@ CORE_MODULES = (
 # read API responses. Widget views set their own Access-Control-Allow-Origin,
 # and only on an unguessable cart namespace.
 # Keep the production origin in sync with CHECKIN_APP_PRODUCTION_URL.
+# Further origins (other front-ends, local development) are configured per
+# instance via ``cors_allowed_origins`` instead of being hardcoded here.
 CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOW_CREDENTIALS = False
-CORS_ALLOWED_ORIGINS = ['https://access.eventyay.com']
-if conf.npm_dev and conf.plugin_dev_mode:
-    # Local Vite check-in app. Port matches eventyay.control.checkin_app.
-    CORS_ALLOWED_ORIGINS += [
-        'http://localhost:8085',
-        'http://127.0.0.1:8085',
-    ]
+CORS_ALLOWED_ORIGINS = ['https://access.eventyay.com', *conf.cors_allowed_origins]
 CORS_URLS_REGEX = r'^/api/v1/'
 CORS_ALLOW_HEADERS = [*default_headers, 'exhibitor']
 

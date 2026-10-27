@@ -47,3 +47,8 @@ def test_allowlist_does_not_cover_other_routes():
     for path in ('/login/', '/organizer/event/widget/aaaaaaaaaaaaaaaa/'):
         response = cors_response(path, 'https://access.eventyay.com')
         assert 'Access-Control-Allow-Origin' not in response
+
+
+def test_extra_origins_come_from_configuration(settings):
+    assert settings.CORS_ALLOWED_ORIGINS[0] == 'https://access.eventyay.com'
+    assert not any(origin.startswith('http://localhost') for origin in settings.CORS_ALLOWED_ORIGINS)
