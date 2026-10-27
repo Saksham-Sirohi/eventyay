@@ -4,22 +4,32 @@
 		bunt-icon-button(@click="$router.push({name: 'organizer'})", :tooltip="$t('Back to Overview')", tooltip-placement="bottom-start", :tooltip-fixed="true") arrow-left
 		h1 {{ $t('Logs') }}
 		.actions
-			.search-wrapper
-				bunt-input.search(name="search", :placeholder="$t('Search log')", icon="search", v-model="search")
-				bunt-progress-circular.search-spinner(v-if="loading", size="20")
-			.scope-toggle
-				button.btn-scope(
-					type="button",
-					:class="{active: searchScope === 'all'}",
-					:title="$t('Search across all records on the server')",
-					@click="setSearchScope('all')"
-				) {{ $t('All records') }}
-				button.btn-scope(
-					type="button",
-					:class="{active: searchScope === 'page'}",
-					:title="$t('Filter only records on current page')",
-					@click="setSearchScope('page')"
-				) {{ $t('Current page') }}
+			.search-bar
+				bunt-progress-circular.search-spinner(v-if="loading", size="18", role="status", :aria-label="$t('Loading')")
+				i.mdi.mdi-magnify.search-icon(v-else)
+				input.search-input(
+					type="text",
+					name="search",
+					:placeholder="$t('Search log')",
+					v-model="search",
+					autocomplete="off",
+					:aria-label="$t('Search log')"
+				)
+				.scope-toggle
+					button.btn-scope(
+						type="button",
+						:class="{active: searchScope === 'all'}",
+						:aria-pressed="searchScope === 'all'",
+						:title="$t('Search across all records on the server')",
+						@click="setSearchScope('all')"
+					) {{ $t('All records') }}
+					button.btn-scope(
+						type="button",
+						:class="{active: searchScope === 'page'}",
+						:aria-pressed="searchScope === 'page'",
+						:title="$t('Filter only records on current page')",
+						@click="setSearchScope('page')"
+					) {{ $t('Current page') }}
 	.auditlog-list
 		.header
 			button.timestamp.sortable(
@@ -33,7 +43,7 @@
 			.user {{ $t('User') }}
 			.type {{ $t('Action type') }}
 			.data {{ $t('Data') }}
-		bunt-progress-circular.main-loading(v-if="entries === null", size="huge", :page="true")
+		bunt-progress-circular.main-loading(v-if="entries === null", size="huge", :page="true", role="status", :aria-label="$t('Loading')")
 		.empty-state(v-else-if="displayedEntries.length === 0")
 			p {{ $t('No audit logs found') }}
 		RecycleScroller.tbody.bunt-scrollbar(
@@ -50,7 +60,8 @@
 					role="button",
 					:aria-label="`Log entry ${entry.type}`",
 					@click.prevent="detailsPrompt = entry",
-					@keydown.enter.self.prevent="detailsPrompt = entry"
+					@keydown.enter.self.prevent="detailsPrompt = entry",
+					@keydown.space.self.prevent="detailsPrompt = entry"
 				)
 					.timestamp {{ moment(entry.timestamp).format('L LT') }}
 					.user
@@ -85,26 +96,30 @@
 					type="button",
 					:disabled="currentPage <= 1 || loading",
 					@click="goToPage(1)",
-					:title="$t('First page')"
+					:title="$t('First page')",
+					:aria-label="$t('First page')"
 				) «
 				button.btn-nav(
 					type="button",
 					:disabled="currentPage <= 1 || loading",
 					@click="goToPage(currentPage - 1)",
-					:title="$t('Previous page')"
+					:title="$t('Previous page')",
+					:aria-label="$t('Previous page')"
 				) ‹
 				span.page-indicator {{ $t('Page') }} {{ currentPage }} {{ $t('of') }} {{ totalPages }}
 				button.btn-nav(
 					type="button",
 					:disabled="currentPage >= totalPages || loading",
 					@click="goToPage(currentPage + 1)",
-					:title="$t('Next page')"
+					:title="$t('Next page')",
+					:aria-label="$t('Next page')"
 				) ›
 				button.btn-nav(
 					type="button",
 					:disabled="currentPage >= totalPages || loading",
 					@click="goToPage(totalPages)",
-					:title="$t('Last page')"
+					:title="$t('Last page')",
+					:aria-label="$t('Last page')"
 				) »
 	teleport(to="body")
 		transition(name="prompt")
@@ -308,57 +323,110 @@ export default {
 		.actions
 			display: flex
 			align-items: center
-			gap: 10px
 			margin-left: auto
 			flex-wrap: nowrap
 
-			.search-wrapper
-				position: relative
-				width: 280px
+			.search-bar
 				display: flex
 				align-items: center
+				width: 380px
+				max-width: 100%
+				height: 34px
+				border: 1px solid #cbd5e1
+				border-radius: 6px
+				background-color: #ffffff
+				box-sizing: border-box
+				padding: 2px 2px 2px 8px
+				transition: border-color 0.15s ease, box-shadow 0.15s ease
 
-				.search
-					input-style(size: compact)
-					padding: 0
-					margin: 0
-					width: 100%
+				&:focus-within
+					border-color: $clr-primary
+					box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.15)
+
+				.search-icon
+					font-size: 18px
+					color: #94a3b8
+					margin-right: 4px
+					flex: none
+					line-height: 1
+					pointer-events: none
+					width: 18px
+					height: 18px
+					display: inline-flex
+					align-items: center
+					justify-content: center
 
 				.search-spinner
-					position: absolute
-					right: 8px
-					z-index: 2
-					pointer-events: none
+					margin-right: 4px
+					flex: none
+					width: 18px
+					height: 18px
 
-			.scope-toggle
-				display: inline-flex
-				align-items: center
-				border-radius: 6px
-				background-color: #f1f5f9
-				padding: 2px
-				border: 1px solid #cbd5e1
-
-				.btn-scope
+				.search-input
+					flex: 1 1 auto
+					min-width: 0
+					height: 100%
 					border: none
+					outline: none
 					background: transparent
-					padding: 4px 10px
-					font-size: 12px
-					font-weight: 500
-					color: #64748b
-					cursor: pointer
+					padding: 0 4px
+					font-size: 12.5px
+					color: #1e293b
+
+					&::placeholder
+						color: #94a3b8
+
+				.scope-toggle
+					display: inline-flex
+					align-items: center
+					background-color: #f1f5f9
+					padding: 2px
 					border-radius: 4px
-					transition: all 0.15s ease
-					white-space: nowrap
+					flex: none
+					height: 26px
+					box-sizing: border-box
 
-					&:hover:not(.active)
-						color: #1e293b
-						background-color: rgba(255, 255, 255, 0.5)
+					.btn-scope
+						border: none
+						background: transparent
+						padding: 2px 8px
+						font-size: 11.5px
+						font-weight: 500
+						color: #64748b
+						cursor: pointer
+						border-radius: 3px
+						transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease
+						white-space: nowrap
+						line-height: 18px
+						display: inline-flex
+						align-items: center
+						justify-content: center
 
-					&.active
-						background: #ffffff
-						color: $clr-primary
-						font-weight: 600
-						box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08)
+						&:hover:not(.active)
+							color: #0f172a
+							background-color: rgba(255, 255, 255, 0.6)
+
+						&.active
+							background: #ffffff
+							color: $clr-primary
+							font-weight: 500
+							box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08)
+
+	@media (max-width: 560px)
+		.ui-page-header
+			height: auto
+			min-height: 56px
+			flex-wrap: wrap
+			padding-top: 8px
+			padding-bottom: 8px
+
+			.actions
+				flex: 1 1 100%
+				min-width: 0
+				margin-left: 0
+
+				.search-bar
+					width: 100%
 
 	.auditlog-list
 		flex-table()
