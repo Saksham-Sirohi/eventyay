@@ -177,8 +177,11 @@
 					| .
 
 		.interpretation-plugin-language-streams(v-if="showPluginLanguageStreams && isInterpretationFeatureAvailable")
+			.info-alert.warning(v-if="interpretationAdmin && interpretationAdmin.streamsLoadFailed")
+				i.mdi.mdi-alert-circle-outline(aria-hidden="true")
+				span {{ $t('Failed to load interpretation channels. Changes cannot be saved until reloaded successfully.') }}
 			LanguageAudioSourceList(
-				v-if="interpretationConfig.room_enabled && (interpretationConfig.interpreter === 'voxbento' || interpretationConfig.interpreter === 'manual')"
+				v-else-if="interpretationConfig.room_enabled && (interpretationConfig.interpreter === 'voxbento' || interpretationConfig.interpreter === 'manual')"
 				:title="$t('Interpretation channels')"
 				:entries="pluginLanguageStreamEntries"
 				:roomId="roomId"
@@ -358,9 +361,8 @@ export default defineComponent({
 
 				const data = await response.json()
 				if (data.ui_sync_supported) {
-					const hasManualStreams = Array.isArray(data.language_streams) && data.language_streams.length > 0
 					let interpreter = data.interpreter === 'none' ? '' : (data.interpreter || '')
-					const roomEnabled = Boolean(data.room_enabled || (hasManualStreams && (!interpreter || interpreter === 'none')))
+					const roomEnabled = Boolean(data.room_enabled)
 					if (!interpreter || interpreter === 'none') {
 						interpreter = 'manual'
 					}
@@ -392,10 +394,11 @@ export default defineComponent({
 			const url = interpretationApiUrl(this.$store, roomId, 'config/')
 			const headers = await interpretationAuthHeaders(true)
 			
-			const isManual = !this.interpretationConfig.room_enabled || this.interpretationConfig.interpreter === 'manual'
 			const payload = {
-				room_enabled: isManual ? false : this.interpretationConfig.room_enabled,
-				interpreter: isManual ? 'none' : this.interpretationConfig.interpreter
+				room_enabled: this.interpretationConfig.room_enabled,
+				interpreter: this.interpretationConfig.room_enabled
+					? (this.interpretationConfig.interpreter || 'manual')
+					: 'none'
 			}
 			
 			try {
