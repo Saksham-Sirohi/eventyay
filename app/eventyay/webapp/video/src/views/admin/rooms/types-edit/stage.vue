@@ -163,14 +163,13 @@
 						| {{ $t('Interpretation Provider') }}
 						span.required-star *
 					.custom-interpreter-select
-						select.interpreter-select(v-model="interpretationConfig.interpreter", :class="{'has-error': interpretationPutError || availableInterpreters.length === 0}", :disabled="availableInterpreters.length === 0")
-							option(v-if="availableInterpreters.length === 0" value="" disabled hidden) {{ $t('No providers connected') }}
+						select.interpreter-select(v-model="interpretationConfig.interpreter", :class="{'has-error': interpretationPutError}")
+							option(v-if="selectableInterpreters.length === 0" value="" disabled hidden) {{ $t('No providers available') }}
 							option(v-else value="" disabled hidden) {{ $t('Select a provider') }}
-							option(v-for="provider in availableInterpreters" :key="provider.id" :value="provider.id") {{ provider.label }}
+							option(v-for="provider in selectableInterpreters" :key="provider.id" :value="provider.id") {{ provider.label }}
 						i.mdi.mdi-chevron-down.dropdown-arrow(aria-hidden="true")
 					.field-error(v-if="interpretationPutError") {{ interpretationPutError }}
-					.field-error(v-else-if="availableInterpreters.length === 0") {{ $t('No interpretation providers are currently connected to this event. Please connect one in the Plugin Settings first.') }}
-			.info-alert(v-if="interpretationConfig.room_enabled")
+			.info-alert(v-if="interpretationConfig.room_enabled && interpretationConfig.interpreter === 'voxbento'")
 				i.mdi.mdi-information(aria-hidden="true")
 				span
 					| {{ $t('Note: To manage advanced settings like LLM choices, API key management, and streaming languages, visit the') }} 
@@ -179,14 +178,14 @@
 
 		.interpretation-plugin-language-streams(v-if="showPluginLanguageStreams && isInterpretationFeatureAvailable")
 			LanguageAudioSourceList(
-				v-if="interpretationConfig.room_enabled && interpretationConfig.interpreter === 'voxbento'"
+				v-if="interpretationConfig.room_enabled && (interpretationConfig.interpreter === 'voxbento' || interpretationConfig.interpreter === 'manual')"
 				:title="$t('Interpretation channels')"
 				:entries="pluginLanguageStreamEntries"
 				:roomId="roomId"
 				:settingsRoute="{ name: 'admin:interpretation', query: { room: roomId }, hash: '#room-' + roomId }"
-				:translationModelSetup="!!interpretationConfig.translation_model"
+				:translationModelSetup="interpretationConfig.interpreter === 'voxbento' ? !!interpretationConfig.translation_model : true"
 			)
-			.tool-section.skeleton-provider-layout(v-else-if="interpretationConfig.room_enabled && interpretationConfig.interpreter && interpretationConfig.interpreter !== 'voxbento' && interpretationConfig.interpreter !== 'none'")
+			.tool-section.skeleton-provider-layout(v-else-if="interpretationConfig.room_enabled && interpretationConfig.interpreter && interpretationConfig.interpreter !== 'voxbento' && interpretationConfig.interpreter !== 'manual' && interpretationConfig.interpreter !== 'none'")
 				.tool-section-header
 					h3 {{ $t('Interpretation channels') }}
 					p.subtitle {{ $t('Configuration layout is specific to the selected service.') }}
@@ -283,6 +282,18 @@ export default defineComponent({
 		pluginLanguageStreamEntries() {
 			return this.interpretationAdmin?.languageStreams ?? []
 		},
+		selectableInterpreters() {
+			this.$store.state.userLocale
+			const list = [
+				{ id: 'manual', label: this.$t('Manual / Custom Streams') }
+			]
+			for (const p of this.availableInterpreters) {
+				if (p.id !== 'none' && p.id !== 'manual') {
+					list.push(p)
+				}
+			}
+			return list
+		},
 	},
 	created() {
 		this.initStreams()
@@ -299,6 +310,12 @@ export default defineComponent({
 			handler() {
 				this.fetchInterpretationConfig()
 			}
+		},
+		'interpretationConfig.room_enabled'(enabled) {
+			if (enabled && (!this.interpretationConfig.interpreter || this.interpretationConfig.interpreter === 'none')) {
+				this.interpretationConfig.interpreter = 'manual'
+			}
+			this.interpretationPutError = null
 		}
 	},
 	methods: {
@@ -341,9 +358,15 @@ export default defineComponent({
 
 				const data = await response.json()
 				if (data.ui_sync_supported) {
+					const hasManualStreams = Array.isArray(data.language_streams) && data.language_streams.length > 0
+					let interpreter = data.interpreter === 'none' ? '' : (data.interpreter || '')
+					const roomEnabled = Boolean(data.room_enabled || (hasManualStreams && (!interpreter || interpreter === 'none')))
+					if (!interpreter || interpreter === 'none') {
+						interpreter = 'manual'
+					}
 					this.interpretationConfig = {
-						room_enabled: data.room_enabled,
-						interpreter: data.interpreter === 'none' ? '' : (data.interpreter || ''),
+						room_enabled: roomEnabled,
+						interpreter,
 						translation_model: data.translation_model || ''
 					}
 					this.availableInterpreters = (data.available_interpreters || []).filter(p => p.id !== 'none' && p.configured && !p.is_disconnected)
@@ -369,9 +392,10 @@ export default defineComponent({
 			const url = interpretationApiUrl(this.$store, roomId, 'config/')
 			const headers = await interpretationAuthHeaders(true)
 			
+			const isManual = !this.interpretationConfig.room_enabled || this.interpretationConfig.interpreter === 'manual'
 			const payload = {
-				room_enabled: this.interpretationConfig.room_enabled,
-				interpreter: this.interpretationConfig.interpreter
+				room_enabled: isManual ? false : this.interpretationConfig.room_enabled,
+				interpreter: isManual ? 'none' : this.interpretationConfig.interpreter
 			}
 			
 			try {
@@ -728,7 +752,7 @@ export default defineComponent({
 
 			if (this.syncStatus === 'ready') {
 				const interpreter = this.interpretationConfig.interpreter
-				const validIds = this.availableInterpreters.map(p => p.id)
+				const validIds = this.selectableInterpreters.map(p => p.id)
 				if (this.interpretationConfig.room_enabled && (!interpreter || interpreter === 'none')) {
 					this.interpretationPutError = this.$t('An interpreter must be selected to enable interpretation for this room.')
 					isValid = false
