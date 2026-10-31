@@ -396,9 +396,7 @@ export default defineComponent({
 			
 			const payload = {
 				room_enabled: this.interpretationConfig.room_enabled,
-				interpreter: this.interpretationConfig.room_enabled
-					? (this.interpretationConfig.interpreter || 'manual')
-					: 'none'
+				interpreter: this.interpretationConfig.interpreter || (this.interpretationConfig.room_enabled ? 'manual' : 'none')
 			}
 			
 			try {
